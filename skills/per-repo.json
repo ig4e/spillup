@@ -1,0 +1,62 @@
+{
+  "_comment": "Stack-specific skills, installed into a repo (not globally) by `spinup repo <path> --apply`. A rule fires when any `files` glob matches, or a package.json depends on any `packages`, and (if set) a matched file contains any `contains` string. See docs/WHY.md.",
+  "rules": [
+    {
+      "stack": "Go",
+      "files": ["go.mod"],
+      "skills": {"samber/cc-skills-golang": ["golang-error-handling", "golang-testing", "golang-lint"]}
+    },
+    {
+      "stack": "Go gRPC / Connect",
+      "files": ["go.mod"],
+      "contains": ["google.golang.org/grpc", "connectrpc.com/connect"],
+      "skills": {"samber/cc-skills-golang": ["golang-grpc"]}
+    },
+    {
+      "stack": "Next.js",
+      "packages": ["next"],
+      "note": "Next ships its own agent docs: on Next < 16.3 run `npx @next/codemod@canary agents-md` once; 16.3+ writes AGENTS.md on `next dev`."
+    },
+    {
+      "stack": "React",
+      "packages": ["react"],
+      "skills": {"vercel-labs/agent-skills": ["vercel-react-best-practices", "vercel-composition-patterns"]}
+    },
+    {
+      "stack": "shadcn/ui",
+      "files": ["components.json"],
+      "skills": {"shadcn/ui": ["shadcn"]}
+    },
+    {
+      "stack": "Better Auth",
+      "packages": ["better-auth"],
+      "skills": {"better-auth/skills": ["better-auth-best-practices"]}
+    },
+    {
+      "stack": "Turborepo",
+      "files": ["turbo.json"],
+      "skills": {"vercel/turborepo": ["turborepo"]}
+    },
+    {
+      "stack": "Effect",
+      "packages": ["effect"],
+      "skills": {"Effect-TS/skills": ["effect-ts"]},
+      "note": "effect-ts points the agent at node_modules/effect/AGENTS.md."
+    },
+    {
+      "stack": "Flutter",
+      "files": ["pubspec.yaml"],
+      "skills": {"flutter/skills": ["flutter-apply-architecture-best-practices", "flutter-add-widget-test"]}
+    },
+    {
+      "stack": ".NET",
+      "files": ["*.csproj", "*.sln", "*.slnx"],
+      "skills": {"Aaronontheweb/dotnet-skills": ["csharp-api-design"]}
+    },
+    {
+      "stack": "Rust",
+      "files": ["Cargo.toml"],
+      "note": "No skill worth adding; describe the build/test workflow (e.g. ./x) in AGENTS.md."
+    }
+  ]
+}
