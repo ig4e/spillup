@@ -174,16 +174,18 @@ type testMachine struct {
 	// own: the model families the machine serves with its own logins, through ownProxy.
 	own      []string
 	ownProxy *fakeProxy
-	dir      string
-	front    string
-	peerAPI  string
-	m        *Machine
-	logbook  *logbook
-	proxy    *fakeProxy
-	lib      library.Library
-	applied  atomic.Int32
-	stop     context.CancelFunc
-	done     chan struct{}
+	// dashboard: the machine serves a dashboard over the tailnet that answers with its name.
+	dashboard bool
+	dir       string
+	front     string
+	peerAPI   string
+	m         *Machine
+	logbook   *logbook
+	proxy     *fakeProxy
+	lib       library.Library
+	applied   atomic.Int32
+	stop      context.CancelFunc
+	done      chan struct{}
 }
 
 type testTailnet struct {
@@ -238,6 +240,12 @@ func (tn *testTailnet) start(tm *testMachine) {
 	}
 	if tm.hold.CanHold() {
 		o.Proxy, o.Secrets.ManagementPassword = tm.proxy, "m"
+	}
+	if tm.dashboard {
+		name := tm.name
+		o.Dashboard = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "dashboard of %s at %s", name, r.URL.Path)
+		})
 	}
 	if len(tm.own) > 0 {
 		cfg.OwnModels, cfg.OwnProxyPort = tm.own, freePort(tn.t)

@@ -20,6 +20,7 @@ import (
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/source"
 	"github.com/darkyeg/spinup/internal/tailnet"
+	"github.com/darkyeg/spinup/internal/webui"
 )
 
 type daemonCmd struct {
@@ -53,6 +54,9 @@ func (c daemonCmd) Run() error {
 		}
 	}
 	withOwnProxy(&o, cfg, logger)
+	if token, err := uiToken(); err == nil {
+		o.Dashboard = webui.New(cliBackend{}, token).BridgeHandler()
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go hostDashboard(ctx, cfg.UIPort, logger)

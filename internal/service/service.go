@@ -56,6 +56,9 @@ type Options struct {
 	// OwnProxy holds this machine's own logins (Config.OwnModels); PrepareOwnProxy writes its config before each start.
 	OwnProxy        Proxy
 	PrepareOwnProxy func() error
+	// Dashboard is this machine's dashboard API for the main machine's dashboard; the tailnet reaches it at
+	// /spinup/ui/ with a key. Nil keeps the dashboard local.
+	Dashboard http.Handler
 }
 
 // Machine is this machine running spinup: it wires the units that each own one part of its state.
@@ -150,8 +153,10 @@ func (m *Machine) Run(ctx context.Context) error {
 	defer srv.Close()
 	m.log.Printf("spinup %s on %s (hold: %s)", m.o.Version, m.o.FrontListen, m.hold())
 
-	if m.hold().CanHold() {
+	if m.hold().CanHold() || m.o.Dashboard != nil {
 		go m.servePeers(ctx)
+	}
+	if m.hold().CanHold() {
 		go m.watchSleep(ctx)
 	}
 	if m.library != nil {

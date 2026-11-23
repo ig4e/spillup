@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"runtime"
+	"strconv"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
@@ -104,6 +109,34 @@ func (cliBackend) OwnManagement() (proxy.Management, error) {
 		return proxy.Management{}, err
 	}
 	return proxy.Management{Port: cfg.OwnProxyPort, Key: s.APIKey}, nil
+}
+
+func (cliBackend) Remote(machine string) (webui.Remote, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return webui.Remote{}, errNotInstalled
+	}
+	s, err := config.LoadSecrets(cfg)
+	if err != nil {
+		return webui.Remote{}, err
+	}
+	if s.ManagementPassword == "" {
+		return webui.Remote{}, errors.New("only the main machine and standbys can open other machines' dashboards")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st, err := tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
+	if err != nil {
+		return webui.Remote{}, fmt.Errorf("Tailscale: %w", err)
+	}
+	node, ok := st.Peer(machine)
+	if !ok || node.IP == "" {
+		return webui.Remote{}, fmt.Errorf("%s isn't on your tailnet", machine)
+	}
+	h := http.Header{}
+	h.Set(api.KeyHeader, s.ManagementPassword)
+	h.Set(api.APIKeyHeader, s.APIKey)
+	return webui.Remote{Base: &url.URL{Scheme: "http", Host: net.JoinHostPort(node.IP, strconv.Itoa(cfg.Port))}, Header: h}, nil
 }
 
 func (cliBackend) Panel(target string) (webui.Panel, error) {

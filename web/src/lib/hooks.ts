@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { currentRemote, subscribeRemote } from "./api";
 import type { Done } from "./types";
 
 export interface Query<T> {
@@ -110,4 +111,9 @@ export function useTheme(): [Theme, (t: Theme) => void] {
     return () => dark.removeEventListener("change", follow);
   }, [theme]);
   return [theme, setTheme];
+}
+
+/** The machine whose dashboard is shown, or null for this one. */
+export function useRemote() {
+  return useSyncExternalStore(subscribeRemote, currentRemote);
 }

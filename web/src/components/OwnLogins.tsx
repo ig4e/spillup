@@ -3,7 +3,7 @@ import { Bot, Code2, LogIn, Orbit, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { describeLogin, relative } from "../lib/format";
-import { useQuery } from "../lib/hooks";
+import { useQuery, useRemote } from "../lib/hooks";
 import type { Family, OwnState } from "../lib/types";
 import { Group, IconTile, Row, type Tint } from "./ui";
 
@@ -19,6 +19,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function OwnLogins() {
   const own = useQuery(api.own, 5000);
   const [busy, setBusy] = useState<string | null>(null);
+  const remote = useRemote();
   const data = own.data;
   if (!data) return null;
 
@@ -123,7 +124,10 @@ export function OwnLogins() {
                   />
                 ))
               : null}
-            {on ? (
+            {on && remote ? (
+              <Row icon={<span className="size-7" />} title={<span className="text-muted">Sign in from {remote} itself: the sign-in finishes in a browser there.</span>} />
+            ) : null}
+            {on && !remote ? (
               <Row
                 icon={<span className="flex size-7 items-center justify-center text-accent"><LogIn className="size-4" /></span>}
                 title={busy === `signin-${f}` ? "Waiting for the browser…" : `Sign In to ${look.provider}${mine.length ? " with Another Account" : ""}…`}

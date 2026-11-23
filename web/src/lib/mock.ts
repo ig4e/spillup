@@ -119,8 +119,14 @@ const doctor: Doctor = {
   ],
 };
 
-export async function mock(method: string, path: string, body: any): Promise<unknown> {
+export async function mock(method: string, fullPath: string, body: any): Promise<unknown> {
   await wait();
+  const viewing = fullPath.match(/^remote\/([^/]+)\//)?.[1];
+  const path = viewing ? fullPath.slice(fullPath.indexOf("/", 7) + 1) : fullPath;
+  if (viewing && method === "GET" && path === "overview") {
+    const o = overview();
+    return { ...o, name: decodeURIComponent(viewing), hold: "never", can_manage: false, os: "windows", service: { ...o.service!, name: decodeURIComponent(viewing), hold: "never", leading: false, accounts: [] } };
+  }
   if (method === "GET" && path.startsWith("own/signin?")) return { status: "ok" };
   if (method === "GET") {
     switch (path) {

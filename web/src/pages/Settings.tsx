@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useOverview } from "../App";
 import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, holdName, osName } from "../components/ui";
 import { api } from "../lib/api";
-import { useTheme, type Theme } from "../lib/hooks";
+import { useRemote, useTheme, type Theme } from "../lib/hooks";
 import type { Keys } from "../lib/types";
 
 export function SettingsPage() {
   const { data } = useOverview();
   const [theme, setTheme] = useTheme();
+  const remote = useRemote();
   return (
     <>
       <LargeTitle title="Settings" />
@@ -35,7 +36,7 @@ export function SettingsPage() {
         />
       </Group>
 
-      <KeysGroup />
+      {remote ? null : <KeysGroup />}
 
       <Group
         title="Accounts Service"

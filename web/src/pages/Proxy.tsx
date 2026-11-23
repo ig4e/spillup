@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useOverview } from "../App";
 import { Group, IconTile, LargeTitle, Row } from "../components/ui";
 import { api } from "../lib/api";
-import { useQuery } from "../lib/hooks";
+import { useQuery, useRemote } from "../lib/hooks";
 
 type Target = "shared" | "own";
 
@@ -13,11 +13,12 @@ const mocked = import.meta.env.VITE_MOCK === "1";
 /** CLIProxyAPI's own dashboard, served through spillup so it opens signed in. */
 export function ProxyPage() {
   const { data } = useOverview();
+  const remote = useRemote();
   const own = useQuery(api.own);
   const canShared = !!data?.can_manage;
   const canOwn = !!own.data?.families.length;
   const [picked, setPicked] = useState<Target | null>(null);
-  const target: Target | null = picked ?? (canShared ? "shared" : canOwn ? "own" : null);
+  const target: Target | null = remote ? null : (picked ?? (canShared ? "shared" : canOwn ? "own" : null));
 
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col">
@@ -50,7 +51,11 @@ export function ProxyPage() {
           </>
         }
       />
-      {!target ? (
+      {remote ? (
+        <Group footer={`CLIProxyAPI's dashboard only opens on the machine it runs on. Open spillup on ${remote} for it.`}>
+          <Row icon={<IconTile icon={Server} color="gray" />} title={<span className="text-muted">Not available from another machine</span>} />
+        </Group>
+      ) : !target ? (
         <Group footer="The shared accounts' dashboard needs the password that only the main machine and standbys keep. Turn on a separate sign-in under Accounts to get this machine's own.">
           <Row icon={<IconTile icon={Server} color="gray" />} title={<span className="text-muted">No CLIProxyAPI dashboard on this machine</span>} />
         </Group>

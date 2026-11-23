@@ -1,11 +1,11 @@
 import { Alert, Button, Dropdown, Label, ListBox, Select } from "@heroui/react";
-import { ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
+import { AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
 import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, holdName, osName, osTile } from "../components/ui";
-import { api } from "../lib/api";
+import { api, currentRemote, setRemote } from "../lib/api";
 import { relative } from "../lib/format";
-import { useAction, useQuery } from "../lib/hooks";
+import { navigate, useAction, useQuery } from "../lib/hooks";
 import type { Machine } from "../lib/types";
 
 export function MachinesPage() {
@@ -137,6 +137,7 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
   const actions = [
     canHold && m.hold !== "hub" ? { id: "main", label: "Make Main Machine", icon: Crown } : null,
     canHold && !m.leading && m.online ? { id: "move", label: "Move Accounts Here Now", icon: ArrowRightLeft } : null,
+    !m.is_self && m.online && !currentRemote() ? { id: "open", label: "Open Dashboard", icon: AppWindow } : null,
   ].filter((a): a is NonNullable<typeof a> => !!a);
 
   const status = m.expired ? "Tailscale login expired" : m.online ? "Online" : `Offline · seen ${relative(m.last_seen)}`;
@@ -175,7 +176,16 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
                 <Ellipsis className="size-4 text-muted" />
               </Button>
               <Dropdown.Popover placement="bottom end">
-                <Dropdown.Menu onAction={(key) => (key === "main" ? onMakeMain() : onMoveHere())}>
+                <Dropdown.Menu
+                  onAction={(key) => {
+                    if (key === "main") onMakeMain();
+                    else if (key === "move") onMoveHere();
+                    else {
+                      setRemote(m.name);
+                      navigate("/");
+                    }
+                  }}
+                >
                   {actions.map((a) => (
                     <Dropdown.Item key={a.id} id={a.id} textValue={a.label}>
                       <a.icon className="size-4" />

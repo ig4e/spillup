@@ -11,7 +11,33 @@ export class ApiError extends Error {
 
 const mocked = import.meta.env.VITE_MOCK === "1";
 
-async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+// The machine whose dashboard this one shows; null is this machine. Its calls travel through this
+// machine's service, which adds the keys.
+let remote: string | null = new URLSearchParams(window.location.search).get("machine");
+const remoteListeners = new Set<() => void>();
+
+export function setRemote(machine: string | null) {
+  remote = machine;
+  const url = new URL(window.location.href);
+  if (machine) url.searchParams.set("machine", machine);
+  else url.searchParams.delete("machine");
+  window.history.replaceState(null, "", url);
+  remoteListeners.forEach((l) => l());
+}
+
+export function subscribeRemote(l: () => void) {
+  remoteListeners.add(l);
+  return () => {
+    remoteListeners.delete(l);
+  };
+}
+
+export const currentRemote = () => remote;
+
+const routed = (path: string, local?: boolean) => (remote && !local ? `remote/${encodeURIComponent(remote)}/${path}` : path);
+
+async function call<T>(method: "GET" | "POST", target: string, body?: unknown, local?: boolean): Promise<T> {
+  const path = routed(target, local);
   if (mocked) {
     const { mock } = await import("./mock");
     return mock(method, path, body) as Promise<T>;
@@ -34,6 +60,8 @@ const post = (path: string, body?: unknown) => call<Done>("POST", path, body);
 export const api = {
   overview: () => call<Overview>("GET", "overview"),
   machines: () => call<Machines>("GET", "machines"),
+  localMachines: () => call<Machines>("GET", "machines", undefined, true),
+  localOverview: () => call<Overview>("GET", "overview", undefined, true),
   doctor: () => call<Doctor>("GET", "doctor"),
   skills: () => call<Skills>("GET", "skills"),
   keys: () => call<Keys>("GET", "keys"),

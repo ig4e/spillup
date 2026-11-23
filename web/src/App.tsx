@@ -1,9 +1,9 @@
-import { Alert, Toast } from "@heroui/react";
-import { Gauge, KeyRound, Network, Server, Settings, Sparkles, Stethoscope, type LucideIcon } from "lucide-react";
+import { Alert, Dropdown, Label, Toast } from "@heroui/react";
+import { ChevronsUpDown, Eye, Gauge, KeyRound, Network, Server, Settings, Sparkles, Stethoscope, type LucideIcon } from "lucide-react";
 import { createContext, useContext } from "react";
 import { Dot, IconTile, holdName, type Tint } from "./components/ui";
-import { api } from "./lib/api";
-import { navigate, usePath, useQuery, type Query } from "./lib/hooks";
+import { api, setRemote } from "./lib/api";
+import { navigate, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
 import { DoctorPage } from "./pages/Doctor";
@@ -41,6 +41,12 @@ const pages: Page[] = [
 ];
 
 export default function App() {
+  const remote = useRemote();
+  return <Fleet key={remote ?? ""} remote={remote} />;
+}
+
+/** Everything shown for one machine: remounted when the dashboard switches machines, so nothing stale stays. */
+function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
   const path = usePath();
   const current = pages.find((p) => p.path === path) ?? pages[0];
@@ -53,7 +59,8 @@ export default function App() {
         <main className="min-w-0 flex-1">
           <MobileBar path={current.path} />
           <div className={`mx-auto w-full px-5 py-8 sm:px-10 lg:py-12 ${current.wide ? "max-w-none" : "max-w-[860px]"}`}>
-            <ConnectionNotice />
+            {remote ? <RemoteBanner name={remote} /> : null}
+            <ConnectionNotice remote={remote} />
             <Page />
           </div>
         </main>
@@ -63,10 +70,35 @@ export default function App() {
   );
 }
 
-function ConnectionNotice() {
+function RemoteBanner({ name }: { name: string }) {
+  return (
+    <div className="mb-6 flex items-center gap-3 rounded-xl bg-accent px-4 py-2.5 text-[13px] text-white shadow-sm">
+      <Eye className="size-4" />
+      <span className="flex-1">
+        Viewing <b>{name}</b>’s dashboard from this machine. Keys and sign-ins stay on {name}.
+      </span>
+      <button type="button" className="rounded-md bg-white/20 px-2.5 py-1 font-medium hover:bg-white/30" onClick={() => setRemote(null)}>
+        Back to This Machine
+      </button>
+    </div>
+  );
+}
+
+function ConnectionNotice({ remote }: { remote: string | null }) {
   const { error } = useOverview();
   if (!error) return null;
   const signedOut = (error as { status?: number }).status === 401;
+  if (remote && !signedOut) {
+    return (
+      <Alert status="danger" className="mb-6">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{remote} isn't answering</Alert.Title>
+          <Alert.Description>{error.message}. It needs spillup 0.3.3 or newer and to be online on Tailscale.</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
   return (
     <Alert status={signedOut ? "warning" : "danger"} className="mb-6">
       <Alert.Indicator />
@@ -118,23 +150,56 @@ function Sidebar({ path }: { path: string }) {
 
 function MachineCard() {
   const { data } = useOverview();
+  const remote = useRemote();
+  const local = useQuery(api.localOverview);
+  const machines = useQuery(api.localMachines, 15000);
   const name = data?.name || "This machine";
-  return (
-    <button
-      type="button"
-      onClick={() => navigate("/settings")}
-      className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-left outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60"
-    >
+  const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online);
+  const canSwitch = !!local.data?.can_manage && (others.length > 0 || !!remote);
+
+  const card = (
+    <span className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-foreground/[0.06]">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[#a1a1a6] to-[#6e6e73] text-[17px] font-semibold text-white uppercase">
         {name.charAt(0)}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-semibold">{name}</span>
         <span className="block truncate text-xs text-muted">
-          {data ? (data.installed ? `${holdName[data.hold]} · spillup` : "Not set up yet") : "…"}
+          {data ? (data.installed ? `${holdName[data.hold]}${remote ? " · remote" : " · spillup"}` : "Not set up yet") : "…"}
         </span>
       </span>
-    </button>
+      {canSwitch ? <ChevronsUpDown className="size-4 shrink-0 text-muted" /> : null}
+    </span>
+  );
+  if (!canSwitch) {
+    return (
+      <button type="button" onClick={() => navigate("/settings")} className="outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+        {card}
+      </button>
+    );
+  }
+  return (
+    <Dropdown>
+      <Dropdown.Trigger className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60">{card}</Dropdown.Trigger>
+      <Dropdown.Popover placement="bottom start" className="min-w-56">
+        <Dropdown.Menu
+          aria-label="Show a machine's dashboard"
+          onAction={(key) => {
+            setRemote(key === "__self" ? null : String(key));
+            navigate("/");
+          }}
+        >
+          <Dropdown.Item id="__self" textValue="This machine">
+            <Label>{local.data?.name || "This machine"} (this one)</Label>
+          </Dropdown.Item>
+          {others.map((m) => (
+            <Dropdown.Item key={m.name} id={m.name} textValue={m.name}>
+              <Label>{m.name}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }
 

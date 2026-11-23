@@ -38,7 +38,7 @@ func registerAutostart(exe string, cfg config.Config) error {
 	}
 	return runElevated(elevatedRequest{
 		Action: "install", Exe: exe, Home: config.StateDir(), User: u.Username,
-		Port: cfg.Port, OpenPort: cfg.Hold.CanHold(),
+		Port: cfg.Port, OpenPort: true,
 	})
 }
 

@@ -47,6 +47,9 @@ func (m *Machine) routes(a audience) http.Handler {
 			mux.HandleFunc("POST "+api.PathLibrarySync, m.withAPIKey(m.serveLibrarySync))
 		}
 	}
+	if m.o.Dashboard != nil && a == onTailnet {
+		mux.Handle(dashboardPrefix, m.bridged(m.o.Dashboard))
+	}
 	switch a {
 	case onLocalhost:
 		mux.HandleFunc("GET "+api.PathState, m.serveState)
@@ -68,6 +71,38 @@ func (m *Machine) routes(a audience) http.Handler {
 		mux.HandleFunc("/", m.forward)
 	}
 	return mux
+}
+
+const dashboardPrefix = "/spinup/ui/"
+
+// tailnetHandler is what other machines reach on this one: everything a holder serves, or only the
+// dashboard on a machine that just uses the accounts, which routes nobody's requests.
+func (m *Machine) tailnetHandler() http.Handler {
+	if m.hold().CanHold() {
+		return m.routes(onTailnet)
+	}
+	mux := http.NewServeMux()
+	mux.Handle(dashboardPrefix, m.bridged(m.o.Dashboard))
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, http.StatusNotFound, "this machine only uses the accounts")
+	})
+	return mux
+}
+
+// bridged admits the main machine's dashboard: with the dashboard password on a machine that keeps it, so
+// a machine that only uses the accounts can't steer a holder, and with the API key on the others.
+func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		header, want := api.KeyHeader, m.o.Secrets.ManagementPassword
+		if want == "" {
+			header, want = api.APIKeyHeader, m.o.Secrets.APIKey
+		}
+		if want == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(want)) != 1 {
+			writeError(w, http.StatusUnauthorized, "missing or wrong "+header)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}
 }
 
 // keyed admits callers with the management password, and remembers callers that can hold.

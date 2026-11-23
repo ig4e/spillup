@@ -40,6 +40,8 @@ func (*fakeBackend) Skills() skills.Manager                          { return sk
 func (*fakeBackend) CatchUpLibrary()                                 {}
 func (*fakeBackend) OwnLogins() ([]logins.Summary, error)            { return nil, nil }
 func (*fakeBackend) SetOwn(context.Context, []string) error          { return nil }
+func (*fakeBackend) Remote(string) (Remote, error)                   { return Remote{}, errors.New("no remote in tests") }
+
 func (b *fakeBackend) Panel(target string) (Panel, error) {
 	if p, ok := b.panels[target]; ok {
 		return p, nil

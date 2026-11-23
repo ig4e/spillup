@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// servePeers listens on the Tailscale address, and moves when Tailscale gives this machine a new one.
+// servePeers listens on the Tailscale address: the peer API on machines that can hold, only the dashboard on the others; and moves when Tailscale gives this machine a new one.
 func (m *Machine) servePeers(ctx context.Context) {
 	for ctx.Err() == nil {
 		addr := m.peerListenAddr()
@@ -23,7 +23,7 @@ func (m *Machine) servePeers(ctx context.Context) {
 			continue
 		}
 		m.log.Printf("peer API on %s", addr)
-		srv := &http.Server{Handler: m.routes(onTailnet), ReadHeaderTimeout: 30 * time.Second}
+		srv := &http.Server{Handler: m.tailnetHandler(), ReadHeaderTimeout: 30 * time.Second}
 		served := make(chan struct{})
 		go func() {
 			defer close(served)

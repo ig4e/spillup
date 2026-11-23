@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/fs"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
@@ -36,6 +37,8 @@ type Backend interface {
 	OwnLogins() ([]logins.Summary, error)
 	SetOwn(ctx context.Context, families []string) error
 	OwnManagement() (proxy.Management, error)
+	// Remote is how to reach another machine's dashboard over the tailnet: holders only.
+	Remote(machine string) (Remote, error)
 	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
 	Panel(target string) (Panel, error)
 
@@ -64,12 +67,34 @@ type Server struct {
 
 func New(b Backend, token string) *Server { return &Server{b: b, token: token, assets: assets()} }
 
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	read := func(path string, h http.HandlerFunc) { mux.HandleFunc("GET /api/"+path, s.needsSession(h)) }
-	change := func(path string, h http.HandlerFunc) {
-		mux.HandleFunc("POST /api/"+path, s.needsSession(s.serialized(h)))
+// reach says who may call a dashboard route: the browser signed in here, or the main machine's dashboard
+// over the tailnet, which the service has already checked.
+type reach int
+
+const (
+	browser reach = iota
+	bridged
+)
+
+// localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
+var localOnly = map[string]bool{"keys": true, "own/signin": true}
+
+func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
+	admit := s.needsSession
+	if from == bridged {
+		admit = jsonOnly
 	}
+	add := func(method, path string, h http.HandlerFunc) {
+		if from == bridged && localOnly[path] {
+			return
+		}
+		if method == http.MethodPost {
+			h = s.serialized(h)
+		}
+		mux.HandleFunc(method+" /api/"+path, admit(h))
+	}
+	read := func(path string, h http.HandlerFunc) { add(http.MethodGet, path, h) }
+	change := func(path string, h http.HandlerFunc) { add(http.MethodPost, path, h) }
 
 	read("overview", s.serveOverview)
 	read("machines", s.serveMachines)
@@ -95,20 +120,51 @@ func (s *Server) Handler() http.Handler {
 	change("skills/add", s.serveSkillAdd)
 	change("skills/sync", s.serveSkillSync)
 
+	unknown := func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, http.StatusNotFound, "no such dashboard call")
+	}
+	mux.HandleFunc("GET /api/", unknown)
+	mux.HandleFunc("POST /api/", unknown)
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	s.apiRoutes(mux, browser)
+	mux.HandleFunc("GET /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
+	mux.HandleFunc("POST /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
+
 	mux.HandleFunc("GET /cpa/{target}/{$}", s.needsSession(s.servePanelPage))
 	for _, prefix := range panelAPIPrefixes {
 		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
 			mux.HandleFunc(method+" "+prefix, s.needsSession(s.servePanelAPI))
 		}
 	}
-
-	unknown := func(w http.ResponseWriter, _ *http.Request) {
-		writeError(w, http.StatusNotFound, "no such dashboard call")
-	}
-	mux.HandleFunc("GET /api/", unknown)
-	mux.HandleFunc("POST /api/", unknown)
 	mux.HandleFunc("GET /", s.serveApp)
 	return s.guard(securityHeaders(mux))
+}
+
+// BridgePrefix is where the service serves BridgeHandler on the tailnet.
+const BridgePrefix = "/spinup/ui"
+
+// BridgeHandler is this machine's dashboard API for the main machine's dashboard, over the tailnet. The
+// service checks the caller's key first; keys and sign-ins stay local.
+func (s *Server) BridgeHandler() http.Handler {
+	mux := http.NewServeMux()
+	s.apiRoutes(mux, bridged)
+	return http.StripPrefix(BridgePrefix, mux)
+}
+
+// jsonOnly takes changes only as JSON, like a browser's, for calls from another machine's dashboard.
+func jsonOnly(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
+				writeError(w, http.StatusUnsupportedMediaType, "changes are JSON")
+				return
+			}
+		}
+		h(w, r)
+	}
 }
 
 func (s *Server) serialized(h http.HandlerFunc) http.HandlerFunc {
