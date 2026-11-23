@@ -27,9 +27,19 @@ comes with the command that fixes it.`
 }
 
 func (doctorCmd) Run() error {
-	ctx := context.Background()
+	sections := doctorSections(context.Background())
+	printSections(sections)
+	if n := doctor.Failures(sections); n > 0 {
+		return fmt.Errorf("%d problem(s); run the fix commands above", n)
+	}
+	fmt.Println("\nAll good.")
+	return nil
+}
+
+// doctorSections checks everything `spinup doctor` checks.
+func doctorSections(ctx context.Context) []doctor.Section {
 	repo := repoData()
-	sections := []doctor.Section{
+	return []doctor.Section{
 		toolsSection(repo),
 		networkSection(ctx),
 		accountsSection(ctx),
@@ -37,12 +47,6 @@ func (doctorCmd) Run() error {
 		packagesSection(ctx),
 		doctor.Update(version, latestVersion(ctx, releases)),
 	}
-	printSections(sections)
-	if n := doctor.Failures(sections); n > 0 {
-		return fmt.Errorf("%d problem(s); run the fix commands above", n)
-	}
-	fmt.Println("\nAll good.")
-	return nil
 }
 
 func printSections(sections []doctor.Section) {

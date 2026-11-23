@@ -10,7 +10,7 @@ import (
 
 // client speaks for this machine to other holders: it carries the key, the name and the hold.
 func (m *Machine) client() api.Client {
-	return api.Client{HTTP: m.httpClient, Key: m.o.Secrets.ManagementPassword, From: m.tail.selfName(), Hold: m.cfg.Hold}
+	return api.Client{HTTP: m.httpClient, Key: m.o.Secrets.ManagementPassword, From: m.tail.selfName(), Hold: m.hold()}
 }
 
 // publicClient is for devices that haven't shown they are spinup holders: it carries no key.

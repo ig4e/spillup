@@ -1,8 +1,8 @@
 # Installs the latest spinup release into ~\.local\bin, checksum-verified.
-#   irm https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
 
-$repo = if ($env:SPINUP_RELEASES) { $env:SPINUP_RELEASES } else { 'darkyeg/spinup' }
+$repo = if ($env:SPINUP_RELEASES) { $env:SPINUP_RELEASES } else { 'ig4e/spillup' }
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
     'AMD64' { 'amd64' }
     'ARM64' { 'arm64' }

@@ -32,7 +32,7 @@ func (m *Machine) observe(ctx context.Context, ts tailnet.Status) leadership.Vie
 		bootAlive: st.BootAlive, failover: m.cfg.FailoverAfter(), now: now,
 	})
 	return leadership.View{
-		Self: ts.Self.Name, Hold: m.cfg.Hold, Leading: st.claiming(), Epoch: st.Epoch,
+		Self: ts.Self.Name, Hold: m.hold(), Leading: st.claiming(), Epoch: st.Epoch,
 		KnownLeader: st.Leader, Peers: peers, FailoverAfter: m.cfg.FailoverAfter(),
 		AutoFailback: m.cfg.AutoFailback, Activity: m.activity.snapshot(now), IdleBeforeHandBack: m.handBackIdle(),
 		Forced: st.Forced, Pending: pendingHandOff(st, now, m.handOffWindow()),

@@ -1,6 +1,28 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# spinup
+# spillup
+
+**spillup** is [spinup](https://github.com/darkyeg/spinup) with a web dashboard. Everything below works as in spinup; the command is still `spinup`, and `spinup ui` opens the dashboard.
+
+## The dashboard
+
+```sh
+spinup ui
+```
+
+It opens in your browser and shows your machines, who holds the accounts, your logins, skills and the doctor's checks. From there you can:
+
+- **Choose the main machine** (the hub). Pick any hub or standby; the old hub becomes a standby and the accounts move between requests, so nothing is cut off and nobody is logged out.
+- Move the accounts to a machine now, restart CLIProxyAPI, or take over after losing a machine for good.
+- Turn skills on or off, add them from GitHub, keep a machine's own skills everywhere, and restore removed ones.
+- See the API key and dashboard password a new machine asks for.
+
+It answers only on `localhost`, and only to the browser that opened the link `spinup ui` printed. It follows your system's light or dark mode. Ctrl-C stops it; the accounts service keeps running. Moving the accounts or changing the main machine works on the hub and standbys, which keep the dashboard password.
+
+To work on it: `cd web && npm ci && npm run dev:mock` shows it with a pretend fleet; `npm run build` builds it into the binary (`internal/webui/dist`), then `go build ./cmd/spinup`.
+
+---
+
 
 **Set up every computer you code with AI on, keep them the same, and share your Claude and Codex accounts between them.**
 
@@ -30,12 +52,12 @@ One Go binary, no dependencies. Windows, macOS, Linux. Every command is safe to 
 
 ```sh
 # macOS, Linux
-curl -fsSL https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.sh | sh
 ```
 
 ```powershell
 # Windows
-irm https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.ps1 | iex
 ```
 
 Check it worked: `spinup --version`. Open a new terminal if the command isn't found.
@@ -83,6 +105,7 @@ Run `ccp` instead of `claude` to use Claude Code with the shared accounts. Plain
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
+| `spinup ui` | Open the dashboard in your browser |
 
 `spinup <command> --help` explains each one.
 

@@ -1,0 +1,81 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Variable", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Apple's system palette: light follows macOS "Aqua", dark follows "Dark Aqua". */
+:root,
+.light,
+[data-theme="light"] {
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --surface: #ffffff;
+  --surface-hover: #f5f5f7;
+  --surface-secondary: #f2f2f7;
+  --surface-tertiary: #e5e5ea;
+  --overlay: #ffffff;
+  --muted: #6e6e73;
+  --default: #e9e9eb;
+  --default-foreground: #1d1d1f;
+  --separator: rgb(60 60 67 / 0.16);
+  --border: rgb(0 0 0 / 0.08);
+  --field-background: #ffffff;
+  --accent: #007aff;
+  --accent-foreground: #ffffff;
+  --success: #34c759;
+  --success-foreground: #ffffff;
+  --warning: #ff9f0a;
+  --warning-foreground: #ffffff;
+  --danger: #ff3b30;
+  --danger-foreground: #ffffff;
+  --sidebar: rgb(236 236 238 / 0.72);
+  --radius: 0.625rem;
+  --tooltip-delay: 400ms;
+  --skeleton-animation: pulse;
+}
+
+.dark,
+[data-theme="dark"] {
+  --background: #1e1e1e;
+  --foreground: #f5f5f7;
+  --surface: #2c2c2e;
+  --surface-hover: #3a3a3c;
+  --surface-secondary: #3a3a3c;
+  --surface-tertiary: #48484a;
+  --overlay: #2c2c2e;
+  --muted: #98989d;
+  --default: #3a3a3c;
+  --default-foreground: #f5f5f7;
+  --separator: rgb(84 84 88 / 0.55);
+  --border: rgb(255 255 255 / 0.08);
+  --field-background: #3a3a3c;
+  --accent: #0a84ff;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --sidebar: rgb(40 40 42 / 0.72);
+}
+
+.switch {
+  --switch-control-bg-checked: var(--success);
+  --switch-control-bg-checked-hover: color-mix(in oklab, var(--success) 90%, black);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
+}

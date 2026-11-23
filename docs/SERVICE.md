@@ -31,7 +31,7 @@ Hubs and standbys also answer on their Tailscale addresses (`http://<machine-nam
 
 ## Set up
 
-You need Tailscale installed (`spinup setup` logs it in). Install the binary with `scripts/install.sh` or `scripts/install.ps1` (checksum-verified, into `~/.local/bin`), take it from the [releases](https://github.com/darkyeg/spinup/releases), or build it: `go build ./cmd/spinup`.
+You need Tailscale installed (`spinup setup` logs it in). Install the binary with `scripts/install.sh` or `scripts/install.ps1` (checksum-verified, into `~/.local/bin`), take it from the [releases](https://github.com/ig4e/spillup/releases), or build it: `go build ./cmd/spinup`.
 
 Set up the hub first, then the others. `<name>` is the machine's Tailscale name:
 

@@ -45,7 +45,7 @@ func (c daemonCmd) Run() error {
 		return fmt.Errorf("%w (run spinup setup again)", err)
 	}
 	restoreHome(cfg.Home)
-	o := service.Options{Config: cfg, Secrets: secrets, Tailnet: tailnet.CLI{Bin: cfg.Tailscale}, Log: logger, Version: version}
+	o := service.Options{Config: cfg, Secrets: secrets, Tailnet: tailnet.CLI{Bin: cfg.Tailscale}, Log: logger, Version: version, SaveConfig: config.Save}
 	shareLibrary(&o, cfg, logger)
 	if cfg.Hold.CanHold() {
 		if err := withProxy(&o, cfg, logger); err != nil {

@@ -66,7 +66,7 @@ func (m *Machine) holdLimit() time.Duration {
 // takeoverPossible once there was a leader: a holder can take over itself, and a machine that only uses
 // the accounts can't see the standbys, so it presumes one.
 func (m *Machine) takeoverPossible() bool {
-	if m.cfg.Hold.CanHold() {
+	if m.hold().CanHold() {
 		return m.ledger.view(time.Now()).Leader != ""
 	}
 	return m.notes.sawLeader()

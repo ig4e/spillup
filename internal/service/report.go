@@ -13,17 +13,17 @@ func (m *Machine) Report() api.Report {
 	st := m.ledger.view(now)
 	waiting, leaderAddr := m.notes.get()
 	r := api.Report{
-		Name: m.tail.selfName(), Hold: m.cfg.Hold, Version: m.o.Version, Leading: st.Leading, Starting: st.Starting,
+		Name: m.tail.selfName(), Hold: m.hold(), Version: m.o.Version, Leading: st.Leading, Starting: st.Starting,
 		LeaderAddr: leaderAddr, Waiting: waiting, Peers: m.peers.peers(), Synced: m.replica.synced(now),
 		InFlight: m.activity.inFlight(),
 	}
-	if m.cfg.Hold.CanHold() {
+	if m.hold().CanHold() {
 		r.Epoch, r.Leader = st.Epoch, st.Leader
 	}
 	if m.o.Proxy != nil {
 		r.ProxyRunning = m.o.Proxy.Running()
 	}
-	if m.cfg.Hold.CanHold() {
+	if m.hold().CanHold() {
 		r.Accounts = logins.Summarize(m.cfg.AuthDir)
 	}
 	return r

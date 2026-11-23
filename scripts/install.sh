@@ -1,9 +1,9 @@
 #!/bin/sh
 # Installs the latest spinup release into ~/.local/bin, checksum-verified.
-#   curl -fsSL https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.sh | sh
 set -eu
 
-repo="${SPINUP_RELEASES:-darkyeg/spinup}"
+repo="${SPINUP_RELEASES:-ig4e/spillup}"
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=darwin ;;

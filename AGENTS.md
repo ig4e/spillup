@@ -17,6 +17,7 @@ This repo is the single source of truth for the user's machines: how each is set
 
 - `cmd/spinup` is only the CLI (kong): one file per command, printing and prompts. Each capability is its own package in `internal/`: `tailnet`, `tools`, `skills`, `agentconfig`, `project`, `doctor`, the accounts (`service`, `leadership`, `logins`, `proxy`, `api`), and the shared `host` (where things live), `shell` (running programs), `source` (spinup's data: a checkout, or the copy built into the binary), `library` (the user's own: `~/.spinup`), `release`, `config`.
 - Leadership policy is the pure `internal/leadership`; any change there needs a case in its table test, and `internal/service/machine_test.go` must keep "never two proxies at once". Wire shapes live only in `internal/api`.
+- The dashboard (`spinup ui`) is `internal/webui` (localhost-only HTTP API + the embedded build) and its React/HeroUI source in `web/`; `cmd/spinup/uibackend.go` gives it the same units the commands use. Its JSON shapes live in `internal/webui/wire.go` and `web/src/lib/types.ts`; keep them in step. Build it with `npm --prefix web ci && npm --prefix web run build` before `go build` (without it the binary serves a "not built" page).
 - Check with `go vet ./... && go test ./...`; CI also cross-builds every release target.
 
 ## Rules

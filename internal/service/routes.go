@@ -36,6 +36,7 @@ func (m *Machine) routes(a audience) http.Handler {
 	mux.HandleFunc("GET "+api.PathSecrets, m.keyed(m.serveSecrets))
 	mux.HandleFunc("POST "+api.PathReceive, m.keyed(m.holding(m.acceptAccounts)))
 	mux.HandleFunc("POST "+api.PathHandoff, m.keyed(m.serveHandoff))
+	mux.HandleFunc("POST "+api.PathRole, m.keyed(m.holding(m.serveRole)))
 	if m.library != nil {
 		mux.HandleFunc("GET "+api.PathLibraryState, m.withAPIKey(m.serveLibraryState))
 		mux.HandleFunc("GET "+api.PathLibrary, m.withAPIKey(m.serveLibrary))
@@ -53,6 +54,7 @@ func (m *Machine) routes(a audience) http.Handler {
 		mux.HandleFunc("POST "+api.PathTakeover, m.keyed(m.holding(m.serveTakeover)))
 		mux.HandleFunc("POST "+api.PathStop, m.keyed(m.holding(m.serveStop)))
 		mux.HandleFunc("POST "+api.PathRestart, m.keyed(m.holding(m.serveRestart)))
+		mux.HandleFunc("POST "+api.PathMain, m.keyed(m.holding(m.serveMain)))
 	case onTailnet:
 		mux.HandleFunc("GET "+api.PathState, m.keyed(m.serveState))
 	}
@@ -80,7 +82,7 @@ func (m *Machine) keyed(h http.HandlerFunc) http.HandlerFunc {
 // holding refuses requests that only a machine able to hold the accounts can serve.
 func (m *Machine) holding(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !m.cfg.Hold.CanHold() {
+		if !m.hold().CanHold() {
 			writeError(w, http.StatusConflict, "this machine never holds the accounts (install it with --standby)")
 			return
 		}
@@ -91,7 +93,7 @@ func (m *Machine) holding(h http.HandlerFunc) http.HandlerFunc {
 func (m *Machine) serveLeader(w http.ResponseWriter, r *http.Request) {
 	st := m.ledger.view(time.Now())
 	l := api.Leader{
-		Name: m.tail.selfName(), Hold: m.cfg.Hold, Leading: st.Leading, Starting: st.Starting,
+		Name: m.tail.selfName(), Hold: m.hold(), Leading: st.Leading, Starting: st.Starting,
 		Leader: st.Leader, Epoch: st.Epoch,
 	}
 	writeJSON(w, l.Prove(m.o.Secrets, r.URL.Query().Get(api.NonceParam)))
@@ -187,6 +189,30 @@ func (m *Machine) serveRestart(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), handoffTimeout)
 	defer cancel()
 	if err := m.restartProxy(ctx); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, okBody)
+}
+
+func (m *Machine) serveRole(w http.ResponseWriter, r *http.Request) {
+	var req api.Role
+	if !decode(w, r, commandLimit, &req) {
+		return
+	}
+	if err := m.setHold(req.Hold); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, okBody)
+}
+
+func (m *Machine) serveMain(w http.ResponseWriter, r *http.Request) {
+	var req api.Main
+	if !decode(w, r, commandLimit, &req) {
+		return
+	}
+	if err := m.makeMain(r.Context(), req.Machine); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

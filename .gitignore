@@ -2,3 +2,8 @@ secrets.json
 SECRETS.txt
 # Your private repo (docs/PRIVATE.md)
 local/
+
+# The built dashboard (web/, npm run build) is embedded at build time, not committed
+internal/webui/dist/*
+!internal/webui/dist/.keep
+web/node_modules/

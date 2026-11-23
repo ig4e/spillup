@@ -51,6 +51,8 @@ type Options struct {
 	ApplyLibrary func(context.Context) error
 	// LibraryEvery is how often the libraries are compared.
 	LibraryEvery time.Duration
+	// SaveConfig keeps a role the user changed while the service runs; nil keeps it in memory only.
+	SaveConfig func(config.Config) error
 }
 
 // Machine is this machine running spinup: it wires the units that each own one part of its state.
@@ -74,6 +76,7 @@ type Machine struct {
 	repairs  repairs
 	activity activity
 	library  *libraryShare // nil when the library isn't shared
+	role     role
 }
 
 func New(o Options) *Machine {
@@ -113,6 +116,7 @@ func New(o Options) *Machine {
 		peers:      newPeerView(),
 		stopRun:    func() {},
 	}
+	m.role.hold = o.Config.Hold
 	m.forwarder = m.newForwarder(transport)
 	return m
 }
@@ -134,9 +138,9 @@ func (m *Machine) Run(ctx context.Context) error {
 	srv := &http.Server{Handler: m.routes(onLocalhost), ReadHeaderTimeout: 30 * time.Second}
 	go srv.Serve(front)
 	defer srv.Close()
-	m.log.Printf("spinup %s on %s (hold: %s)", m.o.Version, m.o.FrontListen, m.cfg.Hold)
+	m.log.Printf("spinup %s on %s (hold: %s)", m.o.Version, m.o.FrontListen, m.hold())
 
-	if m.cfg.Hold.CanHold() {
+	if m.hold().CanHold() {
 		go m.servePeers(ctx)
 		go m.watchSleep(ctx)
 	}
@@ -161,7 +165,7 @@ func (m *Machine) tick(ctx context.Context) {
 	if err == nil && ts.Self.Name != "" {
 		m.tail.set(ts)
 	}
-	if !m.cfg.Hold.CanHold() {
+	if !m.hold().CanHold() {
 		m.findLeader(ctx, ts)
 		return
 	}

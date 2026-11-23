@@ -20,8 +20,8 @@ Done when: you know the name and the hold. If the user didn't say and `spinup st
 
 The installers require a published binary release. For an unreleased build, follow the [README's source-build instructions](../README.md#quick-start) from the checkout of the intended branch or commit. `go install github.com/darkyeg/spinup/cmd/spinup@latest` resolves Go's latest module version; it does not install unmerged branch changes.
 
-- Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.sh | sh`
-- Windows: `irm https://raw.githubusercontent.com/darkyeg/spinup/main/scripts/install.ps1 | iex`
+- Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.sh | sh`
+- Windows: `irm https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.ps1 | iex`
 - Or, with Go: `go install github.com/darkyeg/spinup/cmd/spinup@latest`
 
 The script installs the release binary into `~/.local/bin` (checksum-verified). Open a new terminal if `spinup` is not found.

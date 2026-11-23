@@ -26,19 +26,26 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: build the dashboard
+        run: npm --prefix web ci && npm --prefix web run build
       - run: go test -count=1 ./...
       - name: build
         env:
           CGO_ENABLED: "0"
         run: |
-          mkdir dist
+          mkdir release
           for target in windows/amd64 windows/arm64 linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${target%/*}; arch=${target#*/}
             ext=""; [ "$os" = windows ] && ext=".exe"
             GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${TAG}" \
-              -o "dist/spinup_${os}_${arch}${ext}" ./cmd/spinup
+              -o "release/spinup_${os}_${arch}${ext}" ./cmd/spinup
           done
-          cd dist && sha256sum * > checksums.txt
+          cd release && sha256sum * > checksums.txt
       - name: publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,4 +54,4 @@ jobs:
           if [[ "$TAG" == *-* ]]; then
             flags+=(--prerelease --latest=false)
           fi
-          gh release create "$TAG" dist/* --title "$TAG" --generate-notes --verify-tag "${flags[@]}"
+          gh release create "$TAG" release/* --title "spillup $TAG" --notes-file "${GITHUB_WORKSPACE}/.github/release-notes.md" --generate-notes --verify-tag "${flags[@]}"

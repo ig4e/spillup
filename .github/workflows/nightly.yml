@@ -3,7 +3,7 @@ name: nightly
 # Main builds are prereleases; stable versions require an explicit version tag.
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   tag:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.next.outputs.tag }}

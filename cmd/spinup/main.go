@@ -14,7 +14,7 @@ import (
 var version = "dev"
 
 // releases is the GitHub project spinup's releases come from.
-var releases = cmp.Or(os.Getenv("SPINUP_RELEASES"), "darkyeg/spinup")
+var releases = cmp.Or(os.Getenv("SPINUP_RELEASES"), "ig4e/spillup")
 
 type cli struct {
 	Setup     setupCmd     `cmd:"" group:"machine" help:"Set up this machine end to end, or repair it."`
@@ -23,6 +23,7 @@ type cli struct {
 	Machines  machinesCmd  `cmd:"" group:"machine" help:"Every device on your tailnet and its addresses."`
 	Tools     toolsCmd     `cmd:"" group:"machine" help:"Install the dev tools this machine lacks."`
 	Uninstall uninstallCmd `cmd:"" group:"machine" help:"Stop the accounts service here. Logins and keys stay."`
+	UI        uiCmd        `cmd:"" name:"ui" group:"machine" help:"Open the dashboard: machines, accounts, the hub, skills and checks."`
 
 	Status   statusCmd   `cmd:"" group:"accounts" help:"Who holds the accounts, every login and every machine."`
 	Handoff  handoffCmd  `cmd:"" group:"accounts" help:"Move the accounts to another machine, safely."`
@@ -44,7 +45,7 @@ between them without ever logging them out.
 
 Start with: spinup setup <name-for-this-machine>
 
-Guide: https://github.com/darkyeg/spinup`
+Guide: https://github.com/ig4e/spillup`
 
 func main() {
 	var c cli

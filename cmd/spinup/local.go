@@ -69,6 +69,11 @@ func (l local) handOff(to string) error {
 	return l.call(moveWithin, http.MethodPost, api.PathHandoff, api.Handoff{To: to}, nil)
 }
 
+// makeMain makes machine the only hub; the accounts follow it between requests.
+func (l local) makeMain(machine string) error {
+	return l.call(time.Minute, http.MethodPost, api.PathMain, api.Main{Machine: machine}, nil)
+}
+
 func (l local) takeOver() error {
 	return l.call(10*time.Second, http.MethodPost, api.PathTakeover, struct{}{}, nil)
 }

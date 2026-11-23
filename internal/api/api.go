@@ -31,6 +31,8 @@ const (
 	PathTakeover = "/spinup/takeover" // the user makes this machine lead; localhost only
 	PathStop     = "/spinup/stop"     // the user stops this service gracefully; localhost only
 	PathRestart  = "/spinup/restart"  // restart the proxy after an update, if this machine holds the accounts; localhost only
+	PathRole     = "/spinup/role"     // switch this machine between hub and standby
+	PathMain     = "/spinup/main"     // the user makes one machine the only hub; localhost only
 
 	PathLibrary         = "/spinup/library"       // GET this machine's library, POST a newer one or fetched copies; with the API key
 	PathLibraryState    = "/spinup/library/state" // when this machine's library last changed; with the API key
@@ -78,6 +80,16 @@ type LibraryState struct {
 
 type Handoff struct {
 	To string `json:"to"`
+}
+
+// Role switches a machine between hub and standby.
+type Role struct {
+	Hold config.Hold `json:"hold"`
+}
+
+// Main names the machine that should be the only hub.
+type Main struct {
+	Machine string `json:"machine"`
 }
 
 // Report is a machine's state, for the other machines and for `spinup status`.

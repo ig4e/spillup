@@ -65,7 +65,7 @@ func (m *Machine) catchUpLibrary(ctx context.Context) {
 
 // libraryPartners: a holder shares with the holders that proved themselves, any other machine with the leader.
 func (m *Machine) libraryPartners() []string {
-	if !m.cfg.Hold.CanHold() {
+	if !m.hold().CanHold() {
 		if _, addr := m.notes.get(); addr != "" {
 			return []string{"http://" + addr}
 		}
