@@ -10,25 +10,55 @@ import (
 )
 
 func (s *Server) serveOwnState(w http.ResponseWriter, r *http.Request) {
-	out := OwnState{Families: []string{}, Available: familyNames(), Logins: []logins.Summary{}}
+	out := OwnState{Providers: []string{}, Logins: []logins.Summary{}}
+	var types []string
 	if f := s.b.Facts(); f.Installed {
-		out.Families = orEmpty(f.Config.OwnModels)
+		out.Providers = orEmpty(f.Config.OwnModels)
 		if rep, err := s.b.Report(r.Context()); err == nil {
 			out.Running = rep.OwnRunning
+			for _, a := range rep.Accounts {
+				types = append(types, a.Type)
+			}
 		}
 	}
 	if own, err := s.b.OwnLogins(); err == nil && own != nil {
 		out.Logins = own
+		for _, a := range own {
+			types = append(types, a.Type)
+		}
 	}
+	out.Available = availableProviders(append(types, out.Providers...))
 	writeJSON(w, out)
 }
 
-func familyNames() []string {
-	names := make([]string, len(route.Families))
-	for i, f := range route.Families {
-		names[i] = string(f)
+// availableProviders are the providers CLIProxyAPI signs in to, then any other kind of login found here,
+// so a new provider shows up on the dashboard by itself.
+func availableProviders(found []string) []ProviderInfo {
+	var out []ProviderInfo
+	seen := map[route.Provider]bool{}
+	for _, s := range route.SignIns {
+		out = append(out, ProviderInfo{ID: string(s.Provider), Name: s.Name, SignIn: true})
+		seen[s.Provider] = true
 	}
-	return names
+	for _, t := range found {
+		p := route.Canonical(strings.ToLower(strings.TrimSpace(t)))
+		if p == "" || seen[p] || !route.Valid(string(p)) {
+			continue
+		}
+		seen[p] = true
+		out = append(out, ProviderInfo{ID: string(p), Name: titled(string(p))})
+	}
+	return out
+}
+
+func titled(id string) string {
+	words := strings.Split(id, "-")
+	for i, w := range words {
+		if w != "" {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func (s *Server) serveSetOwn(w http.ResponseWriter, r *http.Request) {
@@ -36,11 +66,11 @@ func (s *Server) serveSetOwn(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	msg := "Every model uses the shared accounts again."
-	if len(req.Families) > 0 {
-		msg = fmt.Sprintf("This machine now uses its own sign-in for %s models. Sign in below.", strings.Join(req.Families, ", "))
+	msg := "Every provider uses the shared accounts again."
+	if len(req.Providers) > 0 {
+		msg = fmt.Sprintf("This machine now signs in to %s by itself.", strings.Join(req.Providers, ", "))
 	}
-	answer(w, s.b.SetOwn(r.Context(), orEmpty(req.Families)), msg)
+	answer(w, s.b.SetOwn(r.Context(), orEmpty(req.Providers)), msg)
 }
 
 func (s *Server) serveSignIn(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +83,7 @@ func (s *Server) serveSignIn(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
-	link, err := m.StartSignIn(r.Context(), route.Family(req.Family))
+	link, err := m.StartSignIn(r.Context(), route.Canonical(req.Provider))
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

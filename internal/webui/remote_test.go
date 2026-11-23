@@ -58,3 +58,40 @@ func TestTheBridgeKeepsKeysAndSignInsLocal(t *testing.T) {
 		t.Errorf("a non-JSON change over the bridge: %d, want 415", got)
 	}
 }
+
+func TestAnotherMachinesCLIProxyAPIDashboardComesFromThatMachine(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/spinup/ui/cpa/shared/" {
+			fmt.Fprint(w, "<html>laptop's panel</html>")
+			return
+		}
+		fmt.Fprintf(w, "%s panel=%s key=%s auth=%q cookie=%q", r.URL.Path, r.Header.Get("X-Spinup-Panel"),
+			r.Header.Get("X-Spinup-Key"), r.Header.Get("Authorization"), r.Header.Get("Cookie"))
+	}))
+	defer other.Close()
+	base, _ := url.Parse(other.URL)
+	h := http.Header{}
+	h.Set("X-Spinup-Key", "m")
+	srv := New(&remoteBackend{remote: Remote{Base: base, Header: h}}, testToken).Handler()
+
+	page := do(t, srv, http.MethodGet, "/cpa/shared/?machine=laptop", signedIn)
+	if !strings.Contains(page.Body.String(), "laptop's panel") {
+		t.Fatalf("panel page: %d %s", page.Code, page.Body)
+	}
+	var cookies []*http.Cookie
+	for _, c := range page.Result().Cookies() {
+		if c.Value != "" {
+			cookies = append(cookies, c)
+		}
+	}
+	call := do(t, srv, http.MethodGet, "/v8/management/config", func(r *http.Request) {
+		signedIn(r)
+		r.Header.Set("Authorization", "Bearer spinup")
+		for _, c := range cookies {
+			r.AddCookie(c)
+		}
+	})
+	if got := call.Body.String(); got != `/spinup/ui/v8/management/config panel=shared key=m auth="" cookie=""` {
+		t.Errorf("panel call reached the laptop as %q", got)
+	}
+}

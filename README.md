@@ -39,10 +39,13 @@ spinup setup my-desktop --hub
 |---|---|
 | 🔑 **Your accounts, everywhere** | One machine holds your Claude and Codex logins; every machine uses them at `http://localhost:8317`. If it goes offline, a standby takes over and hands them back later — never two at once, so nobody gets logged out. |
 | 👑 **A main machine you choose** | Make your desktop the main machine from the dashboard. Change it anytime; the accounts move between requests. |
-| 🔐 **Separate sign-in when you need it** | Turn on Claude, GPT/Codex or Gemini per machine and that machine uses its own account, so no provider can revoke one machine's session when another refreshes. |
+| 🔐 **Every lab, and separate sign-in when you need it** | Claude, ChatGPT/Codex, Google Antigravity, Kimi, Grok, Devin, Meta AI — and any new kind of login spillup finds. Switch a provider to separate sign-in and that machine uses its own account, so no provider can revoke one machine's session when another refreshes. |
+| 🤝 **Joins by itself** | A new machine on your own Tailscale account gets its keys from the main machine automatically — no passwords to copy. Your existing CLIProxyAPI key keeps working, so your tools need no changes. |
+| 🧩 **T3 Code, linked everywhere** | T3 Code starts at boot on every machine, and spillup links each one to all the others, so an agent anywhere can hand work to any machine. |
 | ✨ **The same agents, everywhere** | Skills, agent instructions and plugins live in one library that every machine keeps identical. Change it anywhere; the rest follow within seconds. |
 | 🖥️ **One dashboard for the fleet** | Always on at `http://localhost:8320`. From the main machine, open any other machine's dashboard too. |
 | 🩺 **A straight answer when something breaks** | `spinup doctor` (or the Doctor page) checks everything and gives the fix for each problem. |
+| ⬆️ **Keeps itself current** | spillup updates itself (switch it off under Updates), handing the accounts on first so nothing is cut off. |
 
 Under the hood: [Tailscale](https://tailscale.com) connects your machines privately, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) shares the accounts, and one Go binary with no dependencies runs it all, 24/7, from boot.
 
@@ -78,9 +81,9 @@ Then open a new terminal and check it: `spinup --version`. Prefer a download? Ev
 spinup setup my-desktop --hub
 ```
 
-This installs and signs in to **Tailscale** (use the same account on every machine), installs **CLIProxyAPI**, starts the accounts service and the dashboard **at boot**, and installs your dev tools, skills and agent settings. It ends with a health check. Then sign in your accounts: `spinup ui` → **CLIProxyAPI** → **OAuth Login**.
+This installs and signs in to **Tailscale** (use the same account on every machine), installs **CLIProxyAPI**, starts the accounts service, the dashboard and **T3 Code** at boot, and installs your dev tools, skills and agent settings. If you already ran CLIProxyAPI, it keeps that API key and takes in its logins. It ends with a health check. Then sign in your accounts: `spinup ui` → **CLIProxyAPI** → **OAuth Login**.
 
-**2. Your other machines** — each asks for a key that `spinup keys` prints on the main machine.
+**2. Your other machines** — signed in to the same Tailscale account, they join by themselves; anything else asks for a key that `spinup keys` prints on the main machine.
 
 ```sh
 spinup setup my-laptop --standby   # takes over while the main machine is off
@@ -107,10 +110,26 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**Accounts** — your shared logins, CLIProxyAPI's status, and **Sign In Separately on This Machine**: switch on a model family and this machine signs in with its own account, on its own local CLIProxyAPI that nothing syncs. Other models keep using the shared accounts.
+**Accounts** — who holds your subscriptions, each login's live status from CLIProxyAPI (active, cooling down, signed out), and how to use them in the apps this machine actually has.
 
 </td>
 <td><img src="docs/screenshots/accounts.png" alt="Accounts: shared logins and separate sign-in per machine"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**Sign-In** — every provider CLIProxyAPI can sign in to, plus any other kind of login it finds. Switch one on and this machine signs in with its own account; requests for that provider's models go to this machine's own CLIProxyAPI.
+
+</td>
+<td><img src="docs/screenshots/signin.png" alt="Sign-In: separate sign-in per provider"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**T3 Code** — which machines this machine's T3 is linked to, and *Link All Machines Now*. The main machine keeps every T3 linked to every other with full access.
+
+</td>
+<td><img src="docs/screenshots/t3.png" alt="T3 Code: every machine linked"></td>
 </tr>
 <tr>
 <td valign="top">
@@ -138,7 +157,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 </tr>
 </table>
 
-There's also a **CLIProxyAPI** page with CLIProxyAPI's own Management Center built in and already signed in, and **Settings** for keys, appearance and the service.
+There's also **CLIProxyAPI** — its own Management Center, window-sized and already signed in (for another machine, that machine's own) — plus **Tailscale**, **Updates** and **Settings**. The sidebar folds down to icons.
 
 <details>
 <summary><b>How the dashboard stays safe</b></summary>
@@ -184,6 +203,7 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
+| `spinup t3 [setup\|link]` | T3 Code at boot, and linked between every machine |
 
 `spinup <command> --help` explains each one.
 

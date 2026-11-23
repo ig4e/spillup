@@ -94,9 +94,9 @@ type Join struct {
 	Hold config.Hold `json:"hold"`
 }
 
-// Own names the model families a machine serves with its own logins instead of the shared accounts.
+// Own names the providers a machine serves with its own sign-ins instead of the shared accounts.
 type Own struct {
-	Families []string `json:"families"`
+	Providers []string `json:"providers"`
 }
 
 // Main names the machine that should be the only hub.

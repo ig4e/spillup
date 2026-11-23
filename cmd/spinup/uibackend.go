@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"time"
@@ -191,4 +192,26 @@ func withKeyedService(do func(local) error) error {
 		return err
 	}
 	return do(l)
+}
+
+// knownApps are the AI apps whose hints the dashboard tailors: each found on PATH by its command.
+var knownApps = []struct{ id, name, command string }{
+	{"claude", "Claude Code", "claude"},
+	{"codex", "Codex", "codex"},
+	{"t3", "T3 Code", "t3"},
+	{"gemini", "Gemini CLI", "gemini"},
+	{"opencode", "OpenCode", "opencode"},
+	{"cursor", "Cursor Agent", "cursor-agent"},
+	{"amp", "Amp", "amp"},
+	{"droid", "Factory Droid", "droid"},
+	{"ccp", "ccp (Claude Code with the shared accounts)", "ccp"},
+}
+
+func (cliBackend) Apps() []webui.App {
+	out := make([]webui.App, 0, len(knownApps))
+	for _, a := range knownApps {
+		_, err := exec.LookPath(a.command)
+		out = append(out, webui.App{ID: a.id, Name: a.name, Installed: err == nil})
+	}
+	return out
 }

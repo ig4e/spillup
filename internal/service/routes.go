@@ -266,7 +266,7 @@ func (m *Machine) serveOwn(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, commandLimit, &req) {
 		return
 	}
-	if err := m.setOwn(r.Context(), req.Families); err != nil {
+	if err := m.setOwn(r.Context(), req.Providers); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

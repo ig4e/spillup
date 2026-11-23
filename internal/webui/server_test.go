@@ -45,6 +45,7 @@ func (*fakeBackend) T3Pair(context.Context, string) (string, error)  { return ""
 func (*fakeBackend) T3Link(context.Context, string, string) error    { return nil }
 func (*fakeBackend) SyncT3(context.Context) (string, error)          { return "", nil }
 func (*fakeBackend) UpdateState(context.Context) Update              { return Update{Current: "test"} }
+func (*fakeBackend) Apps() []App                                     { return nil }
 func (*fakeBackend) StartUpdate() error                              { return nil }
 func (*fakeBackend) SetAutoUpdate(bool) error                        { return nil }
 func (*fakeBackend) Remote(string) (Remote, error)                   { return Remote{}, errors.New("no remote in tests") }

@@ -1,28 +1,49 @@
 package route
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
-func TestFamilyOf(t *testing.T) {
+func TestProvidersOf(t *testing.T) {
 	cases := []struct {
 		model string
-		want  Family
+		want  []Provider
 	}{
-		{"claude-sonnet-4-5-20250929", Claude},
-		{"Claude-Opus-4", Claude},
-		{"anthropic/claude-3-haiku", Claude},
-		{"gpt-5-codex", GPT},
-		{"codex-mini-latest", GPT},
-		{"o3", GPT},
-		{"o4-mini", GPT},
-		{"gemini-2.5-pro", Gemini},
-		{"models/gemini-3-pro-preview", Gemini},
-		{"kimi-k2", ""},
-		{"", ""},
-		{"opus", ""},
+		{"claude-sonnet-4-5-20250929", []Provider{"claude"}},
+		{"anthropic/claude-3-haiku", []Provider{"claude"}},
+		{"gpt-5-codex", []Provider{"codex"}},
+		{"o4-mini", []Provider{"codex"}},
+		{"gemini-2.5-pro", []Provider{"antigravity", "gemini"}},
+		{"grok-4", []Provider{"xai"}},
+		{"kimi-k2", []Provider{"kimi", "kimi-ai"}},
+		{"mystery-model", nil},
+		{"", nil},
 	}
 	for _, c := range cases {
-		if got := FamilyOf(c.model); got != c.want {
-			t.Errorf("FamilyOf(%q) = %q, want %q", c.model, got, c.want)
+		if got := ProvidersOf(c.model); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("ProvidersOf(%q) = %v, want %v", c.model, got, c.want)
+		}
+	}
+}
+
+func TestCanonicalReadsEarlierFamilyNames(t *testing.T) {
+	for in, want := range map[string]Provider{"claude": "claude", "gpt": "codex", "gemini": "antigravity", "kimi": "kimi"} {
+		if got := Canonical(in); got != want {
+			t.Errorf("Canonical(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestValidAcceptsAnyLoginType(t *testing.T) {
+	for _, ok := range []string{"claude", "kimi-ai", "qwen", "iflow2"} {
+		if !Valid(ok) {
+			t.Errorf("%q should be a valid provider", ok)
+		}
+	}
+	for _, bad := range []string{"", "Claude", "../x", "a b", "-x"} {
+		if Valid(bad) {
+			t.Errorf("%q should not be a valid provider", bad)
 		}
 	}
 }

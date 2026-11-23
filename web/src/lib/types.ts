@@ -123,13 +123,49 @@ export interface Done {
   message: string;
 }
 
-export type Family = "claude" | "gpt" | "gemini";
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  sign_in: boolean;
+}
 
 export interface OwnState {
-  families: Family[];
-  available: Family[];
+  providers: string[];
+  available: ProviderInfo[];
   running: boolean;
   logins: Account[];
+}
+
+export interface App {
+  id: string;
+  name: string;
+  installed: boolean;
+}
+
+export interface LoginState {
+  name: string;
+  status: string;
+  status_message: string;
+  unavailable: boolean;
+  disabled: boolean;
+}
+
+export interface LoginStatus {
+  logins: LoginState[];
+  problem?: string;
+}
+
+export interface T3State {
+  installed: boolean;
+  port?: number;
+  linked?: string;
+  problem?: string;
+}
+
+export interface UpdateState {
+  current: string;
+  latest?: string;
+  auto: boolean;
 }
 
 export interface SignIn {

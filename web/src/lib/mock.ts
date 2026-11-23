@@ -10,7 +10,7 @@ const fleet = {
   holds: { desktop: "hub", laptop: "standby" } as Record<string, Hold>,
 };
 
-const own = { families: ["claude"] as string[], logins: [{ name: "claude-laptop@example.com.json", type: "claude", refreshed: ago(600) }] };
+const own = { providers: ["claude"] as string[], logins: [{ name: "claude-laptop@example.com.json", type: "claude", refreshed: ago(600) }] };
 
 const skills: Skills = {
   library: "~/.spinup",
@@ -142,7 +142,42 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       case "skills":
         return structuredClone(skills);
       case "own":
-        return { families: own.families, available: ["claude", "gpt", "gemini"], running: own.families.length > 0, logins: own.logins };
+        return {
+          providers: own.providers,
+          available: [
+            { id: "claude", name: "Claude", sign_in: true },
+            { id: "codex", name: "ChatGPT & Codex", sign_in: true },
+            { id: "antigravity", name: "Google Antigravity", sign_in: true },
+            { id: "kimi", name: "Kimi", sign_in: true },
+            { id: "xai", name: "Grok (xAI)", sign_in: true },
+            { id: "devin", name: "Devin", sign_in: true },
+            { id: "meta", name: "Meta AI", sign_in: true },
+          ],
+          running: own.providers.length > 0,
+          logins: own.logins,
+        };
+      case "apps":
+        return [
+          { id: "claude", name: "Claude Code", installed: true },
+          { id: "codex", name: "Codex", installed: true },
+          { id: "t3", name: "T3 Code", installed: true },
+          { id: "gemini", name: "Gemini CLI", installed: false },
+          { id: "opencode", name: "OpenCode", installed: true },
+          { id: "ccp", name: "ccp", installed: true },
+        ];
+      case "proxy/logins":
+        return {
+          logins: [
+            { name: "claude-work@example.com.json", status: "active", status_message: "", unavailable: false, disabled: false },
+            { name: "codex-pro@example.com.json", status: "active", status_message: "", unavailable: false, disabled: false },
+            { name: "antigravity-personal@example.com.json", status: "error", status_message: "429 quota exhausted, resets in 2h", unavailable: true, disabled: false },
+            { name: "antigravity-work@example.com.json", status: "active", status_message: "", unavailable: false, disabled: false },
+          ],
+        };
+      case "t3":
+        return { installed: true, port: 3773, linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
+      case "update":
+        return { current: "v0.3.6", latest: "v0.3.7", auto: true };
       case "keys":
         return { api_key: "sk-spinup-3f9c1e7a52b84d06a1c2e9f0", management_password: "m-81b2c4d6e8f0a1b3" } satisfies Keys;
     }
@@ -150,10 +185,17 @@ export async function mock(method: string, fullPath: string, body: any): Promise
   if (path.startsWith("own/signin?")) return { status: "ok" };
   switch (path) {
     case "own":
-      own.families = body.families;
-      return { message: body.families.length ? `This machine now uses its own sign-in for ${body.families.join(", ")} models.` : "Every model uses the shared accounts again." };
+      own.providers = body.providers;
+      return { message: body.providers.length ? `This machine now signs in to ${body.providers.join(", ")} by itself.` : "Every provider uses the shared accounts again." };
+    case "t3/sync":
+      await wait(1200);
+      return { message: "T3 Code on 3 machine(s); 1 new link(s)." };
+    case "update":
+      return { message: "Updating. spillup restarts in a minute; this page reconnects by itself." };
+    case "update/auto":
+      return { message: body.auto ? "spillup now updates itself when a new version is out." : "Automatic updates are off." };
     case "own/signin":
-      own.logins.push({ name: `${body.family === "gpt" ? "codex" : body.family === "gemini" ? "antigravity" : "claude"}-laptop2@example.com.json`, type: body.family === "gpt" ? "codex" : body.family === "gemini" ? "antigravity" : "claude", refreshed: new Date().toISOString() });
+      own.logins.push({ name: `${body.provider}-laptop2@example.com.json`, type: body.provider, refreshed: new Date().toISOString() });
       return { url: "about:blank", state: "mock" };
     case "own/signout":
       own.logins = own.logins.filter((l) => l.name !== body.name);

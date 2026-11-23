@@ -1,4 +1,4 @@
-import type { Doctor, Done, Family, Keys, Machines, Overview, OwnState, SignIn, SignInStatus, Skills } from "./types";
+import type { App, Doctor, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -79,8 +79,16 @@ export const api = {
   syncSkills: () => post("skills/sync"),
 
   own: () => call<OwnState>("GET", "own"),
-  setOwn: (families: Family[]) => post("own", { families }),
-  signIn: (family: Family) => call<SignIn>("POST", "own/signin", { family }),
+  setOwn: (providers: string[]) => post("own", { providers }),
+  signIn: (provider: string) => call<SignIn>("POST", "own/signin", { provider }),
   signInStatus: (state: string) => call<SignInStatus>("GET", `own/signin?state=${encodeURIComponent(state)}`),
   signOut: (name: string) => post("own/signout", { name }),
+
+  apps: () => call<App[]>("GET", "apps"),
+  proxyLogins: () => call<LoginStatus>("GET", "proxy/logins"),
+  t3: () => call<T3State>("GET", "t3"),
+  t3Sync: () => post("t3/sync"),
+  update: () => call<UpdateState>("GET", "update"),
+  startUpdate: () => post("update"),
+  setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
 };

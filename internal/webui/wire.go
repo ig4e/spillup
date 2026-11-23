@@ -145,18 +145,25 @@ type nameRequest struct {
 	Name string `json:"name"`
 }
 
-// OwnState is the model families this machine serves with its own logins, and those logins.
+// OwnState is the providers this machine signs in to by itself, those sign-ins, and every provider it could.
 type OwnState struct {
-	Families  []string         `json:"families"`
-	Available []string         `json:"available"`
+	Providers []string         `json:"providers"`
+	Available []ProviderInfo   `json:"available"`
 	Running   bool             `json:"running"`
 	Logins    []logins.Summary `json:"logins"`
 }
 
+// ProviderInfo is a provider the dashboard offers; SignIn says CLIProxyAPI can sign in to it by itself.
+type ProviderInfo struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	SignIn bool   `json:"sign_in"`
+}
+
 type ownRequest struct {
-	Families []string `json:"families"`
+	Providers []string `json:"providers"`
 }
 
 type signInRequest struct {
-	Family string `json:"family"`
+	Provider string `json:"provider"`
 }

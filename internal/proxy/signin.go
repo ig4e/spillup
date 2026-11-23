@@ -13,13 +13,6 @@ import (
 	"github.com/darkyeg/spinup/internal/route"
 )
 
-// signInPaths start each family's OAuth on CLIProxyAPI's management API.
-var signInPaths = map[route.Family]string{
-	route.Claude: "anthropic-auth-url",
-	route.GPT:    "codex-auth-url",
-	route.Gemini: "antigravity-auth-url",
-}
-
 // SignIn is an OAuth sign-in a browser on this machine completes at URL.
 type SignIn struct {
 	URL   string `json:"url"`
@@ -40,11 +33,12 @@ type Management struct {
 
 // StartSignIn asks the proxy for an OAuth link; the proxy catches the callback itself, as long as the
 // browser that opens the link runs on this machine.
-func (m Management) StartSignIn(ctx context.Context, f route.Family) (SignIn, error) {
-	path, ok := signInPaths[f]
+func (m Management) StartSignIn(ctx context.Context, p route.Provider) (SignIn, error) {
+	s, ok := route.SignInFor(p)
 	if !ok {
-		return SignIn{}, fmt.Errorf("no sign-in for %q", f)
+		return SignIn{}, fmt.Errorf("CLIProxyAPI can't sign in to %q by itself; add its login in CLIProxyAPI's dashboard", p)
 	}
+	path := s.Path
 	var out struct {
 		SignIn
 		Error string `json:"error"`

@@ -76,7 +76,7 @@ func (l local) makeMain(machine string) error {
 
 // setOwn has the service serve these model families with this machine's own logins.
 func (l local) setOwn(families []string) error {
-	return l.call(time.Minute, http.MethodPost, api.PathOwn, api.Own{Families: families}, nil)
+	return l.call(time.Minute, http.MethodPost, api.PathOwn, api.Own{Providers: families}, nil)
 }
 
 func (l local) takeOver() error {

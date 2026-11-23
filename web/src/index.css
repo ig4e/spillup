@@ -79,3 +79,20 @@ body {
 ::selection {
   background: color-mix(in oklab, var(--accent) 30%, transparent);
 }
+
+/* Inset hairlines between rows, as in System Settings: they start after the icon, not at the edge. */
+.group-list > * + * {
+  position: relative;
+}
+.group-list > * + *::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 16px;
+  border-top: 0.5px solid var(--separator);
+  pointer-events: none;
+}
+.group-list > .group-row--icon:not(:first-child)::before {
+  left: 56px;
+}

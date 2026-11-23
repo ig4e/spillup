@@ -1,4 +1,4 @@
-import { Button, Skeleton } from "@heroui/react";
+import { Button, Skeleton, Switch } from "@heroui/react";
 import { Apple, Check, ChevronRight, Copy, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { navigate } from "../lib/hooks";
@@ -51,7 +51,7 @@ export function Group({ title, footer, children, className = "" }: { title?: Rea
   return (
     <section className={`mb-7 ${className}`}>
       {title ? <h2 className="mb-1.5 px-1 text-[13px] font-semibold text-foreground/80">{title}</h2> : null}
-      <div className="overflow-hidden rounded-xl bg-surface shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)] [&>*+*]:border-t [&>*+*]:border-separator">
+      <div className="group-list overflow-hidden rounded-xl bg-surface shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
         {children}
       </div>
       {footer ? <p className="mt-1.5 px-1 text-xs leading-relaxed text-muted">{footer}</p> : null}
@@ -91,7 +91,7 @@ export function Row({
       {to ? <ChevronRight className="size-4 shrink-0 text-muted/60" /> : null}
     </>
   );
-  const cls = "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left";
+  const cls = `group-row relative flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left ${icon ? "group-row--icon" : ""}`;
   if (!pressable) return <div className={cls}>{body}</div>;
   return (
     <button
@@ -183,5 +183,31 @@ export function GroupSkeleton({ rows = 3 }: { rows?: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** An iOS-style switch. HeroUI only makes it clickable inside Switch.Content, so every switch goes through here. */
+export function Toggle({
+  isSelected,
+  onChange,
+  label,
+  isDisabled,
+  children,
+}: {
+  isSelected: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+  isDisabled?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Switch size="sm" aria-label={label} isSelected={isSelected} isDisabled={isDisabled} onChange={onChange}>
+      <Switch.Content>
+        {children}
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch.Content>
+    </Switch>
   );
 }

@@ -21,6 +21,9 @@ type Panel struct {
 }
 
 const (
+	panelMachineCookie = "spinup_panel_machine"
+	// panelHeader names the proxy when the main machine's dashboard calls this one's over the tailnet.
+	panelHeader = "X-Spinup-Panel"
 	panelCookie = "spinup_panel"
 	panelShared = "shared"
 	panelOwn    = "own"
@@ -50,17 +53,27 @@ const panelSeed = `<script>(function(){try{var e=new TextEncoder(),d=e.encode(JS
 // proxy its calls go to.
 func (s *Server) servePanelPage(w http.ResponseWriter, r *http.Request) {
 	target := r.PathValue("target")
-	p, err := s.b.Panel(target)
-	if err != nil {
-		writePanelProblem(w, err)
-		return
+	machine := r.URL.Query().Get("machine")
+	var page string
+	var err error
+	if machine != "" {
+		page, err = s.fetchRemotePanelPage(r, machine, target)
+	} else {
+		var p Panel
+		if p, err = s.b.Panel(target); err == nil {
+			page, err = fetchPanelPage(r.Context(), p)
+		}
 	}
-	page, err := fetchPanelPage(r.Context(), p)
 	if err != nil {
 		writePanelProblem(w, err)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: panelCookie, Value: target, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
+	machineCookie := &http.Cookie{Name: panelMachineCookie, Value: machine, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode}
+	if machine == "" {
+		machineCookie.MaxAge = -1
+	}
+	http.SetCookie(w, machineCookie)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = io.WriteString(w, seeded(page))
@@ -97,8 +110,12 @@ func panelBase(p Panel) string {
 // here and this dashboard's cookies taken off.
 func (s *Server) servePanelAPI(w http.ResponseWriter, r *http.Request) {
 	target := panelShared
-	if c, err := r.Cookie(panelCookie); err == nil && c.Value == panelOwn {
+	if c, err := r.Cookie(panelCookie); err == nil && c.Value == panelOwn || r.Header.Get(panelHeader) == panelOwn {
 		target = panelOwn
+	}
+	if c, err := r.Cookie(panelMachineCookie); err == nil && c.Value != "" {
+		s.serveRemotePanelAPI(w, r, c.Value, target)
+		return
 	}
 	if wait := s.refusals.wait(target, time.Now()); wait > 0 {
 		writeError(w, http.StatusConflict, fmt.Sprintf("CLIProxyAPI refused spillup's key, so spillup stopped asking for %s to keep it from banning this machine. "+
@@ -173,4 +190,56 @@ func writePanelProblem(w http.ResponseWriter, err error) {
 
 func htmlEscape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;").Replace(s)
+}
+
+// fetchRemotePanelPage is another machine's Management Center, which that machine serves already signed in.
+func (s *Server) fetchRemotePanelPage(r *http.Request, machine, target string) (string, error) {
+	rm, err := s.b.Remote(machine)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rm.Base.String()+BridgePrefix+"/cpa/"+target+"/", nil)
+	for k, v := range rm.Header {
+		req.Header[k] = v
+	}
+	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	if err != nil {
+		return "", fmt.Errorf("%s didn't answer: %w", machine, err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s couldn't show its CLIProxyAPI dashboard (%s)", machine, resp.Status)
+	}
+	return string(body), err
+}
+
+// serveRemotePanelAPI passes the Management Center's calls to the machine it was opened for, whose own
+// dashboard adds its key.
+func (s *Server) serveRemotePanelAPI(w http.ResponseWriter, r *http.Request, machine, target string) {
+	rm, err := s.b.Remote(machine)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	proxy := &httputil.ReverseProxy{
+		FlushInterval: -1,
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.URL.Scheme, pr.Out.URL.Host, pr.Out.Host = rm.Base.Scheme, rm.Base.Host, ""
+			pr.Out.URL.Path, pr.Out.URL.RawPath = BridgePrefix+r.URL.Path, ""
+			for _, h := range []string{"Cookie", "Origin", "Referer", "Authorization", "X-Management-Key"} {
+				pr.Out.Header.Del(h)
+			}
+			for k, v := range rm.Header {
+				pr.Out.Header[k] = v
+			}
+			pr.Out.Header.Set(panelHeader, target)
+		},
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+			writeError(w, http.StatusBadGateway, machine+" didn't answer: "+err.Error())
+		},
+	}
+	proxy.ServeHTTP(w, r)
 }

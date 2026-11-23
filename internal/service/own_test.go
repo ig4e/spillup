@@ -50,7 +50,7 @@ func TestOwnLoginsServeOnlyThisMachinesOwnRequests(t *testing.T) {
 		t.Errorf("another machine's Claude request went to %q: own logins never serve other machines", got)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, "http://"+laptop.front+api.PathOwn, strings.NewReader(`{"families":[]}`))
+	req, _ := http.NewRequest(http.MethodPost, "http://"+laptop.front+api.PathOwn, strings.NewReader(`{"providers":[]}`))
 	req.Header.Set(api.APIKeyHeader, "k")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
@@ -80,8 +80,8 @@ func TestOwnLoginsRefuseUnknownFamiliesAndNeedTheAPIKey(t *testing.T) {
 		key, body string
 		want      int
 	}{
-		{"", `{"families":["claude"]}`, http.StatusUnauthorized},
-		{"k", `{"families":["mistral"]}`, http.StatusConflict},
+		{"", `{"providers":["claude"]}`, http.StatusUnauthorized},
+		{"k", `{"providers":["../bad"]}`, http.StatusConflict},
 	} {
 		req, _ := http.NewRequest(http.MethodPost, "http://"+laptop.front+api.PathOwn, strings.NewReader(c.body))
 		req.Header.Set(api.APIKeyHeader, c.key)

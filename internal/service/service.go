@@ -126,7 +126,7 @@ func New(o Options) *Machine {
 		stopRun:    func() {},
 	}
 	m.role.hold = o.Config.Hold
-	if fs, err := ownFamilies(o.Config.OwnModels); err == nil {
+	if fs, err := ownProviders(o.Config.OwnModels); err == nil {
 		m.own.set(fs)
 	}
 	m.ownForwarder = m.newOwnForwarder()
@@ -170,6 +170,7 @@ func (m *Machine) Run(ctx context.Context) error {
 		}()
 	}
 	defer m.stopOwn()
+	go m.learnOwnModels(ctx)
 	ticker := time.NewTicker(m.o.Tick)
 	defer ticker.Stop()
 	for {

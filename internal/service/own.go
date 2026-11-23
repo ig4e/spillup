@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -11,54 +12,77 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/route"
 )
 
-// ownLogins are the model families this machine serves with logins of its own. Each machine signs in for
-// itself, so no two machines ever refresh the same token, whatever the provider does on refresh.
+// ownLogins are the providers this machine serves with sign-ins of its own, and the models those sign-ins
+// serve as its own CLIProxyAPI last listed them. Each machine signs in for itself, so no two machines ever
+// refresh the same token, whatever the provider does on refresh.
 type ownLogins struct {
-	mu       sync.Mutex
-	families []route.Family
+	mu        sync.Mutex
+	providers []route.Provider
+	models    map[string]bool
 }
 
-func (o *ownLogins) get() []route.Family {
+func (o *ownLogins) get() []route.Provider {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return slices.Clone(o.families)
+	return slices.Clone(o.providers)
 }
 
-func (o *ownLogins) serves(f route.Family) bool {
+func (o *ownLogins) set(ps []route.Provider) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return f != "" && slices.Contains(o.families, f)
+	o.providers = ps
 }
 
-func (o *ownLogins) set(fs []route.Family) {
+func (o *ownLogins) setModels(models map[string]bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.families = fs
+	o.models = models
 }
 
-func ownFamilies(names []string) ([]route.Family, error) {
-	var fs []route.Family
-	for _, n := range names {
-		f := route.Family(n)
-		if !route.Known(f) {
-			return nil, fmt.Errorf("unknown model family %q (known: %v)", n, route.Families)
-		}
-		if !slices.Contains(fs, f) {
-			fs = append(fs, f)
+// serves reports whether a model goes to this machine's own sign-ins: one they serve, or, until its
+// CLIProxyAPI has said, one whose name belongs to a provider signed in here, so a missing sign-in fails
+// loudly instead of using the shared token.
+func (o *ownLogins) serves(model string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if model == "" || len(o.providers) == 0 {
+		return false
+	}
+	if o.models[model] {
+		return true
+	}
+	for _, p := range route.ProvidersOf(model) {
+		if slices.Contains(o.providers, p) {
+			return true
 		}
 	}
-	return fs, nil
+	return false
 }
 
-func familyNames(fs []route.Family) []string {
-	names := make([]string, len(fs))
-	for i, f := range fs {
-		names[i] = string(f)
+func ownProviders(names []string) ([]route.Provider, error) {
+	var ps []route.Provider
+	for _, n := range names {
+		if !route.Valid(n) {
+			return nil, fmt.Errorf("%q isn't a provider name", n)
+		}
+		p := route.Canonical(n)
+		if !slices.Contains(ps, p) {
+			ps = append(ps, p)
+		}
+	}
+	return ps, nil
+}
+
+func providerNames(ps []route.Provider) []string {
+	names := make([]string, len(ps))
+	for i, p := range ps {
+		names[i] = string(p)
 	}
 	return names
 }
@@ -68,7 +92,7 @@ func familyNames(fs []route.Family) []string {
 func (m *Machine) liveConfig() config.Config {
 	c := m.cfg
 	c.Hold = m.hold()
-	c.OwnModels = familyNames(m.own.get())
+	c.OwnModels = providerNames(m.own.get())
 	return c
 }
 
@@ -81,7 +105,7 @@ func (m *Machine) saveLive() error {
 
 // setOwn changes the families this machine serves itself, saves them, and starts or stops their proxy.
 func (m *Machine) setOwn(ctx context.Context, names []string) error {
-	fs, err := ownFamilies(names)
+	fs, err := ownProviders(names)
 	if err != nil {
 		return err
 	}
@@ -144,20 +168,20 @@ func (m *Machine) forwardLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m.swapLegacyKey(r)
-	f := requestFamily(r)
-	if !m.own.serves(f) {
+	model := requestModel(r)
+	if !m.own.serves(model) {
 		m.forwarder.ServeHTTP(w, r)
 		return
 	}
 	if !m.ownRunning() {
 		writeError(w, http.StatusServiceUnavailable, fmt.Sprintf(
-			"this machine uses its own %s sign-in, but its CLIProxyAPI isn't running: open `spinup ui` → Accounts", f))
+			"this machine serves %s with its own sign-in, but its CLIProxyAPI isn't running: open `spinup ui` → Sign-In", model))
 		return
 	}
 	m.ownForwarder.ServeHTTP(w, r)
 }
 
-func requestFamily(r *http.Request) route.Family {
+func requestModel(r *http.Request) string {
 	var body []byte
 	if r.GetBody != nil {
 		if rc, err := r.GetBody(); err == nil {
@@ -165,7 +189,48 @@ func requestFamily(r *http.Request) route.Family {
 			rc.Close()
 		}
 	}
-	return route.FamilyOf(route.ModelOf(r.URL.Path, body))
+	return route.ModelOf(r.URL.Path, body)
+}
+
+// ownModelsEvery is how often the service asks its own CLIProxyAPI which models its sign-ins serve.
+const ownModelsEvery = time.Minute
+
+// learnOwnModels keeps the list of models this machine's own sign-ins serve, while it has any.
+func (m *Machine) learnOwnModels(ctx context.Context) {
+	for ctx.Err() == nil {
+		if m.ownRunning() {
+			if models, err := m.listOwnModels(ctx); err == nil {
+				m.own.setModels(models)
+			}
+		}
+		sleep(ctx, ownModelsEvery)
+	}
+}
+
+func (m *Machine) listOwnModels(ctx context.Context) (map[string]bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	url := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(m.cfg.OwnProxyPort)) + "/v1/models"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req.Header.Set("Authorization", "Bearer "+m.o.Secrets.APIKey)
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var list struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&list); err != nil {
+		return nil, err
+	}
+	models := map[string]bool{}
+	for _, d := range list.Data {
+		models[d.ID] = true
+	}
+	return models, nil
 }
 
 // apiKeyHeaders are where clients put the proxy's API key: OpenAI and Claude Code style, Anthropic, Gemini.

@@ -1,6 +1,22 @@
-import { Alert, Dropdown, Label, Toast } from "@heroui/react";
-import { ChevronsUpDown, Eye, Gauge, KeyRound, Network, Server, Settings, Sparkles, Stethoscope, type LucideIcon } from "lucide-react";
-import { createContext, useContext } from "react";
+import { Alert, Dropdown, Label, Toast, Tooltip } from "@heroui/react";
+import {
+  ChevronsUpDown,
+  CloudDownload,
+  Eye,
+  Gauge,
+  KeyRound,
+  LogIn,
+  Network,
+  PanelLeft,
+  Server,
+  Settings,
+  Share2,
+  Sparkles,
+  Stethoscope,
+  Waypoints,
+  type LucideIcon,
+} from "lucide-react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Dot, IconTile, holdName, type Tint } from "./components/ui";
 import { api, setRemote } from "./lib/api";
 import { navigate, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
@@ -11,7 +27,11 @@ import { MachinesPage } from "./pages/Machines";
 import { OverviewPage } from "./pages/Overview";
 import { ProxyPage } from "./pages/Proxy";
 import { SettingsPage } from "./pages/Settings";
+import { SignInPage } from "./pages/SignIn";
 import { SkillsPage } from "./pages/Skills";
+import { T3Page } from "./pages/T3";
+import { TailscalePage } from "./pages/Tailscale";
+import { UpdatesPage } from "./pages/Updates";
 
 const OverviewContext = createContext<Query<Overview> | null>(null);
 
@@ -27,42 +47,83 @@ interface Page {
   icon: LucideIcon;
   color: Tint;
   page: () => React.ReactNode;
-  wide?: boolean;
+  /** Full-bleed pages use the whole window, for embedded dashboards. */
+  bleed?: boolean;
 }
 
-const pages: Page[] = [
-  { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
-  { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
-  { path: "/accounts", label: "Accounts", icon: KeyRound, color: "orange", page: AccountsPage },
-  { path: "/proxy", label: "CLIProxyAPI", icon: Server, color: "teal", page: ProxyPage, wide: true },
-  { path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage },
-  { path: "/doctor", label: "Doctor", icon: Stethoscope, color: "red", page: DoctorPage },
-  { path: "/settings", label: "Settings", icon: Settings, color: "gray", page: SettingsPage },
+const sections: { title: string; pages: Page[] }[] = [
+  {
+    title: "Fleet",
+    pages: [
+      { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
+      { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
+    ],
+  },
+  {
+    title: "Accounts",
+    pages: [
+      { path: "/accounts", label: "Accounts", icon: KeyRound, color: "orange", page: AccountsPage },
+      { path: "/sign-in", label: "Sign-In", icon: LogIn, color: "pink", page: SignInPage },
+      { path: "/proxy", label: "CLIProxyAPI", icon: Server, color: "teal", page: ProxyPage, bleed: true },
+    ],
+  },
+  {
+    title: "Integrations",
+    pages: [
+      { path: "/t3", label: "T3 Code", icon: Share2, color: "indigo", page: T3Page },
+      { path: "/tailscale", label: "Tailscale", icon: Waypoints, color: "graphite", page: TailscalePage },
+    ],
+  },
+  { title: "Agents", pages: [{ path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage }] },
+  {
+    title: "System",
+    pages: [
+      { path: "/doctor", label: "Doctor", icon: Stethoscope, color: "red", page: DoctorPage },
+      { path: "/updates", label: "Updates", icon: CloudDownload, color: "blue", page: UpdatesPage },
+      { path: "/settings", label: "Settings", icon: Settings, color: "gray", page: SettingsPage },
+    ],
+  },
 ];
+
+const pages = sections.flatMap((s) => s.pages);
 
 export default function App() {
   const remote = useRemote();
   return <Fleet key={remote ?? ""} remote={remote} />;
 }
 
+function useCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar") === "collapsed");
+  useEffect(() => localStorage.setItem("sidebar", collapsed ? "collapsed" : "open"), [collapsed]);
+  return [collapsed, () => setCollapsed((c) => !c)];
+}
+
 /** Everything shown for one machine: remounted when the dashboard switches machines, so nothing stale stays. */
 function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
   const path = usePath();
+  const [collapsed, toggle] = useCollapsed();
   const current = pages.find((p) => p.path === path) ?? pages[0];
   const Page = current.page;
 
   return (
     <OverviewContext.Provider value={overview}>
       <div className="flex min-h-screen">
-        <Sidebar path={current.path} />
+        <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
         <main className="min-w-0 flex-1">
           <MobileBar path={current.path} />
-          <div className={`mx-auto w-full px-5 py-8 sm:px-10 lg:py-12 ${current.wide ? "max-w-none" : "max-w-[860px]"}`}>
-            {remote ? <RemoteBanner name={remote} /> : null}
-            <ConnectionNotice remote={remote} />
-            <Page />
-          </div>
+          {current.bleed ? (
+            <div className="flex h-screen flex-col p-4 lg:p-5">
+              {remote ? <RemoteBanner name={remote} /> : null}
+              <Page />
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-[780px] px-5 py-8 sm:px-10 lg:py-12">
+              {remote ? <RemoteBanner name={remote} /> : null}
+              <ConnectionNotice remote={remote} />
+              <Page />
+            </div>
+          )}
         </main>
       </div>
       <Toast.Provider placement="top end" />
@@ -72,10 +133,10 @@ function Fleet({ remote }: { remote: string | null }) {
 
 function RemoteBanner({ name }: { name: string }) {
   return (
-    <div className="mb-6 flex items-center gap-3 rounded-xl bg-accent px-4 py-2.5 text-[13px] text-white shadow-sm">
+    <div className="mb-5 flex items-center gap-3 rounded-xl bg-accent px-4 py-2.5 text-[13px] text-white shadow-sm">
       <Eye className="size-4" />
       <span className="flex-1">
-        Viewing <b>{name}</b>’s dashboard from this machine. Keys and sign-ins stay on {name}.
+        Viewing <b>{name}</b> from this machine. Keys and sign-ins stay on {name}.
       </span>
       <button type="button" className="rounded-md bg-white/20 px-2.5 py-1 font-medium hover:bg-white/30" onClick={() => setRemote(null)}>
         Back to This Machine
@@ -88,32 +149,25 @@ function ConnectionNotice({ remote }: { remote: string | null }) {
   const { error } = useOverview();
   if (!error) return null;
   const signedOut = (error as { status?: number }).status === 401;
-  if (remote && !signedOut) {
-    return (
-      <Alert status="danger" className="mb-6">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>{remote} isn't answering</Alert.Title>
-          <Alert.Description>{error.message}. It needs spillup 0.3.3 or newer and to be online on Tailscale.</Alert.Description>
-        </Alert.Content>
-      </Alert>
-    );
-  }
   return (
     <Alert status={signedOut ? "warning" : "danger"} className="mb-6">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>{signedOut ? "Signed out" : "spinup isn't answering"}</Alert.Title>
+        <Alert.Title>{signedOut ? "Signed out" : remote ? `${remote} isn't answering` : "spillup isn't answering"}</Alert.Title>
         <Alert.Description>
-          {signedOut ? "Run spinup ui in a terminal to open a signed-in window." : `Is spinup ui still running? (${error.message})`}
+          {signedOut
+            ? "Run spinup ui in a terminal to open a signed-in window."
+            : remote
+              ? `${error.message}. It needs a recent spillup and to be online on Tailscale.`
+              : `Is spillup's service running? (${error.message})`}
         </Alert.Description>
       </Alert.Content>
     </Alert>
   );
 }
 
-function SidebarLink({ page, active }: { page: Page; active: boolean }) {
-  return (
+function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean; collapsed?: boolean }) {
+  const link = (
     <a
       href={page.path}
       onClick={(e) => {
@@ -122,28 +176,59 @@ function SidebarLink({ page, active }: { page: Page; active: boolean }) {
         navigate(page.path);
       }}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
-        active ? "bg-accent text-white" : "text-foreground hover:bg-foreground/[0.06]"
-      }`}
+      aria-label={collapsed ? page.label : undefined}
+      className={`flex items-center gap-2.5 rounded-md py-[5px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+        collapsed ? "justify-center px-1" : "px-2"
+      } ${active ? "bg-accent text-white" : "text-foreground hover:bg-foreground/[0.06]"}`}
     >
       <IconTile icon={page.icon} color={page.color} size="sm" />
-      {page.label}
+      {collapsed ? null : <span className="truncate">{page.label}</span>}
     </a>
+  );
+  if (!collapsed) return link;
+  return (
+    <Tooltip delay={200}>
+      <Tooltip.Trigger className="block">{link}</Tooltip.Trigger>
+      <Tooltip.Content placement="right">{page.label}</Tooltip.Content>
+    </Tooltip>
   );
 }
 
-function Sidebar({ path }: { path: string }) {
+function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boolean; onToggle: () => void }) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-separator bg-[var(--sidebar)] px-3 pt-5 pb-4 backdrop-blur-2xl backdrop-saturate-150 lg:flex">
-      <MachineCard />
-      <nav className="mt-4 flex flex-col gap-0.5">
-        {pages.slice(0, 6).map((p) => (
-          <SidebarLink key={p.path} page={p} active={path === p.path} />
+    <aside
+      className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-separator bg-[var(--sidebar)] pt-3 pb-4 backdrop-blur-2xl backdrop-saturate-150 transition-[width] duration-200 lg:flex ${
+        collapsed ? "w-[60px] px-2" : "w-[236px] px-3"
+      }`}
+    >
+      <div className={`mb-2 flex ${collapsed ? "justify-center" : "justify-end"}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"}
+          className="rounded-md p-1.5 text-muted outline-none hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent/60"
+        >
+          <PanelLeft className="size-4" />
+        </button>
+      </div>
+      {collapsed ? null : <MachineCard />}
+      <nav className="mt-3 flex flex-1 flex-col overflow-y-auto">
+        {sections.map((section, i) => (
+          <div key={section.title} className="mb-2">
+            {collapsed ? (
+              i > 0 ? <div className="mx-2 my-2 h-px bg-separator" /> : null
+            ) : (
+              <div className="px-2 pt-1 pb-1 text-[11px] font-semibold text-muted">{section.title}</div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {section.pages.map((p) => (
+                <SidebarLink key={p.path} page={p} active={path === p.path} collapsed={collapsed} />
+              ))}
+            </div>
+          </div>
         ))}
-        <div className="my-2 h-px bg-separator" />
-        <SidebarLink page={pages[6]} active={path === pages[6].path} />
       </nav>
-      <HolderStatus />
+      {collapsed ? null : <HolderStatus />}
     </aside>
   );
 }
@@ -165,7 +250,7 @@ function MachineCard() {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-semibold">{name}</span>
         <span className="block truncate text-xs text-muted">
-          {data ? (data.installed ? `${holdName[data.hold]}${remote ? " · remote" : " · spillup"}` : "Not set up yet") : "…"}
+          {data ? (data.installed ? `${holdName[data.hold]}${remote ? " · viewing" : ""}` : "Not set up yet") : "…"}
         </span>
       </span>
       {canSwitch ? <ChevronsUpDown className="size-4 shrink-0 text-muted" /> : null}
@@ -182,13 +267,7 @@ function MachineCard() {
     <Dropdown>
       <Dropdown.Trigger className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60">{card}</Dropdown.Trigger>
       <Dropdown.Popover placement="bottom start" className="min-w-56">
-        <Dropdown.Menu
-          aria-label="Show a machine's dashboard"
-          onAction={(key) => {
-            setRemote(key === "__self" ? null : String(key));
-            navigate("/");
-          }}
-        >
+        <Dropdown.Menu aria-label="Show a machine's dashboard" onAction={(key) => setRemote(key === "__self" ? null : String(key))}>
           <Dropdown.Item id="__self" textValue="This machine">
             <Label>{local.data?.name || "This machine"} (this one)</Label>
           </Dropdown.Item>
@@ -208,7 +287,7 @@ function HolderStatus() {
   const s = data?.service;
   const leader = s?.leading ? data?.name : s?.leader || s?.leader_addr?.split(":")[0];
   return (
-    <div className="mt-auto flex items-center gap-2 px-2 text-xs text-muted">
+    <div className="mt-2 flex items-center gap-2 px-2 text-xs text-muted">
       <Dot tone={leader ? "success" : "warning"} />
       <span className="truncate">{leader ? `Accounts on ${leader}` : data?.installed === false ? "Not set up" : "No holder yet"}</span>
     </div>

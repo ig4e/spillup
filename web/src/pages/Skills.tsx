@@ -1,7 +1,7 @@
 import { Alert, Button, Checkbox, Description, Input, Label, Modal, Spinner, Switch, Tabs, TextField } from "@heroui/react";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Group, GroupSkeleton, IconTile, LargeTitle, Row } from "../components/ui";
+import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
 import { api } from "../lib/api";
 import { capitalize, relative } from "../lib/format";
 import { useAction, useQuery } from "../lib/hooks";
@@ -196,17 +196,12 @@ function SharedList({ skills, library, reload }: { skills: SharedSkill[]; librar
             subtitle={`${s.source === "yours" ? "Your own" : s.source} · ${s.agents.length ? s.agents.map(capitalize).join(" & ") : "no agent yet"}`}
             accessory={
               editing ? undefined : (
-                <Switch
-                  size="sm"
-                  aria-label={`${s.name} runs on its own`}
+                <Toggle
+                  label={`${s.name} runs on its own`}
                   isSelected={s.mode === "auto"}
                   isDisabled={pending === s.name}
                   onChange={(auto) => run(s.name, () => api.setMode([s.name], !auto), reload)}
-                >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch>
+                />
               )
             }
           />

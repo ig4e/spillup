@@ -45,6 +45,9 @@ type Backend interface {
 	T3Link(ctx context.Context, url, code string) error
 	SyncT3(ctx context.Context) (string, error)
 
+	// Apps are the AI apps installed here, for hints that fit this machine.
+	Apps() []App
+
 	// UpdateState, StartUpdate and SetAutoUpdate keep spillup itself up to date.
 	UpdateState(ctx context.Context) Update
 	StartUpdate() error
@@ -137,9 +140,16 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("t3/link", s.serveT3Link)
 	change("t3/sync", s.serveT3Sync)
 
+	read("apps", s.serveApps)
+	read("proxy/logins", s.serveProxyLogins)
+
 	read("update", s.serveUpdateState)
 	change("update", s.serveUpdate)
 	change("update/auto", s.serveAutoUpdate)
+
+	if from == bridged {
+		s.panelRoutes(mux, func(h http.HandlerFunc) http.HandlerFunc { return h })
+	}
 
 	unknown := func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "no such dashboard call")
@@ -148,18 +158,24 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	mux.HandleFunc("POST /api/", unknown)
 }
 
+// panelRoutes serve CLIProxyAPI's Management Center: to the browser here, and to the main machine's
+// dashboard over the tailnet, so it shows each machine's own.
+func (s *Server) panelRoutes(mux *http.ServeMux, admit func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /cpa/{target}/{$}", admit(s.servePanelPage))
+	for _, prefix := range panelAPIPrefixes {
+		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
+			mux.HandleFunc(method+" "+prefix, admit(s.servePanelAPI))
+		}
+	}
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.apiRoutes(mux, browser)
 	mux.HandleFunc("GET /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
 	mux.HandleFunc("POST /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
 
-	mux.HandleFunc("GET /cpa/{target}/{$}", s.needsSession(s.servePanelPage))
-	for _, prefix := range panelAPIPrefixes {
-		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
-			mux.HandleFunc(method+" "+prefix, s.needsSession(s.servePanelAPI))
-		}
-	}
+	s.panelRoutes(mux, s.needsSession)
 	mux.HandleFunc("GET /", s.serveApp)
 	return s.guard(securityHeaders(mux))
 }
