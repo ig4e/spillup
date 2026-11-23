@@ -125,7 +125,9 @@ export async function mock(method: string, fullPath: string, body: any): Promise
   const path = viewing ? fullPath.slice(fullPath.indexOf("/", 7) + 1) : fullPath;
   if (viewing && method === "GET" && path === "overview") {
     const o = overview();
-    return { ...o, name: decodeURIComponent(viewing), hold: "never", can_manage: false, os: "windows", service: { ...o.service!, name: decodeURIComponent(viewing), hold: "never", leading: false, accounts: [] } };
+    const name = decodeURIComponent(viewing);
+    const hold = fleet.holds[name] ?? "never";
+    return { ...o, name, hold, can_manage: hold !== "never", os: "windows", service: { ...o.service!, name, hold, leading: fleet.leader === name } };
   }
   if (method === "GET" && path.startsWith("own/signin?")) return { status: "ok" };
   if (method === "GET") {

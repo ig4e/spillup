@@ -1,201 +1,245 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<div align="center">
+
+<img src="assets/icon.svg" width="96" height="96" alt="spillup">
 
 # spillup
 
-**spillup** is [spinup](https://github.com/darkyeg/spinup) with a web dashboard. Everything below works as in spinup; the command is still `spinup`, and `spinup ui` opens the dashboard.
+**Every computer you code with AI on, set up once, kept the same, and sharing your Claude and Codex accounts.**
+**Managed from one dashboard, on Windows, macOS and Linux.**
 
-## The dashboard
+[![Release](https://img.shields.io/github/v/release/ig4e/spillup?style=flat-square&color=007aff)](https://github.com/ig4e/spillup/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/ig4e/spillup/ci.yml?branch=master&style=flat-square&label=ci)](https://github.com/ig4e/spillup/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-34c759?style=flat-square)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-8e8e93?style=flat-square)](#install)
 
-```sh
-spinup ui
-```
+<br>
 
-It opens in your browser and shows your machines, who holds the accounts, your logins, skills and the doctor's checks. From there you can:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/overview-dark.png">
+  <img src="docs/screenshots/overview-light.png" alt="The spillup dashboard: which machine holds your accounts, your machines, logins and skills" width="900">
+</picture>
 
-- **Choose the main machine** (the hub). Pick any hub or standby; the old hub becomes a standby and the accounts move between requests, so nothing is cut off and nobody is logged out.
-- Move the accounts to a machine now, restart CLIProxyAPI, or take over after losing a machine for good.
-- Turn skills on or off, add them from GitHub, keep a machine's own skills everywhere, and restore removed ones.
-- **Sign in separately per machine** (Accounts → *Sign In Separately on This Machine*). Turn a model family (Claude, GPT/Codex, Gemini) on and this machine signs in with its own account instead of using the shared one. Claude logs out other sessions when a token refreshes; with its own sign-in, no two machines ever refresh the same token. Requests for that family from this machine go to a second, local CLIProxyAPI (`127.0.0.1:8328`, logins in `~/.cli-proxy-api-own`, never synced). Every other model still uses the shared accounts, and other machines' requests never use this machine's own logins.
-- **CLIProxyAPI's own dashboard**, built in (CLIProxyAPI page): providers, logins, quotas, logs and config, already signed in. The real key is added by spillup and never reaches the browser.
-- **Open any machine's dashboard from the main machine.** The switcher at the top of the sidebar (or *Open Dashboard* on a device, or `http://localhost:8320/?machine=<name>`) shows that machine's overview, skills, separate sign-ins and checks. Its service answers over Tailscale, to the dashboard password on a hub or standby and to the API key on the others; keys, sign-ins and CLIProxyAPI's dashboard stay on the machine itself.
-- See the API key and dashboard password a new machine asks for.
+</div>
 
-It's always on: the accounts service runs 24/7 (from boot, before anyone logs in, restarting if it stops) and hosts the dashboard at `http://localhost:8320` the whole time. `spinup ui` just opens it, signed in; bookmark it after that. It answers only on `localhost`, and only to a browser signed in through `spinup ui`. Change the port with `ui_port` in config.json (`0` turns hosting off). It follows your system's light or dark mode. Moving the accounts or changing the main machine works on the hub and standbys, which keep the dashboard password.
+<br>
 
-Releases: every push to `master` is published automatically as the next patch version, with binaries for Windows, Linux and macOS; push a tag like `v0.4.0` for a bigger bump.
+You have a desktop, a laptop, maybe a Mac. On each one you install the same tools, copy the same skills, and sign in to the same accounts — then watch them drift apart, and watch Claude log you out because two machines refreshed the same login.
 
-To work on it: `cd web && npm ci && npm run dev:mock` shows it with a pretend fleet; `npm run build` builds it into the binary (`internal/webui/dist`), then `go build ./cmd/spinup`.
-
----
-
-
-**Set up every computer you code with AI on, keep them the same, and share your Claude and Codex accounts between them.**
-
-You have a desktop, a laptop, maybe a Mac. On each one you install the same tools, copy the same skills, and sign in to the same accounts — then watch them drift apart.
-
-spinup does that once, per machine:
+spillup fixes that with one command per machine, then keeps everything in step by itself:
 
 ```sh
 spinup setup my-desktop --hub
 ```
 
-That installs your dev tools, joins your private network, installs your skills and agent settings, and ends with a health check.
-
-One Go binary, no dependencies. Windows, macOS, Linux. Every command is safe to re-run — re-running is how you repair.
+> spillup is [spinup](https://github.com/darkyeg/spinup) by [@darkyeg](https://github.com/darkyeg), plus an always-on dashboard, a main machine you can change, separate sign-in per machine, and CLIProxyAPI's own dashboard built in. The command is still `spinup`.
 
 ## What you get
 
-**Your accounts, everywhere.** One machine holds your Claude and Codex logins. Every other machine uses them at `http://localhost:8317`. If the holder goes offline, a standby takes over and hands them back when it returns.
+| | |
+|---|---|
+| 🔑 **Your accounts, everywhere** | One machine holds your Claude and Codex logins; every machine uses them at `http://localhost:8317`. If it goes offline, a standby takes over and hands them back later — never two at once, so nobody gets logged out. |
+| 👑 **A main machine you choose** | Make your desktop the main machine from the dashboard. Change it anytime; the accounts move between requests. |
+| 🔐 **Separate sign-in when you need it** | Turn on Claude, GPT/Codex or Gemini per machine and that machine uses its own account, so no provider can revoke one machine's session when another refreshes. |
+| ✨ **The same agents, everywhere** | Skills, agent instructions and plugins live in one library that every machine keeps identical. Change it anywhere; the rest follow within seconds. |
+| 🖥️ **One dashboard for the fleet** | Always on at `http://localhost:8320`. From the main machine, open any other machine's dashboard too. |
+| 🩺 **A straight answer when something breaks** | `spinup doctor` (or the Doctor page) checks everything and gives the fix for each problem. |
 
-**The same agents, everywhere.** Your skills and instructions live in one folder (`~/.spinup`) that spinup keeps identical on all your machines. Change it anywhere; the others follow within seconds.
+Under the hood: [Tailscale](https://tailscale.com) connects your machines privately, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) shares the accounts, and one Go binary with no dependencies runs it all, 24/7, from boot.
 
-**A straight answer when something breaks.** `spinup doctor` checks everything and prints the command that fixes each problem.
+## Install
 
-## Quick start
-
-### 1. Install
-
-```sh
-# macOS, Linux
-curl -fsSL https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.sh | sh
-```
+<table>
+<tr><th>Windows (PowerShell)</th><th>macOS and Linux</th></tr>
+<tr>
+<td>
 
 ```powershell
-# Windows
 irm https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.ps1 | iex
 ```
 
-Check it worked: `spinup --version`. Open a new terminal if the command isn't found.
+</td>
+<td>
 
-### 2. Set up the machine that holds your accounts
+```sh
+curl -fsSL https://raw.githubusercontent.com/ig4e/spillup/master/scripts/install.sh | sh
+```
 
-This is the **hub** — usually the desktop that's on most. The name you pick becomes its address on your network.
+</td>
+</tr>
+</table>
+
+Then open a new terminal and check it: `spinup --version`. Prefer a download? Every [release](https://github.com/ig4e/spillup/releases/latest) has binaries for each system and a `checksums.txt`.
+
+## Set up your machines
+
+**1. The main machine** — the one that's on the most, usually your desktop. The name you pick becomes its address on your network.
 
 ```sh
 spinup setup my-desktop --hub
 ```
 
-Then add your accounts in the dashboard it opens (`http://localhost:8317/management.html` → **OAuth Login**).
+This installs and signs in to **Tailscale** (use the same account on every machine), installs **CLIProxyAPI**, starts the accounts service and the dashboard **at boot**, and installs your dev tools, skills and agent settings. It ends with a health check. Then sign in your accounts: `spinup ui` → **CLIProxyAPI** → **OAuth Login**.
 
-### 3. Set up your other machines
-
-Use the **same Tailscale account** on every machine.
+**2. Your other machines** — each asks for a key that `spinup keys` prints on the main machine.
 
 ```sh
-spinup setup my-laptop --standby   # takes over while the hub is off
+spinup setup my-laptop --standby   # takes over while the main machine is off
 spinup setup my-mac                # just uses the accounts
 ```
 
-Each asks for a key, which `spinup keys` prints on a machine you already set up.
+**3. Use it.** Run `ccp` instead of `claude` to use Claude Code with the shared accounts (plain `claude` keeps its own login), or point T3 Code's providers at `http://localhost:8317` — see [docs/T3-PROXY.md](docs/T3-PROXY.md).
 
-### 4. Use it
+Every command is safe to re-run; re-running is how you repair. Prefer your agent to do it? Tell it *"set up this machine with spinup"* and it follows [docs/SETUP.md](docs/SETUP.md).
 
-Run `ccp` instead of `claude` to use Claude Code with the shared accounts. Plain `claude` keeps its own login.
+## The dashboard
 
-> **Prefer your agent to do all this?** Tell it *"set up this machine with spinup"* and it will follow [docs/SETUP.md](docs/SETUP.md).
+Always on at **`http://localhost:8320`**, hosted by the background service on every machine. Run `spinup ui` once to open it signed in, then bookmark it. It follows your system's light and dark mode.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Machines** — every device on your tailnet, who holds the accounts, and the **main machine** picker. Pick another machine and it becomes the hub; the old one becomes its standby.
+
+</td>
+<td width="50%"><img src="docs/screenshots/machines.png" alt="Machines: choose the main machine and see every device"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**Accounts** — your shared logins, CLIProxyAPI's status, and **Sign In Separately on This Machine**: switch on a model family and this machine signs in with its own account, on its own local CLIProxyAPI that nothing syncs. Other models keep using the shared accounts.
+
+</td>
+<td><img src="docs/screenshots/accounts.png" alt="Accounts: shared logins and separate sign-in per machine"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**Skills** — your library, the same on every machine: switch a skill between running on its own and only when called, see what it costs per session, add skills from GitHub, keep a machine's own skills everywhere, and restore removed ones.
+
+</td>
+<td><img src="docs/screenshots/skills.png" alt="Skills: one library on every machine"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**Doctor** — tools, Tailscale paths, the accounts, skills and updates, each problem with its fix.
+
+</td>
+<td><img src="docs/screenshots/doctor.png" alt="Doctor: every check with its fix"></td>
+</tr>
+<tr>
+<td valign="top">
+
+**Any machine, from the main one** — use the switcher at the top of the sidebar, *Open Dashboard* on a device, or `http://localhost:8320/?machine=<name>`.
+
+</td>
+<td><img src="docs/screenshots/remote.png" alt="Viewing another machine's dashboard from the main machine"></td>
+</tr>
+</table>
+
+There's also a **CLIProxyAPI** page with CLIProxyAPI's own Management Center built in and already signed in, and **Settings** for keys, appearance and the service.
+
+<details>
+<summary><b>How the dashboard stays safe</b></summary>
+
+- It answers only on `localhost`, and only to a browser signed in through `spinup ui`. Other websites can't call it: requests are checked for this dashboard's address, origin and a JSON body.
+- Keys never reach the browser. The CLIProxyAPI page and other machines' dashboards are reached through spillup, which adds the keys itself.
+- Another machine's dashboard is reachable only over Tailscale. A main machine or standby answers only to the dashboard password, so a machine that just uses the accounts can never control one. Revealing keys, signing in and CLIProxyAPI's dashboard never work remotely.
+- Change the port with `ui_port` in `config.json`; `0` turns the dashboard off.
+
+</details>
+
+## How it works
+
+```
+ your programs ── localhost:8317 ──┐                        ┌── this machine's own CLIProxyAPI
+                                   ├── spillup on each ─────┤     (only for families you sign in to separately)
+ phone on Tailscale ── <hub>:8317 ─┘   machine              └── the holder's CLIProxyAPI, over Tailscale
+                                         private Tailscale network
+```
+
+- **Names, not IPs.** Tailscale gives each machine a fixed private address and the name you chose. At home traffic goes straight over your router; away, over the internet.
+- **No machine list to keep.** Tailscale is the list; spillup reads it.
+- **One holder at a time.** A standby takes over only when Tailscale reports the holder offline for three minutes — never just because it can't be reached. That's what stops two machines refreshing the same login.
+- **Always running.** The service starts at boot before anyone logs in (an S4U scheduled task on Windows, a lingering systemd user unit on Linux) and restarts if it stops.
+- **Changes travel in seconds.** Your library reaches every online machine; offline ones catch up when they return.
+
+Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (shared, on the holder) and `8328` (separate sign-in), on `127.0.0.1` only. In plain words: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) · safety design: [docs/DESIGN.md](docs/DESIGN.md) · day to day: [docs/SERVICE.md](docs/SERVICE.md).
 
 ## Commands
 
 | | |
 |---|---|
 | `spinup setup <name> [--hub\|--standby]` | Set up or repair the whole machine |
+| `spinup ui` | Open the always-on dashboard, signed in |
 | `spinup doctor` | Check everything; each problem comes with its fix |
-| `spinup update` | Update spinup, CLIProxyAPI, skills and Tailscale |
+| `spinup update` | Update spillup, CLIProxyAPI, skills and Tailscale |
 | `spinup status` | Who holds the accounts, every login, every machine |
 | `spinup handoff <machine>` | Move the accounts to another machine, safely |
 | `spinup machines` | Every device on your network and its address |
-| `spinup skills` | Your skills for Claude Code and Codex — see below |
+| `spinup skills` | Your skills for Claude Code and Codex |
 | `spinup packages` | Complete plugins, pinned revisions, native installation and rollback |
-| `spinup agents` | Shared and personal instructions; preserves your model choices and settings by default |
+| `spinup agents` | Shared and personal instructions; keeps your model choices and settings |
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
-| `spinup ui` | Open the always-on dashboard in your browser, signed in |
 
 `spinup <command> --help` explains each one.
 
-## Skills
+<details>
+<summary><b>Skills, plugins and your own instructions</b></summary>
 
-Your skills live in one folder, your **library** (`~/.spinup/skills`). spinup copies it to every machine and links it into Claude Code and Codex. Edit a skill on any machine; the others follow within seconds.
-
-```sh
-spinup skills        # see them all, and change them
-```
-
-It opens a list with three tabs:
-
-| Tab | What's in it |
-|---|---|
-| **Shared** | Skills in your library. Shows which agents load each one. |
-| **Only here** | Skills on this machine that spinup doesn't share yet, such as a folder only Codex has. |
-| **Removed** | Everything you removed. Nothing is ever deleted. |
-
-Arrows move, `space` marks, `tab` switches list, `q` quits. Then `d` remove, `a` keep everywhere, `r` restore, `m` auto/manual, `n` rename. Outside a terminal, or with `--plain`, it prints the list and changes nothing.
-
-### Bring a skill in
+Your skills live in one folder, your **library** (`~/.spinup/skills`), copied to every machine and linked into Claude Code and Codex. Use the **Skills** page, or `spinup skills` for the same three tabs in a terminal (Shared, Only here, Removed — nothing is ever deleted).
 
 | You have | Do |
 |---|---|
-| A skill that only exists on this machine (in Claude's or Codex's folder) | `spinup skills`, open **Only here**, press `a` |
+| A skill only this machine has | Skills → **Only Here** → **Keep Everywhere** (or `spinup skills adopt`) |
 | A folder or `.zip` someone sent you | `spinup skills import <path>` |
 | A new idea | `spinup skills new <name>` |
-| A skill on GitHub | `spinup skills add <owner/repo> <skill>` |
+| A skill on GitHub | Skills → **Add Skills** (or `spinup skills add <owner/repo> <skill>`) |
 
-**Auto or manual?** An auto skill's description costs tokens in every session. A manual one costs nothing until you call it (`/name` in Claude Code, `$name` in Codex). Press `m` to switch.
+**Auto or manual?** An auto skill's description costs tokens in every session; a manual one costs nothing until you call it (`/name` in Claude Code, `$name` in Codex).
 
-spinup installs for the agents it finds on the machine; you don't list them. More: [docs/LIBRARY.md](docs/LIBRARY.md).
+Complete plugins such as Superpowers: `spinup packages add obra/superpowers` — pinned, installed through each tool's own plugin manager, with `plan`, `update`, `rollback` and `remove` ([docs/PACKAGES.md](docs/PACKAGES.md)). Your own instructions: create `~/.spinup/AGENTS.md`, then `spinup agents` ([docs/AGENT-CONFIG.md](docs/AGENT-CONFIG.md)). More: [docs/LIBRARY.md](docs/LIBRARY.md).
 
-## Make it yours
+</details>
 
-For complete plugins such as Superpowers, use `spinup packages add obra/superpowers`. Spinup keeps the package intact, pins its revision and installs it through each tool's native plugin manager. `spinup packages plan`, `update`, `rollback` and `remove` manage its lifecycle. Existing standalone skills keep working. See [plugin packages](docs/PACKAGES.md) before enabling package synchronization across older machines.
+<details>
+<summary><b>Good to know</b></summary>
 
-Create the optional `~/.spinup/AGENTS.md` yourself, then run `spinup agents`. Spinup appends your instructions to both Claude Code and Codex, and the library service syncs them between your machines. Models, effort and limits stay in your local agent settings; spinup does not choose them or bundle subagents. See [agent configuration](docs/AGENT-CONFIG.md). To change shared guidelines or supply your own defaults (stack rules, `agents/`, `tools.json`), fork the repo: spinup uses the checkout it runs in, or `SPINUP_REPO`.
+- **A Mac shouldn't be your main machine.** Its service runs only while you're logged in. Use an always-on Windows or Linux machine.
+- **Agent settings are merged locally, not copied.** Credentials and machine-specific paths stay on each machine.
+- **A phone** without spillup points at an online hub or standby by name (`http://my-desktop:8317`) with the API key.
+- **Releases** publish automatically from every push to `master`, for Windows, Linux and macOS. `spinup update` installs them.
+- **Before trusting a new build** across machines, follow the [validation guide](docs/VALIDATION.md).
 
-## How it works
-
-```
- computer running spinup ── localhost:8317 ─────────┐
- phone on Tailscale ─────── <hub-or-standby>:8317 ──┴── current holder's CLIProxyAPI
-                         private Tailscale network
-```
-
-spinup runs on each machine and routes to whichever one currently holds the accounts.
-
-- **Names, not IPs.** [Tailscale](https://tailscale.com) gives each machine a fixed private address and the name you chose. At home, traffic goes straight over your router; away, over the internet.
-- **No machine list to keep.** Tailscale is the list; spinup reads it.
-- **One holder at a time.** A standby takes over only when Tailscale reports the holder offline and three minutes have passed — never just because it can't be reached. This is what stops two machines refreshing the same login and locking you out.
-- **Changes travel in seconds.** With a hub or standby online, your library reaches every machine; disconnected ones catch up when they return.
-
-Port `8317` is spinup's router; CLIProxyAPI uses `8327` internally, and only on the holder. Each machine has its own localhost, so the same port everywhere is fine.
-
-In plain words: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md). The safety design: [docs/DESIGN.md](docs/DESIGN.md). Day-to-day: [docs/SERVICE.md](docs/SERVICE.md).
-
-## Good to know
-
-- **A Mac shouldn't be your hub.** Its service runs as a LaunchAgent, so it holds the accounts only while you're logged in. Use an always-on Linux or Windows machine.
-- **Agent settings are merged locally, not copied between machines.** Run `spinup agents` on each. Keep credentials and machine-specific paths local: [docs/AGENT-CONFIG.md](docs/AGENT-CONFIG.md).
-- **A phone** without spinup points at an online hub or standby by name (`http://my-desktop:8317`) with the API key. If that machine goes offline, point it at another; spinup doesn't move one address between machines.
-- **Before trusting a new build** across machines, follow the [validation guide](docs/VALIDATION.md). A local health check doesn't exercise failover.
-- **Building from source?** `go install ./cmd/spinup` from a checkout. Unreleased changes don't arrive through `spinup update`.
-- **Trying a nightly?** Main builds publish GitHub prereleases with a `-nightly` suffix. Download the matching binary and verify it against that release's `checksums.txt`. Normal installers and `spinup update` use stable releases; they do not subscribe a machine to nightlies. A nightly can update to the same version's stable release once published.
+</details>
 
 ## Security
 
-- **Nothing faces the internet.** The accounts are reachable only on your tailnet, and Tailscale traffic is end-to-end encrypted. On Windows a firewall rule limits the port to Tailscale addresses.
+- **Nothing faces the internet.** Everything is reachable only on your tailnet, and Tailscale traffic is end-to-end encrypted. On Windows a firewall rule limits the port to Tailscale addresses.
 - **Keys stay on your machines** (`secrets.json`, never committed). Machines prove they know the key before any login is sent to them.
-- **Downloads are checksum-verified**, both spinup's updates and CLIProxyAPI's.
-- Turn on 2FA for **GitHub** and **Tailscale**, and disable Tailscale key expiry for your machines — `doctor` warns you.
+- **Downloads are checksum-verified**, both spillup's updates and CLIProxyAPI's.
+- Turn on 2FA for **GitHub** and **Tailscale**, and disable Tailscale key expiry for your machines — the doctor warns you.
 - Found a problem? [SECURITY.md](SECURITY.md).
 
-## Important
+> [!IMPORTANT]
+> Routing subscription accounts through a proxy may conflict with your provider's terms. Read them and decide for yourself; you are responsible for how you use your accounts. spillup's own rule: use Claude accounts only through Claude Code (`ccp`, or T3 Code's Claude provider), never from other apps. An abrupt failure right after a login refresh can still mean signing that account in again: [the service limits](docs/SERVICE.md).
 
-Routing subscription accounts through a proxy may conflict with your provider's terms. Read them and decide for yourself; you are responsible for how you use your accounts. spinup's own rule: use Claude accounts only through Claude Code (`ccp`, or T3 Code's Claude provider), never from other apps.
+## Development
 
-The accounts service keeps one holder active to avoid competing login refreshes. An abrupt failure just after a refresh can still mean logging that account in again: [the service limits](docs/SERVICE.md).
+```sh
+cd web && npm ci && npm run dev:mock    # the dashboard with a pretend fleet, at localhost:5173
+npm --prefix web run build              # build it into the binary (internal/webui/dist)
+go vet ./... && go test ./...           # then: go build ./cmd/spinup
+```
 
-## Contributing
+Ideas and fixes are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) · terms used everywhere: [GLOSSARY.md](GLOSSARY.md) · code map: [AGENTS.md](AGENTS.md).
 
-Ideas and fixes are welcome: [CONTRIBUTING.md](CONTRIBUTING.md). Terms used everywhere: [GLOSSARY.md](GLOSSARY.md).
+## Credits
+
+Built on [spinup](https://github.com/darkyeg/spinup) by [@darkyeg](https://github.com/darkyeg). Uses [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and its [Management Center](https://github.com/router-for-me/Cli-Proxy-API-Management-Center), [Tailscale](https://tailscale.com) and [HeroUI](https://heroui.com).
 
 ## License
 
