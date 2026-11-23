@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -20,15 +22,20 @@ import (
 	"github.com/darkyeg/spinup/internal/webui"
 )
 
+const defaultUIPort = 8320
+
 type uiCmd struct {
-	Port      int  `default:"8320" help:"Port for the dashboard, on localhost only."`
+	Port      int  `help:"Serve a dashboard of its own on this port instead of opening the one the service hosts."`
 	NoBrowser bool `help:"Print the link instead of opening a browser."`
 }
 
 func (uiCmd) Help() string {
-	return `Opens spinup's dashboard in your browser: your machines, who holds the accounts and which machine
-is the hub, your skills, and the doctor's checks. It answers only on this machine, and only to the
-browser that opened its link. Ctrl-C stops it; the accounts service keeps running either way.`
+	return `Opens spinup's dashboard in your browser, signed in: your machines, who holds the accounts and which
+machine is the hub, your logins, skills, CLIProxyAPI's own dashboard and the doctor's checks.
+
+The accounts service hosts it all the time at http://localhost:8320 (ui_port in config.json; 0 turns
+it off), so this only opens it. Without a running service, it serves one itself until Ctrl-C. It
+answers only on this machine, and only to a browser that opened a link from this command.`
 }
 
 func (c uiCmd) Run() error {
@@ -36,21 +43,71 @@ func (c uiCmd) Run() error {
 	if err != nil {
 		return err
 	}
-	l, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(c.Port)))
-	if err != nil {
-		return fmt.Errorf("can't open the dashboard on port %d (is it already open? try --port): %w", c.Port, err)
+	port := c.Port
+	if port == 0 {
+		cfg, _ := config.Load()
+		port = cfg.UIPort
+		if port == 0 {
+			port = defaultUIPort
+		}
+		if dashboardAnswers(port) {
+			c.open(port, token)
+			fmt.Println("The accounts service hosts it all the time; this link signs this browser in.")
+			return nil
+		}
 	}
-	srv := &http.Server{Handler: webui.New(cliBackend{}, token).Handler(), ReadHeaderTimeout: 10 * time.Second}
+	l, err := net.Listen("tcp", loopback(port))
+	if err != nil {
+		return fmt.Errorf("can't open the dashboard on port %d (try --port): %w", port, err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	served := make(chan error, 1)
-	go func() { served <- srv.Serve(l) }()
+	go func() { served <- serveDashboard(ctx, l, token) }()
+	c.open(port, token)
+	fmt.Println("The accounts service isn't hosting it, so this serves it until Ctrl-C.")
+	return <-served
+}
 
-	link := fmt.Sprintf("http://localhost:%d/?token=%s", c.Port, token)
-	fmt.Printf("spinup dashboard: %s\nCtrl-C stops it.\n", link)
+func (c uiCmd) open(port int, token string) {
+	link := fmt.Sprintf("http://localhost:%d/?token=%s", port, token)
+	fmt.Printf("spinup dashboard: %s\n", link)
 	if !c.NoBrowser && !openBrowser(link) {
 		fmt.Println("Open the link above in your browser.")
 	}
+}
+
+// hostDashboard keeps the dashboard up for as long as the service runs, waiting out a port that is
+// taken (an older `spinup ui` still open) instead of giving up.
+func hostDashboard(ctx context.Context, port int, logger *log.Logger) {
+	if port == 0 {
+		return
+	}
+	token, err := uiToken()
+	if err != nil {
+		logger.Printf("dashboard: %v", err)
+		return
+	}
+	for ctx.Err() == nil {
+		l, err := net.Listen("tcp", loopback(port))
+		if err != nil {
+			logger.Printf("dashboard: can't listen on %s: %v (retrying)", loopback(port), err)
+			sleepCtx(ctx, 30*time.Second)
+			continue
+		}
+		logger.Printf("dashboard on http://localhost:%d", port)
+		if err := serveDashboard(ctx, l, token); err != nil {
+			logger.Printf("dashboard: %v", err)
+			sleepCtx(ctx, 5*time.Second)
+		}
+	}
+}
+
+// serveDashboard serves until ctx ends, then stops within five seconds.
+func serveDashboard(ctx context.Context, l net.Listener, token string) error {
+	srv := &http.Server{Handler: webui.New(cliBackend{}, token).Handler(), ReadHeaderTimeout: 10 * time.Second}
+	served := make(chan error, 1)
+	go func() { served <- srv.Serve(l) }()
 	select {
 	case err := <-served:
 		return err
@@ -61,7 +118,29 @@ func (c uiCmd) Run() error {
 	return srv.Shutdown(shutdown)
 }
 
-// uiToken is the dashboard's sign-in secret, kept between runs so an open tab stays signed in.
+// dashboardAnswers reports whether spinup's dashboard is already up on port.
+func dashboardAnswers(port int) bool {
+	client := http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	page, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	return strings.Contains(string(page), "<title>spillup</title>") || strings.Contains(string(page), "dashboard isn't in this build")
+}
+
+func loopback(port int) string { return net.JoinHostPort("127.0.0.1", fmt.Sprint(port)) }
+
+func sleepCtx(ctx context.Context, d time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(d):
+	}
+}
+
+// uiToken is the dashboard's sign-in secret, shared by the service and this command and kept between runs,
+// so a signed-in browser stays signed in.
 func uiToken() (string, error) {
 	path := filepath.Join(config.StateDir(), "ui-token")
 	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) >= 32 {

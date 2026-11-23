@@ -128,3 +128,7 @@ The default port can stay the same on every computer: each has its own localhost
 ## Updates
 
 `spinup update` replaces the binary with the latest release (checksum-verified) and restarts the service on it, updates CLIProxyAPI on a hub or standby and restarts the proxy through the local service.
+
+## The dashboard
+
+The service also hosts the dashboard on `127.0.0.1:8320` (`ui_port` in `config.json`; `0` turns it off), so it is up whenever the service is: from boot, without a login (a systemd user unit with lingering on Linux, an S4U scheduled task on Windows, restarted if it stops). `spinup ui` opens it signed in. If the port is taken, the service retries every 30 seconds.

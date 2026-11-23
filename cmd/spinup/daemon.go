@@ -55,6 +55,7 @@ func (c daemonCmd) Run() error {
 	withOwnProxy(&o, cfg, logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go hostDashboard(ctx, cfg.UIPort, logger)
 	if err := service.New(o).Run(ctx); err != nil {
 		logger.Printf("stopped: %v", err)
 		return err

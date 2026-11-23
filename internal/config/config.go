@@ -49,6 +49,8 @@ type Config struct {
 	OwnModels []string `json:"own_models,omitempty"`
 	// OwnProxyPort is the CLIProxyAPI that holds this machine's own logins, on 127.0.0.1 only.
 	OwnProxyPort int `json:"own_proxy_port"`
+	// UIPort is where the service hosts the dashboard, on 127.0.0.1 only; 0 turns it off.
+	UIPort int `json:"ui_port"`
 	// OwnAuthDir keeps this machine's own logins; nothing syncs it, so no other machine refreshes them.
 	OwnAuthDir string `json:"own_auth_dir"`
 }
@@ -96,6 +98,7 @@ func Defaults() Config {
 		ProxyDir:             defaultProxyDir(),
 		AuthDir:              filepath.Join(home(), ".cli-proxy-api"),
 		OwnProxyPort:         8328,
+		UIPort:               8320,
 		OwnAuthDir:           filepath.Join(home(), ".cli-proxy-api-own"),
 	}
 }

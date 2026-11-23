@@ -19,7 +19,7 @@ It opens in your browser and shows your machines, who holds the accounts, your l
 - **CLIProxyAPI's own dashboard**, built in (CLIProxyAPI page): providers, logins, quotas, logs and config, already signed in. The real key is added by spillup and never reaches the browser.
 - See the API key and dashboard password a new machine asks for.
 
-It answers only on `localhost`, and only to the browser that opened the link `spinup ui` printed. It follows your system's light or dark mode. Ctrl-C stops it; the accounts service keeps running. Moving the accounts or changing the main machine works on the hub and standbys, which keep the dashboard password.
+It's always on: the accounts service runs 24/7 (from boot, before anyone logs in, restarting if it stops) and hosts the dashboard at `http://localhost:8320` the whole time. `spinup ui` just opens it, signed in; bookmark it after that. It answers only on `localhost`, and only to a browser signed in through `spinup ui`. Change the port with `ui_port` in config.json (`0` turns hosting off). It follows your system's light or dark mode. Moving the accounts or changing the main machine works on the hub and standbys, which keep the dashboard password.
 
 Releases: every push to `master` is published automatically as the next patch version, with binaries for Windows, Linux and macOS; push a tag like `v0.4.0` for a bigger bump.
 
@@ -109,7 +109,7 @@ Run `ccp` instead of `claude` to use Claude Code with the shared accounts. Plain
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
-| `spinup ui` | Open the dashboard in your browser |
+| `spinup ui` | Open the always-on dashboard in your browser, signed in |
 
 `spinup <command> --help` explains each one.
 

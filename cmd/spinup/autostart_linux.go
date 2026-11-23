@@ -25,7 +25,7 @@ const (
 	legacyUnitPath = "/etc/systemd/system/" + legacyUnit
 )
 
-// registerAutostart installs a systemd user unit; lingering keeps it running without a login on machines that can hold.
+// registerAutostart installs a systemd user unit; lingering keeps it, and the dashboard it hosts, running without a login.
 func registerAutostart(exe string, cfg config.Config) error {
 	if err := writeUnit(exe); err != nil {
 		return err
@@ -33,7 +33,7 @@ func registerAutostart(exe string, cfg config.Config) error {
 	if err := removeLegacyUnit(); err != nil {
 		return err
 	}
-	if cfg.Hold.CanHold() && exec.Command("loginctl", "enable-linger").Run() != nil {
+	if exec.Command("loginctl", "enable-linger").Run() != nil {
 		if err := runAsRoot("loginctl", "enable-linger", currentUser()); err != nil {
 			return err
 		}
