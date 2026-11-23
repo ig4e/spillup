@@ -93,6 +93,7 @@ func (m *Machine) liveConfig() config.Config {
 	c := m.cfg
 	c.Hold = m.hold()
 	c.OwnModels = providerNames(m.own.get())
+	c.HubOnly = m.hubOnly.get()
 	return c
 }
 

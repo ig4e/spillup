@@ -23,6 +23,7 @@ func (m *Machine) observe(ctx context.Context, ts tailnet.Status) leadership.Vie
 		}
 	}
 	answered := m.probe(ctx, candidates)
+	m.learnHubOnly(answered)
 	m.ledger.recordMembers(asMembers(answered))
 
 	now := time.Now()
@@ -35,7 +36,7 @@ func (m *Machine) observe(ctx context.Context, ts tailnet.Status) leadership.Vie
 		Self: ts.Self.Name, Hold: m.hold(), Leading: st.claiming(), Epoch: st.Epoch,
 		KnownLeader: st.Leader, Peers: peers, FailoverAfter: m.cfg.FailoverAfter(),
 		AutoFailback: m.cfg.AutoFailback, Activity: m.activity.snapshot(now), IdleBeforeHandBack: m.handBackIdle(),
-		Forced: st.Forced, Pending: pendingHandOff(st, now, m.handOffWindow()),
+		Forced: st.Forced, Pending: pendingHandOff(st, now, m.handOffWindow()), HubOnly: m.hubOnly.get(),
 	}
 }
 

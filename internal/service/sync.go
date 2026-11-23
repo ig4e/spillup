@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
+	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/logins"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
@@ -37,7 +38,7 @@ func (m *Machine) follow(ctx context.Context, leader string, epoch int64, ts tai
 		m.log.Printf("following %s (epoch %d)", leader, epoch)
 		m.save()
 	}
-	if pull && addr != "" {
+	if pull && addr != "" && m.keepsCopies() {
 		if !m.replica.offeredTo(leader, epoch) {
 			if err := m.pushLogins(ctx, leader, logins.Some); err != nil {
 				m.log.Printf("send logins to %s: %v", leader, err)
@@ -109,7 +110,7 @@ func (m *Machine) pushIfChanged(ctx context.Context) {
 	if m.replica.pushedAlready(fingerprint) {
 		return
 	}
-	eachPeer(m.peers.holders(), func(peer string) {
+	eachPeer(m.copyHolders(), func(peer string) {
 		if err := m.pushLogins(ctx, peer, logins.Everything); err != nil {
 			m.log.Printf("push logins to %s: %v", peer, err)
 			m.replica.pushAgain()
@@ -160,4 +161,20 @@ func extentOf(l api.Logins) logins.Extent {
 		return logins.Everything
 	}
 	return logins.Some
+}
+
+// copyHolders are the machines that keep copies of the logins: every holder, or only the hub when the
+// fleet keeps them on the main machine alone.
+func (m *Machine) copyHolders() []string {
+	holders := m.peers.holders()
+	if !m.hubOnly.get() {
+		return holders
+	}
+	var hubs []string
+	for _, name := range holders {
+		if r, ok := m.peers.reportOf(name); ok && r.Hold == config.HoldHub {
+			hubs = append(hubs, name)
+		}
+	}
+	return hubs
 }

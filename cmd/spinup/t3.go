@@ -27,10 +27,10 @@ const t3SyncEvery = 5 * time.Minute
 func (cliBackend) T3State(ctx context.Context) webui.T3State {
 	t3, err := t3code.Find()
 	if err != nil {
-		return webui.T3State{}
+		return webui.T3State{App: t3code.AppPresent(t3.Home)}
 	}
 	linked, err := t3.Linked(ctx)
-	st := webui.T3State{Installed: true, Port: t3.Port(), Linked: linked}
+	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked}
 	if err != nil {
 		st.Problem = err.Error()
 	}
@@ -55,6 +55,8 @@ func (cliBackend) T3Link(ctx context.Context, url, code string) error {
 }
 
 func (cliBackend) SyncT3(ctx context.Context) (string, error) { return syncT3Links(ctx) }
+
+func (cliBackend) T3Setup(ctx context.Context) error { return setUpT3(ctx, installAlways) }
 
 // t3Machine is one machine's T3 Code, here or reached through its dashboard over the tailnet.
 type t3Machine struct {
@@ -198,13 +200,31 @@ func keepT3Linked(ctx context.Context, cfg config.Config, logger *log.Logger) {
 	}
 }
 
+// t3Install says whether setting T3 up may install its command line: always when the user asks from the
+// dashboard, and from setup only where T3 Code already runs, so setup never brings T3 to a machine without it.
+type t3Install int
+
+const (
+	installIfPresent t3Install = iota
+	installAlways
+)
+
 // setUpT3 runs T3 Code's background service at boot, reachable on the LAN and tailnet, with linked
 // environments on, so the machine holding the accounts can link it to the others.
-func setUpT3(ctx context.Context) error {
+func setUpT3(ctx context.Context, install t3Install) error {
 	t3, err := t3code.Find()
 	if errors.Is(err, t3code.ErrNotInstalled) {
-		step("T3 Code isn't installed here; skipping (install it, then run setup again)")
-		return nil
+		if install == installIfPresent && !t3code.AppPresent(t3.Home) {
+			step("T3 Code isn't installed here; skipping")
+			return nil
+		}
+		step("Installing T3 Code's command line")
+		if err := t3code.InstallCLI(ctx); err != nil {
+			return err
+		}
+		if t3, err = t3code.Find(); err != nil {
+			return fmt.Errorf("T3's installer ran, but its command isn't where spillup looks: %w", err)
+		}
 	}
 	if err != nil {
 		return err

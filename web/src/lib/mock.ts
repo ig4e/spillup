@@ -10,6 +10,7 @@ const fleet = {
   holds: { desktop: "hub", laptop: "standby" } as Record<string, Hold>,
 };
 
+let hubOnly = false;
 const own = { providers: ["claude"] as string[], logins: [{ name: "claude-laptop@example.com.json", type: "claude", refreshed: ago(600) }] };
 
 const skills: Skills = {
@@ -50,6 +51,7 @@ function overview(): Overview {
       synced: { epoch: 14, seconds_ago: 2 },
       proxy_running: fleet.leader === fleet.self,
       in_flight: fleet.leader === fleet.self ? 2 : 0,
+      hub_only: hubOnly,
       accounts: [
         { name: "claude-work@example.com.json", type: "claude", refreshed: ago(1800) },
         { name: "codex-pro@example.com.json", type: "codex", refreshed: ago(240) },
@@ -174,8 +176,18 @@ export async function mock(method: string, fullPath: string, body: any): Promise
             { name: "antigravity-work@example.com.json", status: "active", status_message: "", unavailable: false, disabled: false },
           ],
         };
+      case "machines/scan":
+        await wait(900);
+        return [
+          { name: "desktop", ip: "100.88.30.17", os: "windows", online: true, yours: true, spillup: true, hold: fleet.holds.desktop },
+          { name: "macbook", ip: "100.70.2.9", os: "macOS", online: false, yours: true, spillup: false },
+          { name: "phone", ip: "100.99.1.33", os: "iOS", online: true, yours: true, spillup: false },
+          { name: "nas", ip: "100.80.4.2", os: "linux", online: true, yours: true, spillup: true, hold: "never" },
+        ];
+      case "setup":
+        return { running: false, done: false, log: [] };
       case "t3":
-        return { installed: true, port: 3773, linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
+        return { installed: true, app: true, port: 3773, linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
       case "update":
         return { current: "v0.3.6", latest: "v0.3.7", auto: true };
       case "keys":
@@ -187,6 +199,15 @@ export async function mock(method: string, fullPath: string, body: any): Promise
     case "own":
       own.providers = body.providers;
       return { message: body.providers.length ? `This machine now signs in to ${body.providers.join(", ")} by itself.` : "Every provider uses the shared accounts again." };
+    case "accounts/mode":
+      hubOnly = body.hub_only;
+      return { message: body.hub_only ? "Only the main machine keeps the logins now." : "Standbys keep copies again." };
+    case "fix":
+      await wait(1000);
+      return { message: "12 skills for claude, codex." };
+    case "t3/setup":
+      await wait(1200);
+      return { message: "T3 Code starts at boot now, with linking on." };
     case "t3/sync":
       await wait(1200);
       return { message: "T3 Code on 3 machine(s); 1 new link(s)." };

@@ -42,7 +42,7 @@ export function SettingsPage() {
         title="Accounts Service"
         footer={
           <>
-            Stored in spinup’s config.json; run <Mono>spinup setup</Mono> again after editing it. Choose the main machine on the Machines page.
+            Choose the main machine on the Machines page, and where the logins live on the Accounts page.
           </>
         }
       >

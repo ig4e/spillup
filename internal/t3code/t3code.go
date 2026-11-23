@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -33,21 +34,73 @@ type T3 struct {
 	Home string // T3's home folder, normally ~/.t3
 }
 
-// Find locates `t3` and T3's home folder.
+// Find locates `t3`: on PATH, or the launcher the desktop app writes into T3's home, which isn't on PATH.
 func Find() (T3, error) {
-	bin, err := exec.LookPath("t3")
+	home, err := Home()
 	if err != nil {
-		return T3{}, ErrNotInstalled
+		return T3{}, err
 	}
-	home := os.Getenv("T3CODE_HOME")
-	if home == "" {
-		dir, err := os.UserHomeDir()
-		if err != nil {
-			return T3{}, err
+	if bin, err := exec.LookPath("t3"); err == nil {
+		return T3{Bin: bin, Home: home}, nil
+	}
+	for _, bin := range launchers(home) {
+		if fi, err := os.Stat(bin); err == nil && !fi.IsDir() {
+			return T3{Bin: bin, Home: home}, nil
 		}
-		home = filepath.Join(dir, ".t3")
 	}
-	return T3{Bin: bin, Home: home}, nil
+	return T3{Home: home}, ErrNotInstalled
+}
+
+// Home is T3's home folder, normally ~/.t3.
+func Home() (string, error) {
+	if home := os.Getenv("T3CODE_HOME"); home != "" {
+		return home, nil
+	}
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, ".t3"), nil
+}
+
+func launchers(home string) []string {
+	user := filepath.Dir(home)
+	names := []string{"t3"}
+	if runtime.GOOS == "windows" {
+		names = []string{"t3.exe", "t3.cmd", "t3.bat"}
+	}
+	var out []string
+	for _, dir := range []string{filepath.Join(home, "bin"), filepath.Join(user, ".local", "bin")} {
+		for _, n := range names {
+			out = append(out, filepath.Join(dir, n))
+		}
+	}
+	return out
+}
+
+// AppPresent reports whether T3 Code has run on this machine, desktop app or CLI, from the data it keeps.
+func AppPresent(home string) bool {
+	_, err := os.Stat(filepath.Join(home, "userdata"))
+	return err == nil
+}
+
+// InstallCLI installs the `t3` command with T3's own installer.
+func InstallCLI(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+			"-Command", "irm https://t3.codes/install.ps1 | iex")
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", "curl -fsSL https://t3.codes/install.sh | sh")
+	}
+	sysproc.Hide(cmd)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("T3's installer: %w: %s", err, strings.TrimSpace(lastLine(string(out))))
+	}
+	return nil
 }
 
 func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {

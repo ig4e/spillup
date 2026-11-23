@@ -85,6 +85,8 @@ type View struct {
 	Forced bool
 	// Pending is set while a hand-off from this machine has an unknown outcome.
 	Pending *PendingHandOff
+	// HubOnly: the hub keeps the logins to itself, so a standby never takes the accounts over by itself.
+	HubOnly bool
 }
 
 // PendingHandOff: this machine sent the accounts to KnownLeader and never learned whether it took them.
@@ -153,6 +155,9 @@ func Decide(v View) Decision {
 	if v.Forced {
 		return Decision{Kind: Lead, Epoch: next, Reason: "forced by the user"}
 	}
+	if v.HubOnly && v.Hold == config.HoldStandby {
+		return wait("only the main machine holds the accounts (main machine only); standbys don't take over")
+	}
 	for _, p := range v.Peers {
 		if p.State == Silent {
 			return wait(p.Name + " is online but its spinup service doesn't answer")
@@ -174,7 +179,7 @@ func decideAsLeader(v View, claim *Peer) Decision {
 	if claim != nil && outranks(claim.Epoch, claim.Name, v.Epoch, v.Self) {
 		return Decision{Kind: StepDown, Leader: claim.Name, Epoch: claim.Epoch}
 	}
-	if v.Hold == config.HoldStandby && v.AutoFailback {
+	if v.Hold == config.HoldStandby && (v.AutoFailback || v.HubOnly) {
 		for _, p := range v.Peers {
 			if p.Hold == config.HoldHub && p.State == Synced {
 				return handBack(v, p)

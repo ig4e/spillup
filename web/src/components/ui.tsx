@@ -211,3 +211,40 @@ export function Toggle({
     </Switch>
   );
 }
+
+/** One choice in a list of options, as in System Settings: a checkmark marks the chosen one. */
+export function Choice({
+  icon,
+  title,
+  subtitle,
+  chosen,
+  onChoose,
+  disabled,
+}: {
+  icon?: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  chosen: boolean;
+  onChoose?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={chosen}
+      disabled={disabled}
+      onClick={() => !chosen && onChoose?.()}
+      className={`group-row relative flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left outline-none transition-colors ${
+        icon ? "group-row--icon" : ""
+      } ${disabled ? "cursor-not-allowed opacity-50" : "hover:bg-surface-hover focus-visible:bg-surface-hover"}`}
+    >
+      {icon}
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px]">{title}</div>
+        {subtitle ? <div className="mt-0.5 text-xs whitespace-normal text-muted">{subtitle}</div> : null}
+      </div>
+      {chosen ? <Check className="size-4 shrink-0 text-accent" strokeWidth={2.6} /> : <span className="size-4 shrink-0" />}
+    </button>
+  );
+}

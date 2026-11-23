@@ -50,3 +50,25 @@ func TestPortComesFromTheRuntimeFile(t *testing.T) {
 		t.Errorf("with a runtime file: %d, want 4000", got)
 	}
 }
+
+func TestTheDesktopAppsLauncherIsFoundOffPath(t *testing.T) {
+	home := filepath.Join(t.TempDir(), ".t3")
+	t.Setenv("T3CODE_HOME", home)
+	t.Setenv("PATH", "")
+	if _, err := Find(); err != ErrNotInstalled {
+		t.Fatalf("without a launcher: %v, want ErrNotInstalled", err)
+	}
+	if AppPresent(home) {
+		t.Error("T3 counted as present with no data folder")
+	}
+	os.MkdirAll(filepath.Join(home, "userdata"), 0o700)
+	if !AppPresent(home) {
+		t.Error("the desktop app's data folder wasn't seen")
+	}
+	launcher := launchers(home)[0]
+	os.MkdirAll(filepath.Dir(launcher), 0o700)
+	os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755)
+	if t3, err := Find(); err != nil || t3.Bin != launcher {
+		t.Fatalf("with the launcher: %+v %v", t3, err)
+	}
+}

@@ -42,7 +42,7 @@ func (t3StatusCmd) Run() error {
 
 type t3SetupCmd struct{}
 
-func (t3SetupCmd) Run() error { return setUpT3(context.Background()) }
+func (t3SetupCmd) Run() error { return setUpT3(context.Background(), installAlways) }
 
 type t3LinkCmd struct{}
 

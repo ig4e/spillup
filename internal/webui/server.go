@@ -31,6 +31,10 @@ type Backend interface {
 	TakeOver() error
 	MakeMain(machine string) error
 	RestartProxy() error
+	// SetHubOnly keeps the logins on the main machine alone, or lets standbys keep copies and take over.
+	SetHubOnly(on bool) error
+	// ScanDevices finds which devices on the tailnet run spillup.
+	ScanDevices(ctx context.Context) ([]Device, error)
 
 	// OwnLogins are this machine's own logins; SetOwn picks the model families they serve, installing
 	// CLIProxyAPI when needed; OwnManagement signs in and out on their proxy.
@@ -44,9 +48,15 @@ type Backend interface {
 	T3Pair(ctx context.Context, label string) (string, error)
 	T3Link(ctx context.Context, url, code string) error
 	SyncT3(ctx context.Context) (string, error)
+	T3Setup(ctx context.Context) error
 
 	// Apps are the AI apps installed here, for hints that fit this machine.
 	Apps() []App
+
+	// RunFix runs a doctor fix that is a spinup command; StartSetup and SetupProgress set this machine up.
+	RunFix(ctx context.Context, fix string) (string, error)
+	StartSetup(name, role string) error
+	SetupProgress() SetupProgress
 
 	// UpdateState, StartUpdate and SetAutoUpdate keep spillup itself up to date.
 	UpdateState(ctx context.Context) Update
@@ -92,7 +102,7 @@ const (
 )
 
 // localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
-var localOnly = map[string]bool{"keys": true, "own/signin": true}
+var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true}
 
 func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	admit := s.needsSession
@@ -121,6 +131,8 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("accounts/takeover", s.serveTakeover)
 	change("accounts/restart", s.serveRestart)
 	change("machines/main", s.serveMain)
+	read("machines/scan", s.serveScan)
+	change("accounts/mode", s.serveAccountsMode)
 
 	read("own", s.serveOwnState)
 	change("own", s.serveSetOwn)
@@ -139,6 +151,11 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("t3/pair", s.serveT3Pair)
 	change("t3/link", s.serveT3Link)
 	change("t3/sync", s.serveT3Sync)
+	change("t3/setup", s.serveT3Setup)
+
+	change("fix", s.serveFix)
+	change("setup", s.serveSetup)
+	read("setup", s.serveSetupProgress)
 
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)

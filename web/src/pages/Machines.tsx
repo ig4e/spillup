@@ -2,7 +2,8 @@ import { Alert, Button, Dropdown, Label, ListBox, Select } from "@heroui/react";
 import { AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
-import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, holdName, osName, osTile } from "../components/ui";
+import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName, osTile } from "../components/ui";
+import { Scan } from "../components/Scan";
 import { api, currentRemote, setRemote } from "../lib/api";
 import { relative } from "../lib/format";
 import { navigate, useAction, useQuery } from "../lib/hooks";
@@ -67,18 +68,11 @@ export function MachinesPage() {
 
       <Group
         footer={
-          !canManage ? (
-            <>
-              Only the main machine and standbys can move the accounts. Open spillup on one of them, or run{" "}
-              <Mono copy>spinup setup &lt;name&gt; --standby</Mono> here.
-            </>
-          ) : holders.length < 2 ? (
-            <>
-              Add a standby to choose between machines: run <Mono copy>spinup setup &lt;name&gt; --standby</Mono> on another one.
-            </>
-          ) : (
-            "The main machine holds your Claude and Codex accounts whenever it’s on. Standbys take over while it’s off, then hand them back."
-          )
+          !canManage
+            ? "Only the main machine and standbys can choose the main machine. Open spillup on one of them to change it."
+            : holders.length < 2
+              ? "To choose between machines, set up another one as a standby: install spillup there and it joins by itself."
+              : "The main machine holds your accounts whenever it’s on. Standbys take over while it’s off, then hand them back."
         }
       >
         <Row
@@ -126,6 +120,7 @@ export function MachinesPage() {
           ))}
         </Group>
       )}
+      <Scan />
       {dialog}
     </>
   );

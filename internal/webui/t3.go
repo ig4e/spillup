@@ -4,7 +4,9 @@ import "net/http"
 
 // T3State is T3 Code on a machine, as the main machine needs it to link every machine to every other.
 type T3State struct {
+	// Installed: the `t3` command is here. App: T3 Code has run here, maybe only as the desktop app.
 	Installed bool   `json:"installed"`
+	App       bool   `json:"app"`
 	Port      int    `json:"port,omitempty"`
 	Linked    string `json:"linked,omitempty"`
 	Problem   string `json:"problem,omitempty"`
@@ -46,6 +48,10 @@ func (s *Server) serveT3Link(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	answer(w, s.b.T3Link(r.Context(), req.URL, req.Code), "Linked.")
+}
+
+func (s *Server) serveT3Setup(w http.ResponseWriter, r *http.Request) {
+	answer(w, s.b.T3Setup(r.Context()), "T3 Code starts at boot now, with linking on. The main machine links it to your other machines within a few minutes.")
 }
 
 func (s *Server) serveT3Sync(w http.ResponseWriter, r *http.Request) {

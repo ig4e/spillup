@@ -15,7 +15,7 @@ export function hintsFor(apps: App[] | undefined, overview: Overview | undefined
     hints.push(
       has("ccp")
         ? { app: "Claude Code", text: "Run ccp instead of claude to use the shared accounts; plain claude keeps its own login.", code: "ccp" }
-        : { app: "Claude Code", text: "Run spinup setup again to get ccp, Claude Code with the shared accounts." },
+        : { app: "Claude Code", text: "ccp, Claude Code with the shared accounts, isn't here yet; setting this machine up adds it." },
     );
   }
   if (has("codex")) hints.push({ app: "Codex", text: "Point Codex's base URL at the router, with the API key from Settings.", code: `${url}/v1` });

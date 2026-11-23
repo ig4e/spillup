@@ -34,6 +34,9 @@ export interface Report {
   in_flight?: number;
   accounts?: Account[];
   peers?: Peer[];
+  own?: string[];
+  own_running?: boolean;
+  hub_only?: boolean;
 }
 
 export interface Overview {
@@ -157,6 +160,7 @@ export interface LoginStatus {
 
 export interface T3State {
   installed: boolean;
+  app: boolean;
   port?: number;
   linked?: string;
   problem?: string;
@@ -176,4 +180,21 @@ export interface SignIn {
 export interface SignInStatus {
   status: "ok" | "wait" | "error";
   error?: string;
+}
+
+export interface Device {
+  name: string;
+  ip: string;
+  os?: string;
+  online: boolean;
+  yours: boolean;
+  spillup: boolean;
+  hold?: Hold;
+}
+
+export interface SetupProgress {
+  running: boolean;
+  done: boolean;
+  failed?: string;
+  log: string[];
 }

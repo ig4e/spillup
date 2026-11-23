@@ -110,7 +110,7 @@ func saveServiceSettings(c config.Config) error {
 	if err != nil {
 		return config.Save(c)
 	}
-	stored.Hold, stored.OwnModels = c.Hold, c.OwnModels
+	stored.Hold, stored.OwnModels, stored.HubOnly = c.Hold, c.OwnModels, c.HubOnly
 	return config.Save(stored)
 }
 

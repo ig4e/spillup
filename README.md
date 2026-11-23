@@ -40,6 +40,7 @@ spinup setup my-desktop --hub
 | 🔑 **Your accounts, everywhere** | One machine holds your Claude and Codex logins; every machine uses them at `http://localhost:8317`. If it goes offline, a standby takes over and hands them back later — never two at once, so nobody gets logged out. |
 | 👑 **A main machine you choose** | Make your desktop the main machine from the dashboard. Change it anytime; the accounts move between requests. |
 | 🔐 **Every lab, and separate sign-in when you need it** | Claude, ChatGPT/Codex, Google Antigravity, Kimi, Grok, Devin, Meta AI — and any new kind of login spillup finds. Switch a provider to separate sign-in and that machine uses its own account, so no provider can revoke one machine's session when another refreshes. |
+| 🏠 **Your choice of where logins live** | Copied to standbys so a standby takes over while the main machine is off, or **main machine only**, so no login file ever leaves it. Switch it on the Accounts page. |
 | 🤝 **Joins by itself** | A new machine on your own Tailscale account gets its keys from the main machine automatically — no passwords to copy. Your existing CLIProxyAPI key keeps working, so your tools need no changes. |
 | 🧩 **T3 Code, linked everywhere** | T3 Code starts at boot on every machine, and spillup links each one to all the others, so an agent anywhere can hand work to any machine. |
 | ✨ **The same agents, everywhere** | Skills, agent instructions and plugins live in one library that every machine keeps identical. Change it anywhere; the rest follow within seconds. |
@@ -157,7 +158,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 </tr>
 </table>
 
-There's also **CLIProxyAPI** — its own Management Center, window-sized and already signed in (for another machine, that machine's own) — plus **Tailscale**, **Updates** and **Settings**. The sidebar folds down to icons.
+Everything is a button: Doctor fixes run with one click, T3 Code sets itself up from its page, **Machines** scans your tailnet for devices that still need spillup, and a machine that isn't set up yet gets a setup form. There's also **CLIProxyAPI** — its own Management Center, window-sized and already signed in (for another machine, that machine's own) — plus **Tailscale**, **Updates** and **Settings**. The sidebar folds down to icons.
 
 <details>
 <summary><b>How the dashboard stays safe</b></summary>

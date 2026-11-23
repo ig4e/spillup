@@ -280,7 +280,11 @@ func (m *Machine) handOffTarget(ctx context.Context) string {
 	}
 	reports := m.probe(ctx, ask)
 	target := syncedTarget(reports, epoch)
-	if r, ok := reports[target]; ok {
+	r, ok := reports[target]
+	if ok && m.hubOnly.get() && r.Hold != config.HoldHub {
+		return ""
+	}
+	if ok {
 		m.peers.answeredNow(target, r)
 	}
 	return target

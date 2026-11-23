@@ -33,6 +33,7 @@ const (
 	PathRestart  = "/spinup/restart"  // restart the proxy after an update, if this machine holds the accounts; localhost only
 	PathRole     = "/spinup/role"     // switch this machine between hub and standby
 	PathMain     = "/spinup/main"     // the user makes one machine the only hub; localhost only
+	PathMode     = "/spinup/mode"     // main machine only, or login copies on standbys; the hub decides
 	PathJoin     = "/spinup/join"     // a new machine on your own Tailscale account asks for the keys; tailnet only
 	PathOwn      = "/spinup/own"      // the model families this machine serves with its own logins; localhost only, with the API key
 
@@ -89,6 +90,11 @@ type Role struct {
 	Hold config.Hold `json:"hold"`
 }
 
+// Mode is the fleet's choice of where the logins live.
+type Mode struct {
+	HubOnly bool `json:"hub_only"`
+}
+
 // Join asks a holder for the keys a new machine needs: the API key, and the dashboard password for a standby.
 type Join struct {
 	Hold config.Hold `json:"hold"`
@@ -122,6 +128,7 @@ type Report struct {
 	Peers        []leadership.Peer `json:"peers,omitempty"`
 	// Own are the model families this machine serves with its own logins; OwnRunning is their proxy.
 	Own        []string `json:"own,omitempty"`
+	HubOnly    bool     `json:"hub_only,omitempty"`
 	OwnRunning bool     `json:"own_running,omitempty"`
 }
 

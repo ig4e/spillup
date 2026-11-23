@@ -1,7 +1,9 @@
 import { Alert, Button } from "@heroui/react";
-import { Crown, KeyRound, Network, RefreshCw, Sparkles, Terminal, Users } from "lucide-react";
+import { Crown, KeyRound, Network, RefreshCw, Sparkles, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName, osTile } from "../components/ui";
+import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName, osTile } from "../components/ui";
+import type { SetupProgress } from "../lib/types";
 import { api } from "../lib/api";
 import { relative, secondsAgo } from "../lib/format";
 import { useQuery } from "../lib/hooks";
@@ -126,20 +128,89 @@ export function OverviewPage() {
 
 function NotSetUp() {
   const { reload } = useOverview();
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<"hub" | "standby" | "use">("standby");
+  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const valid = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name);
+
+  useEffect(() => {
+    if (!progress?.running) return;
+    const id = setInterval(async () => {
+      const p = await api.setupProgress();
+      setProgress(p);
+      if (!p.running) void reload();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [progress?.running, reload]);
+
+  const start = async () => {
+    try {
+      await api.setup(name, role);
+      setProblem(null);
+      setProgress({ running: true, done: false, log: [] });
+    } catch (e) {
+      setProblem((e as Error).message);
+    }
+  };
+
+  const roles = [
+    { id: "hub", icon: Crown, color: "yellow", title: "Main Machine", subtitle: "On the most; holds your accounts." },
+    { id: "standby", icon: RefreshCw, color: "blue", title: "Standby", subtitle: "Takes over while the main machine is off. Joins by itself on your Tailscale account." },
+    { id: "use", icon: Users, color: "gray", title: "Just Use the Accounts", subtitle: "Uses the main machine's accounts and keeps no copy." },
+  ] as const;
+
   return (
     <>
-      <LargeTitle title="Welcome to spillup" subtitle="Set up this machine with one command, then come back here." />
-      <Group
-        title="Pick a role"
-        footer="Use the same Tailscale account on every machine. Each one asks for a key that the Settings page shows on a machine you already set up."
-      >
-        <Row icon={<IconTile icon={Crown} color="yellow" />} title="Main machine" subtitle="On the most; holds your accounts" accessory={<Mono copy>spinup setup my-desktop --hub</Mono>} />
-        <Row icon={<IconTile icon={RefreshCw} color="blue" />} title="Standby" subtitle="Takes over while the main one is off" accessory={<Mono copy>spinup setup my-laptop --standby</Mono>} />
-        <Row icon={<IconTile icon={Terminal} color="gray" />} title="Just use the accounts" subtitle="Anything else" accessory={<Mono copy>spinup setup my-mac</Mono>} />
-      </Group>
-      <Button variant="secondary" onPress={() => void reload()}>
-        Check again
-      </Button>
+      <LargeTitle title="Welcome to spillup" subtitle="Set this machine up: spillup installs Tailscale, the accounts service, T3 Code's link and your skills, and starts them at boot." />
+      {progress ? (
+        <Group
+          title={progress.running ? "Setting Up…" : progress.failed ? "Setup Stopped" : "Set Up"}
+          footer={progress.failed ? `${progress.failed}. Fix what the log says, then set up again.` : progress.running ? "Approve any administrator prompt, and sign in to Tailscale when the link appears." : undefined}
+        >
+          <div className="max-h-96 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+            {progress.log.length ? progress.log.map((line, i) => <div key={i}>{linkify(line)}</div>) : <span className="text-muted">Starting…</span>}
+          </div>
+          {!progress.running ? <Row title={progress.failed ? "Set Up Again" : "Done"} tone="accent" onPress={() => (progress.failed ? setProgress(null) : void reload())} /> : null}
+        </Group>
+      ) : (
+        <>
+          <Group title="This Machine's Name" footer="Its address on your network: lowercase letters, digits and dashes.">
+            <div className="px-4 py-2.5">
+              <input
+                aria-label="This machine's name"
+                value={name}
+                onChange={(e) => setName(e.target.value.toLowerCase())}
+                placeholder="my-desktop"
+                className="w-full bg-transparent text-[14px] outline-none placeholder:text-muted"
+              />
+            </div>
+          </Group>
+          <Group title="Role">
+            {roles.map((r) => (
+              <Choice key={r.id} icon={<IconTile icon={r.icon} color={r.color} />} title={r.title} subtitle={r.subtitle} chosen={role === r.id} onChoose={() => setRole(r.id)} />
+            ))}
+          </Group>
+          {problem ? <p className="mb-4 px-1 text-sm text-danger">{problem}</p> : null}
+          <Button isDisabled={!valid} onPress={start}>
+            Set Up This Machine
+          </Button>
+        </>
+      )}
     </>
+  );
+}
+
+/** Links in setup's output, such as Tailscale's sign-in, open in a new tab. */
+function linkify(line: string) {
+  const parts = line.split(/(https?:\/\/\S+)/g);
+  return parts.map((p, i) =>
+    /^https?:\/\//.test(p) ? (
+      <a key={i} href={p} target="_blank" rel="noopener" className="text-accent underline">
+        {p}
+      </a>
+    ) : (
+      p
+    ),
   );
 }

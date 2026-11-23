@@ -84,6 +84,7 @@ type Machine struct {
 	library  *libraryShare // nil when the library isn't shared
 	role     role
 	own      ownLogins
+	hubOnly  hubOnly
 
 	ownForwarder *httputil.ReverseProxy
 }
@@ -126,6 +127,7 @@ func New(o Options) *Machine {
 		stopRun:    func() {},
 	}
 	m.role.hold = o.Config.Hold
+	m.hubOnly.set(o.Config.HubOnly)
 	if fs, err := ownProviders(o.Config.OwnModels); err == nil {
 		m.own.set(fs)
 	}

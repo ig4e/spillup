@@ -1,4 +1,4 @@
-import type { App, Doctor, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { App, Device, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -88,6 +88,12 @@ export const api = {
   proxyLogins: () => call<LoginStatus>("GET", "proxy/logins"),
   t3: () => call<T3State>("GET", "t3"),
   t3Sync: () => post("t3/sync"),
+  t3Setup: () => post("t3/setup"),
+  scan: () => call<Device[]>("GET", "machines/scan"),
+  setHubOnly: (hub_only: boolean) => post("accounts/mode", { hub_only }),
+  fix: (fix: string) => post("fix", { fix }),
+  setup: (name: string, role: string) => post("setup", { name, role }),
+  setupProgress: () => call<SetupProgress>("GET", "setup"),
   update: () => call<UpdateState>("GET", "update"),
   startUpdate: () => post("update"),
   setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),

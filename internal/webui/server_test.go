@@ -43,6 +43,12 @@ func (*fakeBackend) SetOwn(context.Context, []string) error          { return ni
 func (*fakeBackend) T3State(context.Context) T3State                 { return T3State{} }
 func (*fakeBackend) T3Pair(context.Context, string) (string, error)  { return "", nil }
 func (*fakeBackend) T3Link(context.Context, string, string) error    { return nil }
+func (*fakeBackend) SetHubOnly(bool) error                           { return nil }
+func (*fakeBackend) ScanDevices(context.Context) ([]Device, error)   { return nil, nil }
+func (*fakeBackend) T3Setup(context.Context) error                   { return nil }
+func (*fakeBackend) RunFix(context.Context, string) (string, error)  { return "", nil }
+func (*fakeBackend) StartSetup(string, string) error                 { return nil }
+func (*fakeBackend) SetupProgress() SetupProgress                    { return SetupProgress{} }
 func (*fakeBackend) SyncT3(context.Context) (string, error)          { return "", nil }
 func (*fakeBackend) UpdateState(context.Context) Update              { return Update{Current: "test"} }
 func (*fakeBackend) Apps() []App                                     { return nil }

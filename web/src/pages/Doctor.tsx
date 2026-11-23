@@ -1,9 +1,9 @@
 import { Alert, Button, Spinner } from "@heroui/react";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
 import { useState } from "react";
-import { Group, GroupSkeleton, LargeTitle, Mono, Row } from "../components/ui";
+import { Group, GroupSkeleton, LargeTitle, Row } from "../components/ui";
 import { api } from "../lib/api";
-import { useQuery } from "../lib/hooks";
+import { useAction, useQuery } from "../lib/hooks";
 import type { Level } from "../lib/types";
 
 const mark: Record<Level, React.ReactNode> = {
@@ -12,10 +12,12 @@ const mark: Record<Level, React.ReactNode> = {
   fail: <CircleX className="size-[18px] shrink-0 fill-danger text-surface" />,
 };
 
-const command = /^(spinup|tailscale|npm|go|winget|brew|sudo) /;
+// fixable is what the dashboard can run with one click; other fixes are things to do by hand.
+const fixable = /^spinup (skills|update|tools|agents|packages|t3)\b/;
 
 export function DoctorPage() {
   const doctor = useQuery(api.doctor);
+  const { pending, run } = useAction();
   const [rechecking, setRechecking] = useState(false);
   const data = doctor.data;
   const checking = doctor.loading || rechecking;
@@ -84,8 +86,14 @@ export function DoctorPage() {
                   key={i}
                   icon={mark[c.level]}
                   title={<span className="whitespace-normal">{c.label}</span>}
-                  subtitle={c.fix && !command.test(c.fix) ? <span className="whitespace-normal">{c.fix}</span> : undefined}
-                  accessory={c.fix && command.test(c.fix) ? <Mono copy>{c.fix}</Mono> : undefined}
+                  subtitle={c.fix && !fixable.test(c.fix) ? <span className="whitespace-normal">{c.fix}</span> : undefined}
+                  accessory={
+                    c.fix && fixable.test(c.fix) ? (
+                      <Button size="sm" variant="secondary" isPending={pending === c.fix} onPress={() => run(c.fix!, () => api.fix(c.fix!), doctor.reload)}>
+                        Fix
+                      </Button>
+                    ) : undefined
+                  }
                 />
               ))}
             </Group>

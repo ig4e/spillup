@@ -38,6 +38,7 @@ func (m *Machine) routes(a audience) http.Handler {
 	mux.HandleFunc("POST "+api.PathReceive, m.keyed(m.holding(m.acceptAccounts)))
 	mux.HandleFunc("POST "+api.PathHandoff, m.keyed(m.serveHandoff))
 	mux.HandleFunc("POST "+api.PathRole, m.keyed(m.holding(m.serveRole)))
+	mux.HandleFunc("POST "+api.PathMode, m.keyed(m.holding(m.serveMode)))
 	if m.library != nil {
 		mux.HandleFunc("GET "+api.PathLibraryState, m.withAPIKey(m.serveLibraryState))
 		mux.HandleFunc("GET "+api.PathLibrary, m.withAPIKey(m.serveLibrary))
@@ -161,6 +162,10 @@ func (m *Machine) serveLogins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Machine) acceptLogins(w http.ResponseWriter, r *http.Request) {
+	if !m.keepsCopies() {
+		writeError(w, http.StatusConflict, "this standby keeps no login copies: the fleet keeps them on the main machine only")
+		return
+	}
 	var incoming api.Logins
 	if !decode(w, r, loginsLimit, &incoming) {
 		return
@@ -293,6 +298,18 @@ func (m *Machine) serveJoin(w http.ResponseWriter, r *http.Request) {
 	}
 	m.log.Printf("%s joined as %s", peer.Name, req.Hold)
 	writeJSON(w, keys)
+}
+
+func (m *Machine) serveMode(w http.ResponseWriter, r *http.Request) {
+	var req api.Mode
+	if !decode(w, r, commandLimit, &req) {
+		return
+	}
+	if err := m.setHubOnly(r.Context(), req.HubOnly, r.Header.Get(api.ForwardedHeader) != ""); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, okBody)
 }
 
 var okBody = map[string]bool{"ok": true}

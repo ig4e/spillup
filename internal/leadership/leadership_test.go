@@ -47,6 +47,16 @@ func TestDecide(t *testing.T) {
 	noFailback := leading(view("sb", config.HoldStandby, hub(Leading, 1)), 2)
 	noFailback.AutoFailback = false
 
+	hubOnly := func(v View) View {
+		v.HubOnly = true
+		return v
+	}
+	hubOnlyForced := hubOnly(knowing(view("sb", config.HoldStandby, offlineHub(time.Hour)), "hub", 1))
+	hubOnlyForced.Forced = true
+	hubOnlyNoFailback := hubOnly(leading(view("sb", config.HoldStandby, hub(Synced, 2)), 2))
+	hubOnlyNoFailback.AutoFailback = false
+	hubOnlyNoFailback.Activity.IdleFor = time.Hour
+
 	sentHub := func(state PeerState, epoch int64, age time.Duration) View {
 		v := knowing(view("sb", config.HoldStandby, hub(state, epoch)), "hub", 3)
 		v.Pending = &PendingHandOff{Age: age, Window: 10 * time.Second}
@@ -58,6 +68,12 @@ func TestDecide(t *testing.T) {
 		want Kind
 	}{
 		{"a machine that never holds stays", view("c", config.HoldNever), Stay},
+		{"main machine only: a standby never takes over, however long the hub is gone",
+			hubOnly(knowing(view("sb", config.HoldStandby, offlineHub(time.Hour)), "hub", 1)), Wait},
+		{"main machine only: a standby still follows the hub", hubOnly(view("sb", config.HoldStandby, hub(Leading, 1))), Follow},
+		{"main machine only: the user can still force a takeover", hubOnlyForced, Lead},
+		{"main machine only: the hub still leads", hubOnly(view("hub", config.HoldHub)), Lead},
+		{"main machine only: a standby that leads hands back even without auto_failback", hubOnlyNoFailback, HandOff},
 		{"a fresh hub leads", view("hub", config.HoldHub), Lead},
 		{"a fresh standby waits for the hub", view("sb", config.HoldStandby), Wait},
 		{"a standby follows the leader", view("sb", config.HoldStandby, hub(Leading, 1)), Follow},

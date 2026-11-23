@@ -1,7 +1,7 @@
 import { Button, Spinner } from "@heroui/react";
-import { Link2, Share2, ShieldCheck, Terminal } from "lucide-react";
+import { Download, Link2, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, osTile } from "../components/ui";
+import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, osTile } from "../components/ui";
 import { api } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
 
@@ -39,9 +39,20 @@ export function T3Page() {
       {!t3.data ? (
         <GroupSkeleton rows={3} />
       ) : !t3.data.installed ? (
-        <Group footer="Install T3 Code from t3.codes, then run setup again: it starts T3 at boot and links it to your other machines.">
-          <Row icon={<IconTile icon={Share2} color="gray" />} title="T3 Code isn't installed on this machine" />
-          <Row icon={<IconTile icon={Terminal} color="graphite" />} title="Then" accessory={<Mono copy>spinup t3 setup</Mono>} />
+        <Group
+          footer={
+            t3.data.app
+              ? "T3 Code's app is here, but not the background service spillup needs to keep it running and linked. Setting it up installs T3's command line with T3's own installer, starts it at boot, and turns linking on."
+              : "Installs T3 Code's command line with T3's own installer, starts it at boot, and links it to your other machines."
+          }
+        >
+          <Row icon={<IconTile icon={Share2} color={t3.data.app ? "indigo" : "gray"} />} title={t3.data.app ? "T3 Code's app is installed" : "T3 Code isn't installed on this machine"} />
+          <Row
+            icon={<IconTile icon={Download} color="blue" />}
+            title={pending === "setup" ? "Setting up T3 Code…" : t3.data.app ? "Set Up T3 Code" : "Install and Set Up T3 Code"}
+            tone="accent"
+            onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
+          />
         </Group>
       ) : (
         <>
@@ -74,10 +85,13 @@ export function T3Page() {
               <Row title={<span className="text-muted">No other machines on your tailnet yet</span>} />
             )}
           </Group>
-          <Group title="From the Command Line">
-            <Row title="Status" accessory={<Mono copy>spinup t3</Mono>} />
-            <Row title="Start T3 at boot, with linking on" accessory={<Mono copy>spinup t3 setup</Mono>} />
-            <Row title="Link every machine now" accessory={<Mono copy>spinup t3 link</Mono>} />
+          <Group footer="Starts T3's background service at boot again, on your LAN and tailnet, with linking on.">
+            <Row
+              icon={<IconTile icon={RefreshCw} color="gray" />}
+              title={pending === "setup" ? "Setting up T3 Code…" : "Set Up T3 Code Again"}
+              tone="accent"
+              onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
+            />
           </Group>
         </>
       )}

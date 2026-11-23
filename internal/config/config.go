@@ -51,6 +51,9 @@ type Config struct {
 	OwnProxyPort int `json:"own_proxy_port"`
 	// AutoUpdate lets the service install new spillup releases by itself.
 	AutoUpdate bool `json:"auto_update"`
+	// HubOnly keeps the logins on the hub alone: standbys hold no copies and never take over by themselves.
+	// The hub decides it; the others remember what it last said.
+	HubOnly bool `json:"hub_only,omitempty"`
 	// LegacyKeys are API keys this machine's tools used with an earlier CLIProxyAPI; the router swaps
 	// them for the fleet's key, so those tools keep working unchanged.
 	LegacyKeys []string `json:"legacy_keys,omitempty"`

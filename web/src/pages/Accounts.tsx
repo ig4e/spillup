@@ -1,7 +1,7 @@
-import { ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal } from "lucide-react";
+import { Boxes, Crown, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
-import { Dot, Group, IconTile, LargeTitle, Mono, Row } from "../components/ui";
+import { Choice, Dot, Group, IconTile, LargeTitle, Mono, Row } from "../components/ui";
 import { api } from "../lib/api";
 import { describeLogin, relative } from "../lib/format";
 import { hintsFor } from "../lib/hints";
@@ -66,6 +66,55 @@ export function AccountsPage() {
           }
         />
         <Row icon={<IconTile icon={Server} color="blue" />} title="Address on every machine" accessory={<Mono copy>{data?.router_url ?? "http://localhost:8317"}</Mono>} />
+      </Group>
+
+      <Group
+        title="Where Your Logins Live"
+        footer={
+          s?.hub_only
+            ? "If the main machine is off, the accounts are unavailable until it's back. Your other machines never hold a copy."
+            : "If the main machine goes offline, a standby takes over within minutes and hands the accounts back when it returns."
+        }
+      >
+        <Choice
+          icon={<IconTile icon={Users} color="green" />}
+          title="Main Machine, Copied to Standbys"
+          subtitle="Standbys keep an up-to-date copy and take over while the main machine is off."
+          chosen={!s?.hub_only}
+          disabled={!data?.can_manage}
+          onChoose={() =>
+            ask({
+              title: "Copy the logins to standbys?",
+              status: "accent",
+              confirm: "Copy to Standbys",
+              body: "Standbys get a copy of every login and take over while the main machine is off, then hand the accounts back.",
+              run: () => run("mode", () => api.setHubOnly(false), overview.reload),
+            })
+          }
+        />
+        <Choice
+          icon={<IconTile icon={Crown} color="yellow" />}
+          title="Main Machine Only"
+          subtitle="No login file ever leaves the main machine. Every other machine uses it over Tailscale."
+          chosen={!!s?.hub_only}
+          disabled={!data?.can_manage}
+          onChoose={() =>
+            ask({
+              title: "Keep the logins on the main machine only?",
+              status: "warning",
+              confirm: "Main Machine Only",
+              body: "Standbys delete their copies and stop taking over. While the main machine is off, nobody can use the accounts.",
+              run: () => run("mode", () => api.setHubOnly(true), overview.reload),
+            })
+          }
+        />
+        <Choice
+          icon={<IconTile icon={Boxes} color="indigo" />}
+          title="CLIProxyAPI Cluster"
+          subtitle="Every machine runs its own CLIProxyAPI, coordinated by CLIProxyAPI's cluster server on the main machine. Not available yet."
+          chosen={false}
+          disabled
+        />
       </Group>
 
       <Group title="Use Them in Your Apps">

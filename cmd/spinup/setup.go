@@ -49,7 +49,7 @@ func (c setupCmd) Run() error {
 		{"Packages", false, syncPackages},
 		{"Agent config", false, func(context.Context) error { return installAgentConfig(repo) }},
 		{"T3 Code", false, func(ctx context.Context) error {
-			if err := setUpT3(ctx); err != nil {
+			if err := setUpT3(ctx, installIfPresent); err != nil {
 				return err
 			}
 			if summary, err := syncT3Links(ctx); err == nil {
