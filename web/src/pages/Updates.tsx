@@ -1,5 +1,5 @@
 import { Button, Spinner } from "@heroui/react";
-import { CloudDownload, RefreshCw } from "lucide-react";
+import { CloudDownload, RefreshCw, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
 import { api } from "../lib/api";
@@ -48,6 +48,14 @@ export function UpdatesPage() {
                   }}
                 />
               }
+            />
+          </Group>
+          <Group footer="Restarts spillup's background service and this dashboard. Running requests finish and the accounts move on first, so nothing is cut off.">
+            <Row
+              icon={<IconTile icon={RotateCcw} color="gray" />}
+              title={pending === "restart" ? "Restarting…" : "Restart spillup"}
+              tone="accent"
+              onPress={pending ? undefined : () => run("restart", api.restart)}
             />
           </Group>
         </>

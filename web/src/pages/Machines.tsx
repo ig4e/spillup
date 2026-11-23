@@ -72,7 +72,7 @@ export function MachinesPage() {
             ? "Only the main machine and standbys can choose the main machine. Open spillup on one of them to change it."
             : holders.length < 2
               ? "To choose between machines, set up another one as a standby: install spillup there and it joins by itself."
-              : "The main machine holds your accounts whenever it’s on. Standbys take over while it’s off, then hand them back."
+              : "Every machine works with your accounts at the same time. The main machine holds the logins and serves everyone; a Worker + Standby takes over while it’s off, then hands them back."
         }
       >
         <Row

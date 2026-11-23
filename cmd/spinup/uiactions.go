@@ -65,6 +65,9 @@ var setupRun struct {
 	failed  string
 	done    bool
 	log     []string
+	// prompt is what sudo asks while it waits for a password; answers carries the reply, "" cancels.
+	prompt  string
+	answers chan string
 }
 
 const setupLogLines = 400
@@ -95,17 +98,45 @@ func (cliBackend) StartSetup(name, role string) error {
 	}
 	cmd := exec.Command(exe, args...)
 	sysproc.Hide(cmd)
+	setupRun.answers = make(chan string)
+	stopAsking, err := askForPasswords(cmd, exe)
+	if err != nil {
+		return err
+	}
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	cmd.Stderr = cmd.Stdout
 	if err := cmd.Start(); err != nil {
+		stopAsking()
 		return err
 	}
 	setupRun.running, setupRun.done, setupRun.failed, setupRun.log = true, false, "", nil
-	go followSetup(cmd, out)
+	go func() {
+		followSetup(cmd, out)
+		stopAsking()
+	}()
 	return nil
+}
+
+// AnswerSetup gives sudo the password it asked for through the dashboard; cancel refuses.
+func (cliBackend) AnswerSetup(password string, cancel bool) error {
+	setupRun.Lock()
+	answers, asked := setupRun.answers, setupRun.prompt != ""
+	setupRun.Unlock()
+	if !asked || answers == nil {
+		return errors.New("setup isn't asking for a password right now")
+	}
+	if cancel {
+		password = ""
+	}
+	select {
+	case answers <- password:
+		return nil
+	case <-time.After(5 * time.Second):
+		return errors.New("setup stopped waiting for the password")
+	}
 }
 
 func followSetup(cmd *exec.Cmd, out interface{ Read([]byte) (int, error) }) {
@@ -130,5 +161,5 @@ func followSetup(cmd *exec.Cmd, out interface{ Read([]byte) (int, error) }) {
 func (cliBackend) SetupProgress() webui.SetupProgress {
 	setupRun.Lock()
 	defer setupRun.Unlock()
-	return webui.SetupProgress{Running: setupRun.running, Done: setupRun.done, Failed: setupRun.failed, Log: slices.Clone(setupRun.log)}
+	return webui.SetupProgress{Running: setupRun.running, Done: setupRun.done, Failed: setupRun.failed, Log: slices.Clone(setupRun.log), Prompt: setupRun.prompt}
 }

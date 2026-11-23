@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/darkyeg/spinup/internal/shell"
 	"os"
 	"os/exec"
 	"os/user"
@@ -24,7 +25,8 @@ func runAsRoot(name string, args ...string) error {
 	if os.Geteuid() == 0 {
 		return run(name, args...)
 	}
-	return run("sudo", append([]string{name}, args...)...)
+	sudo := shell.Sudo()
+	return run(sudo[0], append(sudo[1:], append([]string{name}, args...)...)...)
 }
 
 func currentUser() string {

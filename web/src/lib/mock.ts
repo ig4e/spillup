@@ -213,6 +213,8 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       return { message: "T3 Code on 3 machine(s); 1 new link(s)." };
     case "update":
       return { message: "Updating. spillup restarts in a minute; this page reconnects by itself." };
+    case "restart":
+      return { message: "Restarting spillup. This page reconnects in a few seconds." };
     case "update/auto":
       return { message: body.auto ? "spillup now updates itself when a new version is out." : "Automatic updates are off." };
     case "own/signin":

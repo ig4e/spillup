@@ -8,6 +8,21 @@ type SetupProgress struct {
 	Done    bool     `json:"done"`
 	Failed  string   `json:"failed,omitempty"`
 	Log     []string `json:"log"`
+	// Prompt is what setup asks while it waits for your password, such as sudo's question.
+	Prompt string `json:"prompt,omitempty"`
+}
+
+type answerRequest struct {
+	Password string `json:"password"`
+	Cancel   bool   `json:"cancel"`
+}
+
+func (s *Server) serveSetupAnswer(w http.ResponseWriter, r *http.Request) {
+	var req answerRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	answer(w, s.b.AnswerSetup(req.Password, req.Cancel), "Thanks.")
 }
 
 type fixRequest struct {

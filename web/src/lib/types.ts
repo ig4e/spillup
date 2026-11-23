@@ -197,4 +197,5 @@ export interface SetupProgress {
   done: boolean;
   failed?: string;
   log: string[];
+  prompt?: string;
 }

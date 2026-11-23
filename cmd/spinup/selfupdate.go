@@ -70,3 +70,13 @@ func keepUpdated(ctx context.Context, logger *log.Logger) {
 		}
 	}
 }
+
+// RestartService restarts the accounts service from the dashboard it hosts, from outside it, since the
+// restart ends the process serving this request.
+func (cliBackend) RestartService() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	return sysproc.StartDetached(filepath.Join(config.StateDir(), "restart.log"), exe, "restart")
+}

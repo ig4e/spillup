@@ -109,7 +109,7 @@ export function Dot({ tone, className = "" }: { tone: "success" | "warning" | "d
   return <span className={`inline-block size-2 shrink-0 rounded-full ${color} ${className}`} />;
 }
 
-export const holdName: Record<Hold, string> = { hub: "Main", standby: "Standby", never: "Uses accounts" };
+export const holdName: Record<Hold, string> = { hub: "Main", standby: "Worker + Standby", never: "Worker" };
 
 export function osTile(os?: string): { icon: LucideIcon; color: Tint } {
   const o = (os ?? "").toLowerCase();

@@ -23,6 +23,7 @@ type cli struct {
 	Machines  machinesCmd  `cmd:"" group:"machine" help:"Every device on your tailnet and its addresses."`
 	Tools     toolsCmd     `cmd:"" group:"machine" help:"Install the dev tools this machine lacks."`
 	Uninstall uninstallCmd `cmd:"" group:"machine" help:"Stop the accounts service here. Logins and keys stay."`
+	Restart   restartCmd   `cmd:"" group:"machine" help:"Restart the accounts service and its dashboard on the spillup installed now."`
 	UI        uiCmd        `cmd:"" name:"ui" group:"machine" help:"Open the dashboard: machines, accounts, the hub, skills and checks."`
 
 	Status   statusCmd   `cmd:"" group:"accounts" help:"Who holds the accounts, every login and every machine."`
@@ -36,7 +37,8 @@ type cli struct {
 	Repo     repoCmd     `cmd:"" group:"agents" help:"Get a project ready for agents: its stack's skills, AGENTS.md, remote."`
 	T3       t3Cmd       `cmd:"" name:"t3" group:"agents" help:"Keep T3 Code on all your machines linked, so agents can hand work to any of them."`
 
-	Daemon daemonCmd `cmd:"" hidden:"" help:"Run the accounts service in the foreground (what the boot task runs)."`
+	Daemon  daemonCmd  `cmd:"" hidden:"" help:"Run the accounts service in the foreground (what the boot task runs)."`
+	Askpass askpassCmd `cmd:"" hidden:"" help:"sudo's password helper while the dashboard runs setup."`
 
 	Version kong.VersionFlag `short:"v" help:"Show the version."`
 }

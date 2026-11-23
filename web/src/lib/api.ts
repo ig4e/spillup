@@ -94,7 +94,9 @@ export const api = {
   fix: (fix: string) => post("fix", { fix }),
   setup: (name: string, role: string) => post("setup", { name, role }),
   setupProgress: () => call<SetupProgress>("GET", "setup"),
+  answerSetup: (password: string, cancel = false) => post("setup/answer", { password, cancel }),
   update: () => call<UpdateState>("GET", "update"),
   startUpdate: () => post("update"),
   setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
+  restart: () => post("restart"),
 };

@@ -21,8 +21,8 @@ export function secondsAgo(s: number): string {
 
 export const holdLabel: Record<Hold, string> = {
   hub: "Main",
-  standby: "Standby",
-  never: "Uses accounts",
+  standby: "Worker + Standby",
+  never: "Worker",
 };
 
 export const holdHelp: Record<Hold, string> = {

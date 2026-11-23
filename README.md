@@ -37,7 +37,7 @@ spinup setup my-desktop --hub
 
 | | |
 |---|---|
-| 🔑 **Your accounts, everywhere** | One machine holds your Claude and Codex logins; every machine uses them at `http://localhost:8317`. If it goes offline, a standby takes over and hands them back later — never two at once, so nobody gets logged out. |
+| 🔑 **Your accounts, on every machine at once** | Every machine works with your subscriptions at the same time. One machine holds the logins and serves them all at `http://localhost:8317`. If it goes offline, a standby takes over and hands them back later — never two at once, so nobody gets logged out. |
 | 👑 **A main machine you choose** | Make your desktop the main machine from the dashboard. Change it anytime; the accounts move between requests. |
 | 🔐 **Every lab, and separate sign-in when you need it** | Claude, ChatGPT/Codex, Google Antigravity, Kimi, Grok, Devin, Meta AI — and any new kind of login spillup finds. Switch a provider to separate sign-in and that machine uses its own account, so no provider can revoke one machine's session when another refreshes. |
 | 🏠 **Your choice of where logins live** | Copied to standbys so a standby takes over while the main machine is off, or **main machine only**, so no login file ever leaves it. Switch it on the Accounts page. |
@@ -87,8 +87,8 @@ This installs and signs in to **Tailscale** (use the same account on every machi
 **2. Your other machines** — signed in to the same Tailscale account, they join by themselves; anything else asks for a key that `spinup keys` prints on the main machine.
 
 ```sh
-spinup setup my-laptop --standby   # takes over while the main machine is off
-spinup setup my-mac                # just uses the accounts
+spinup setup my-laptop --standby   # Worker + Standby: works, and takes over while the main machine is off
+spinup setup my-mac                # Worker: works with the accounts through the main machine
 ```
 
 **3. Use it.** Run `ccp` instead of `claude` to use Claude Code with the shared accounts (plain `claude` keeps its own login), or point T3 Code's providers at `http://localhost:8317` — see [docs/T3-PROXY.md](docs/T3-PROXY.md).

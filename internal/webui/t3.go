@@ -89,3 +89,7 @@ func (s *Server) serveAutoUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	answer(w, s.b.SetAutoUpdate(req.Auto), msg)
 }
+
+func (s *Server) serveRestartService(w http.ResponseWriter, _ *http.Request) {
+	answer(w, s.b.RestartService(), "Restarting spillup. This page reconnects in a few seconds.")
+}

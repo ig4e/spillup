@@ -23,7 +23,7 @@ func install(ctx context.Context) error {
 		}
 		return shell.Run(ctx, "brew", "install", "tailscale")
 	}
-	return shell.Run(ctx, "sh", "-c", installScript)
+	return shell.AsRoot(ctx, "sh", "-c", installScript)
 }
 
 // Update brings Tailscale to its latest version with the tool that installed it.

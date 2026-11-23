@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/host"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/release"
 	"github.com/darkyeg/spinup/internal/tailnet"
@@ -42,6 +43,7 @@ func (updateCmd) Run() error {
 		run  func(context.Context) error
 	}{
 		{"accounts service", refreshService},
+		{"terminal copy", func(context.Context) error { refreshLauncherCopy(); return nil }},
 		{"CLIProxyAPI", updateProxy},
 		{"skills", func(ctx context.Context) error { return syncSkills(ctx, repoData()) }},
 		{"packages", syncPackages},
@@ -134,20 +136,59 @@ func (e childExit) Error() string {
 	return fmt.Sprintf("the updated spinup exited with code %d", e.code)
 }
 
-// refreshService restarts the accounts service on this binary when the service still runs an older one.
+// refreshService puts the accounts service on this binary. It goes by the version the running service
+// reports, not the file it started from: an update the service ran replaced that file while the old
+// code kept running, and comparing files then says there is nothing to do.
 func refreshService(ctx context.Context) error {
-	if _, err := config.Load(); errors.Is(err, config.ErrNotInstalled) {
+	cfg, err := config.Load()
+	if errors.Is(err, config.ErrNotInstalled) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	if sameContent(self, installedBinary()) {
+	running := serviceVersion(cfg)
+	if sameContent(self, installedBinary()) && (running == "" || running == version) {
 		return nil
 	}
-	step("Restarting the accounts service on spinup %s", version)
-	return installService(ctx, serviceRequest{repo: repoData()})
+	if interactive() {
+		step("Restarting the accounts service on spinup %s", version)
+		return installService(ctx, serviceRequest{repo: repoData()})
+	}
+	if !sameFile(self, installedBinary()) {
+		data, err := os.ReadFile(self)
+		if err != nil {
+			return err
+		}
+		if err := replaceRunningBinary(installedBinary(), data); err != nil {
+			return err
+		}
+	}
+	step("Restarting the accounts service on spinup %s (it ran %s)", version, orNone(running, "nothing"))
+	return restartServiceNow(cfg)
+}
+
+// refreshLauncherCopy keeps the spinup you run in a terminal in step when the service updated itself.
+func refreshLauncherCopy() {
+	self, err := os.Executable()
+	if err != nil || !sameFile(self, installedBinary()) {
+		return
+	}
+	name := "spinup"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	launcher := filepath.Join(host.Home(), ".local", "bin", name)
+	if _, err := os.Stat(launcher); err != nil || sameContent(self, launcher) {
+		return
+	}
+	if data, err := os.ReadFile(self); err == nil && replaceRunningBinary(launcher, data) == nil {
+		step("Updated the spinup in %s too", filepath.Dir(launcher))
+	}
 }
 
 func updateProxy(ctx context.Context) error {

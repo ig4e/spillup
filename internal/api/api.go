@@ -130,6 +130,8 @@ type Report struct {
 	Own        []string `json:"own,omitempty"`
 	HubOnly    bool     `json:"hub_only,omitempty"`
 	OwnRunning bool     `json:"own_running,omitempty"`
+	// PID is the service's process, so a restart can end it when it can't be asked to stop.
+	PID int `json:"pid,omitempty"`
 }
 
 // Sync is this machine's last complete copy of the leader's logins. The age is measured here, so
