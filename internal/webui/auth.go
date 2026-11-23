@@ -83,12 +83,16 @@ func loopbackHost(hostport string) bool {
 }
 
 // sameOrigin needs a JSON body, which a cross-site form can't send without asking first, and an Origin,
-// when the browser sends one, that is this dashboard.
+// when the browser sends one, that is this dashboard. The Management Center also uploads files and YAML,
+// so its calls must carry this dashboard's Origin instead.
 func sameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if isPanelAPI(r.URL.Path) {
+		return origin == "http://"+r.Host
+	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		return false
 	}
-	origin := r.Header.Get("Origin")
 	return origin == "" || origin == "http://"+r.Host
 }

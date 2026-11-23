@@ -5,6 +5,7 @@ import (
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/logins"
 )
 
 // Overview is this machine and its accounts service, for the dashboard's first page.
@@ -142,4 +143,20 @@ type addRequest struct {
 
 type nameRequest struct {
 	Name string `json:"name"`
+}
+
+// OwnState is the model families this machine serves with its own logins, and those logins.
+type OwnState struct {
+	Families  []string         `json:"families"`
+	Available []string         `json:"available"`
+	Running   bool             `json:"running"`
+	Logins    []logins.Summary `json:"logins"`
+}
+
+type ownRequest struct {
+	Families []string `json:"families"`
+}
+
+type signInRequest struct {
+	Family string `json:"family"`
 }

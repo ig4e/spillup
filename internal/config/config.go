@@ -45,6 +45,12 @@ type Config struct {
 	Library string `json:"library,omitempty"`
 	// Home is your home folder, for a service started at boot without one.
 	Home string `json:"home,omitempty"`
+	// OwnModels are the model families this machine serves with its own logins, never the shared accounts.
+	OwnModels []string `json:"own_models,omitempty"`
+	// OwnProxyPort is the CLIProxyAPI that holds this machine's own logins, on 127.0.0.1 only.
+	OwnProxyPort int `json:"own_proxy_port"`
+	// OwnAuthDir keeps this machine's own logins; nothing syncs it, so no other machine refreshes them.
+	OwnAuthDir string `json:"own_auth_dir"`
 }
 
 // FailoverAfter is how long Tailscale must report the leader offline before another machine leads.
@@ -60,6 +66,8 @@ func (c Config) ProxyExe() string {
 }
 
 func (c Config) ProxyConfig() string { return filepath.Join(c.ProxyDir, "config.yaml") }
+
+func (c Config) OwnProxyConfig() string { return filepath.Join(c.ProxyDir, "config-own.yaml") }
 
 // RemovedDir keeps logins that disappeared from the leader; they are never deleted.
 func (c Config) RemovedDir() string { return c.AuthDir + "-removed" }
@@ -87,6 +95,8 @@ func Defaults() Config {
 		AutoFailback:         true,
 		ProxyDir:             defaultProxyDir(),
 		AuthDir:              filepath.Join(home(), ".cli-proxy-api"),
+		OwnProxyPort:         8328,
+		OwnAuthDir:           filepath.Join(home(), ".cli-proxy-api-own"),
 	}
 }
 

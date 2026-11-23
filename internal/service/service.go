@@ -51,8 +51,11 @@ type Options struct {
 	ApplyLibrary func(context.Context) error
 	// LibraryEvery is how often the libraries are compared.
 	LibraryEvery time.Duration
-	// SaveConfig keeps a role the user changed while the service runs; nil keeps it in memory only.
+	// SaveConfig keeps what the user changed while the service runs; nil keeps it in memory only.
 	SaveConfig func(config.Config) error
+	// OwnProxy holds this machine's own logins (Config.OwnModels); PrepareOwnProxy writes its config before each start.
+	OwnProxy        Proxy
+	PrepareOwnProxy func() error
 }
 
 // Machine is this machine running spinup: it wires the units that each own one part of its state.
@@ -77,6 +80,9 @@ type Machine struct {
 	activity activity
 	library  *libraryShare // nil when the library isn't shared
 	role     role
+	own      ownLogins
+
+	ownForwarder *httputil.ReverseProxy
 }
 
 func New(o Options) *Machine {
@@ -117,6 +123,10 @@ func New(o Options) *Machine {
 		stopRun:    func() {},
 	}
 	m.role.hold = o.Config.Hold
+	if fs, err := ownFamilies(o.Config.OwnModels); err == nil {
+		m.own.set(fs)
+	}
+	m.ownForwarder = m.newOwnForwarder()
 	m.forwarder = m.newForwarder(transport)
 	return m
 }
@@ -147,6 +157,14 @@ func (m *Machine) Run(ctx context.Context) error {
 	if m.library != nil {
 		go m.shareLibrary(ctx)
 	}
+	if len(m.own.get()) > 0 {
+		go func() {
+			if err := m.startOwn(ctx); err != nil {
+				m.log.Printf("own logins: %v", err)
+			}
+		}()
+	}
+	defer m.stopOwn()
 	ticker := time.NewTicker(m.o.Tick)
 	defer ticker.Stop()
 	for {

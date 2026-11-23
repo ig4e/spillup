@@ -12,11 +12,16 @@ import (
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/doctor"
 	"github.com/darkyeg/spinup/internal/leadership"
+	"github.com/darkyeg/spinup/internal/logins"
+	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
-type fakeBackend struct{ mainTo string }
+type fakeBackend struct {
+	mainTo string
+	panels map[string]Panel
+}
 
 func (*fakeBackend) Facts() webuiFacts {
 	return webuiFacts{Installed: true, Config: config.Defaults(), Version: "test"}
@@ -33,6 +38,15 @@ func (b *fakeBackend) MakeMain(m string) error                       { b.mainTo 
 func (*fakeBackend) RestartProxy() error                             { return nil }
 func (*fakeBackend) Skills() skills.Manager                          { return skills.Manager{} }
 func (*fakeBackend) CatchUpLibrary()                                 {}
+func (*fakeBackend) OwnLogins() ([]logins.Summary, error)            { return nil, nil }
+func (*fakeBackend) SetOwn(context.Context, []string) error          { return nil }
+func (b *fakeBackend) Panel(target string) (Panel, error) {
+	if p, ok := b.panels[target]; ok {
+		return p, nil
+	}
+	return Panel{}, errors.New("no such proxy")
+}
+func (*fakeBackend) OwnManagement() (proxy.Management, error) { return proxy.Management{}, nil }
 
 type webuiFacts = Facts
 

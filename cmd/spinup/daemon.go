@@ -52,6 +52,7 @@ func (c daemonCmd) Run() error {
 			return err
 		}
 	}
+	withOwnProxy(&o, cfg, logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := service.New(o).Run(ctx); err != nil {
@@ -93,6 +94,18 @@ func withProxy(o *service.Options, cfg config.Config, logger *log.Logger) error 
 	o.Proxy = &proxy.Runner{Exe: cfg.ProxyExe(), Dir: cfg.ProxyDir, Config: cfg.ProxyConfig(), Port: cfg.ProxyPort, Log: logger}
 	o.PrepareProxy = func() error { return proxy.WriteConfig(cfg, o.Secrets) }
 	return nil
+}
+
+// withOwnProxy gives the service the CLIProxyAPI for this machine's own logins; it runs only while
+// config.json names model families for it.
+func withOwnProxy(o *service.Options, cfg config.Config, logger *log.Logger) {
+	o.OwnProxy = &proxy.Runner{Exe: cfg.ProxyExe(), Dir: cfg.ProxyDir, Config: cfg.OwnProxyConfig(), Port: cfg.OwnProxyPort, Log: logger}
+	o.PrepareOwnProxy = func() error {
+		if !proxy.Installed(cfg) {
+			return fmt.Errorf("CLIProxyAPI isn't in %s yet: turn own logins on from `spinup ui`, which installs it", cfg.ProxyDir)
+		}
+		return proxy.WriteOwnConfig(cfg, o.Secrets)
+	}
 }
 
 // openLog appends to spinup.log in the state folder, starting a new file past 5 MB.

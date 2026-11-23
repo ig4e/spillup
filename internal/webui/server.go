@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/doctor"
+	"github.com/darkyeg/spinup/internal/logins"
+	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
@@ -27,6 +30,14 @@ type Backend interface {
 	TakeOver() error
 	MakeMain(machine string) error
 	RestartProxy() error
+
+	// OwnLogins are this machine's own logins; SetOwn picks the model families they serve, installing
+	// CLIProxyAPI when needed; OwnManagement signs in and out on their proxy.
+	OwnLogins() ([]logins.Summary, error)
+	SetOwn(ctx context.Context, families []string) error
+	OwnManagement() (proxy.Management, error)
+	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
+	Panel(target string) (Panel, error)
 
 	// Skills is a manager over your library; CatchUpLibrary takes in a newer one from your other machines first.
 	Skills() skills.Manager
@@ -71,12 +82,25 @@ func (s *Server) Handler() http.Handler {
 	change("accounts/restart", s.serveRestart)
 	change("machines/main", s.serveMain)
 
+	read("own", s.serveOwnState)
+	change("own", s.serveSetOwn)
+	change("own/signin", s.serveSignIn)
+	read("own/signin", s.serveSignInStatus)
+	change("own/signout", s.serveSignOut)
+
 	change("skills/mode", s.serveSkillMode)
 	change("skills/remove", s.serveSkillRemove)
 	change("skills/restore", s.serveSkillRestore)
 	change("skills/adopt", s.serveSkillAdopt)
 	change("skills/add", s.serveSkillAdd)
 	change("skills/sync", s.serveSkillSync)
+
+	mux.HandleFunc("GET /cpa/{target}/{$}", s.needsSession(s.servePanelPage))
+	for _, prefix := range panelAPIPrefixes {
+		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
+			mux.HandleFunc(method+" "+prefix, s.needsSession(s.servePanelAPI))
+		}
+	}
 
 	unknown := func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "no such dashboard call")
@@ -99,9 +123,14 @@ func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+		if strings.HasPrefix(r.URL.Path, "/cpa/") {
+			h.Set("X-Frame-Options", "SAMEORIGIN")
+			h.Set("Content-Security-Policy", "frame-ancestors 'self'")
+		} else {
+			h.Set("X-Frame-Options", "DENY")
+			h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

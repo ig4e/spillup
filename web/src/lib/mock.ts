@@ -10,6 +10,8 @@ const fleet = {
   holds: { desktop: "hub", laptop: "standby" } as Record<string, Hold>,
 };
 
+const own = { families: ["claude"] as string[], logins: [{ name: "claude-laptop@example.com.json", type: "claude", refreshed: ago(600) }] };
+
 const skills: Skills = {
   library: "~/.spinup",
   token_estimate: 1840,
@@ -119,6 +121,7 @@ const doctor: Doctor = {
 
 export async function mock(method: string, path: string, body: any): Promise<unknown> {
   await wait();
+  if (method === "GET" && path.startsWith("own/signin?")) return { status: "ok" };
   if (method === "GET") {
     switch (path) {
       case "overview":
@@ -130,11 +133,23 @@ export async function mock(method: string, path: string, body: any): Promise<unk
         return doctor;
       case "skills":
         return structuredClone(skills);
+      case "own":
+        return { families: own.families, available: ["claude", "gpt", "gemini"], running: own.families.length > 0, logins: own.logins };
       case "keys":
         return { api_key: "sk-spinup-3f9c1e7a52b84d06a1c2e9f0", management_password: "m-81b2c4d6e8f0a1b3" } satisfies Keys;
     }
   }
+  if (path.startsWith("own/signin?")) return { status: "ok" };
   switch (path) {
+    case "own":
+      own.families = body.families;
+      return { message: body.families.length ? `This machine now uses its own sign-in for ${body.families.join(", ")} models.` : "Every model uses the shared accounts again." };
+    case "own/signin":
+      own.logins.push({ name: `${body.family === "gpt" ? "codex" : body.family === "gemini" ? "antigravity" : "claude"}-laptop2@example.com.json`, type: body.family === "gpt" ? "codex" : body.family === "gemini" ? "antigravity" : "claude", refreshed: new Date().toISOString() });
+      return { url: "about:blank", state: "mock" };
+    case "own/signout":
+      own.logins = own.logins.filter((l) => l.name !== body.name);
+      return { message: "Signed out on this machine." };
     case "machines/main": {
       for (const n of Object.keys(fleet.holds)) fleet.holds[n] = "standby";
       fleet.holds[body.machine] = "hub";

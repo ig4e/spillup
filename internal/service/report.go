@@ -15,7 +15,7 @@ func (m *Machine) Report() api.Report {
 	r := api.Report{
 		Name: m.tail.selfName(), Hold: m.hold(), Version: m.o.Version, Leading: st.Leading, Starting: st.Starting,
 		LeaderAddr: leaderAddr, Waiting: waiting, Peers: m.peers.peers(), Synced: m.replica.synced(now),
-		InFlight: m.activity.inFlight(),
+		InFlight: m.activity.inFlight(), Own: familyNames(m.own.get()), OwnRunning: m.ownRunning(),
 	}
 	if m.hold().CanHold() {
 		r.Epoch, r.Leader = st.Epoch, st.Leader

@@ -55,13 +55,18 @@ func (m *Machine) routes(a audience) http.Handler {
 		mux.HandleFunc("POST "+api.PathStop, m.keyed(m.holding(m.serveStop)))
 		mux.HandleFunc("POST "+api.PathRestart, m.keyed(m.holding(m.serveRestart)))
 		mux.HandleFunc("POST "+api.PathMain, m.keyed(m.holding(m.serveMain)))
+		mux.HandleFunc("POST "+api.PathOwn, m.withAPIKey(m.serveOwn))
 	case onTailnet:
 		mux.HandleFunc("GET "+api.PathState, m.keyed(m.serveState))
 	}
 	mux.HandleFunc("/spinup/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "no such spinup call here")
 	})
-	mux.HandleFunc("/", m.forward)
+	if a == onLocalhost {
+		mux.HandleFunc("/", m.forwardLocal)
+	} else {
+		mux.HandleFunc("/", m.forward)
+	}
 	return mux
 }
 
@@ -213,6 +218,18 @@ func (m *Machine) serveMain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := m.makeMain(r.Context(), req.Machine); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, okBody)
+}
+
+func (m *Machine) serveOwn(w http.ResponseWriter, r *http.Request) {
+	var req api.Own
+	if !decode(w, r, commandLimit, &req) {
+		return
+	}
+	if err := m.setOwn(r.Context(), req.Families); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

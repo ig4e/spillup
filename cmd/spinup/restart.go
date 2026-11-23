@@ -1,6 +1,10 @@
 package main
 
-import "github.com/darkyeg/spinup/internal/config"
+import (
+	"reflect"
+
+	"github.com/darkyeg/spinup/internal/config"
+)
 
 // bootState is whether the accounts service is registered to start at boot and answers.
 type bootState int
@@ -54,6 +58,11 @@ func bootStateOf(cfg config.Config) bootState {
 type settings struct {
 	cfg     config.Config
 	secrets config.Secrets
+}
+
+// same reports whether two stored settings would start the service the same way.
+func (a settings) same(b settings) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 // storedSettings is the zero value when nothing valid is stored, which counts as changed.

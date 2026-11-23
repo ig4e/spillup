@@ -122,3 +122,22 @@ export interface Keys {
 export interface Done {
   message: string;
 }
+
+export type Family = "claude" | "gpt" | "gemini";
+
+export interface OwnState {
+  families: Family[];
+  available: Family[];
+  running: boolean;
+  logins: Account[];
+}
+
+export interface SignIn {
+  url: string;
+  state: string;
+}
+
+export interface SignInStatus {
+  status: "ok" | "wait" | "error";
+  error?: string;
+}

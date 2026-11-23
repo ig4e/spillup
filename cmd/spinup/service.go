@@ -56,7 +56,7 @@ func installService(ctx context.Context, req serviceRequest) error {
 	if err := config.Save(cfg); err != nil {
 		return err
 	}
-	if err := startAtBoot(cfg, before != storedSettings()); err != nil {
+	if err := startAtBoot(cfg, !before.same(storedSettings())); err != nil {
 		return err
 	}
 	if err := writeLauncher(cfg.Port, apiKey); err != nil {
@@ -123,7 +123,15 @@ func holdPhrase(h config.Hold) string {
 }
 
 func ensureProxy(ctx context.Context, cfg config.Config) error {
-	if !cfg.Hold.CanHold() || proxy.Installed(cfg) {
+	if !cfg.Hold.CanHold() {
+		return nil
+	}
+	return installProxy(ctx, cfg)
+}
+
+// installProxy downloads CLIProxyAPI unless it is already here, whatever the machine's hold.
+func installProxy(ctx context.Context, cfg config.Config) error {
+	if proxy.Installed(cfg) {
 		return nil
 	}
 	rel, err := release.Latest(ctx, proxy.Project)

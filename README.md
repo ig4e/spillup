@@ -15,9 +15,13 @@ It opens in your browser and shows your machines, who holds the accounts, your l
 - **Choose the main machine** (the hub). Pick any hub or standby; the old hub becomes a standby and the accounts move between requests, so nothing is cut off and nobody is logged out.
 - Move the accounts to a machine now, restart CLIProxyAPI, or take over after losing a machine for good.
 - Turn skills on or off, add them from GitHub, keep a machine's own skills everywhere, and restore removed ones.
+- **Sign in separately per machine** (Accounts → *Sign In Separately on This Machine*). Turn a model family (Claude, GPT/Codex, Gemini) on and this machine signs in with its own account instead of using the shared one. Claude logs out other sessions when a token refreshes; with its own sign-in, no two machines ever refresh the same token. Requests for that family from this machine go to a second, local CLIProxyAPI (`127.0.0.1:8328`, logins in `~/.cli-proxy-api-own`, never synced). Every other model still uses the shared accounts, and other machines' requests never use this machine's own logins.
+- **CLIProxyAPI's own dashboard**, built in (CLIProxyAPI page): providers, logins, quotas, logs and config, already signed in. The real key is added by spillup and never reaches the browser.
 - See the API key and dashboard password a new machine asks for.
 
 It answers only on `localhost`, and only to the browser that opened the link `spinup ui` printed. It follows your system's light or dark mode. Ctrl-C stops it; the accounts service keeps running. Moving the accounts or changing the main machine works on the hub and standbys, which keep the dashboard password.
+
+Releases: every push to `master` is published automatically as the next patch version, with binaries for Windows, Linux and macOS; push a tag like `v0.4.0` for a bigger bump.
 
 To work on it: `cd web && npm ci && npm run dev:mock` shows it with a pretend fleet; `npm run build` builds it into the binary (`internal/webui/dist`), then `go build ./cmd/spinup`.
 

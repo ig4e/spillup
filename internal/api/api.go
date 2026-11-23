@@ -33,6 +33,7 @@ const (
 	PathRestart  = "/spinup/restart"  // restart the proxy after an update, if this machine holds the accounts; localhost only
 	PathRole     = "/spinup/role"     // switch this machine between hub and standby
 	PathMain     = "/spinup/main"     // the user makes one machine the only hub; localhost only
+	PathOwn      = "/spinup/own"      // the model families this machine serves with its own logins; localhost only, with the API key
 
 	PathLibrary         = "/spinup/library"       // GET this machine's library, POST a newer one or fetched copies; with the API key
 	PathLibraryState    = "/spinup/library/state" // when this machine's library last changed; with the API key
@@ -87,6 +88,11 @@ type Role struct {
 	Hold config.Hold `json:"hold"`
 }
 
+// Own names the model families a machine serves with its own logins instead of the shared accounts.
+type Own struct {
+	Families []string `json:"families"`
+}
+
 // Main names the machine that should be the only hub.
 type Main struct {
 	Machine string `json:"machine"`
@@ -108,6 +114,9 @@ type Report struct {
 	InFlight     int               `json:"in_flight,omitempty"`
 	Accounts     []logins.Summary  `json:"accounts,omitempty"`
 	Peers        []leadership.Peer `json:"peers,omitempty"`
+	// Own are the model families this machine serves with its own logins; OwnRunning is their proxy.
+	Own        []string `json:"own,omitempty"`
+	OwnRunning bool     `json:"own_running,omitempty"`
 }
 
 // Sync is this machine's last complete copy of the leader's logins. The age is measured here, so

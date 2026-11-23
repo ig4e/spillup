@@ -47,13 +47,9 @@ func (m *Machine) setHold(to config.Hold) error {
 	if err != nil || from == to {
 		return err
 	}
-	if m.o.SaveConfig != nil {
-		cfg := m.cfg
-		cfg.Hold = to
-		if err := m.o.SaveConfig(cfg); err != nil {
-			_, _ = m.role.change(from)
-			return fmt.Errorf("save the new role: %w", err)
-		}
+	if err := m.saveLive(); err != nil {
+		_, _ = m.role.change(from)
+		return fmt.Errorf("save the new role: %w", err)
 	}
 	m.log.Printf("the user made this machine %s (was %s)", to, from)
 	return nil

@@ -1,4 +1,4 @@
-import type { Doctor, Done, Keys, Machines, Overview, Skills } from "./types";
+import type { Doctor, Done, Family, Keys, Machines, Overview, OwnState, SignIn, SignInStatus, Skills } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -49,4 +49,10 @@ export const api = {
   adoptSkills: (names: string[]) => post("skills/adopt", { names }),
   addSkills: (repo: string, names: string[], manual: boolean) => post("skills/add", { repo, names, manual }),
   syncSkills: () => post("skills/sync"),
+
+  own: () => call<OwnState>("GET", "own"),
+  setOwn: (families: Family[]) => post("own", { families }),
+  signIn: (family: Family) => call<SignIn>("POST", "own/signin", { family }),
+  signInStatus: (state: string) => call<SignInStatus>("GET", `own/signin?state=${encodeURIComponent(state)}`),
+  signOut: (name: string) => post("own/signout", { name }),
 };

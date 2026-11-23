@@ -1,5 +1,5 @@
 import { Alert, Toast } from "@heroui/react";
-import { Gauge, KeyRound, Network, Settings, Sparkles, Stethoscope, type LucideIcon } from "lucide-react";
+import { Gauge, KeyRound, Network, Server, Settings, Sparkles, Stethoscope, type LucideIcon } from "lucide-react";
 import { createContext, useContext } from "react";
 import { Dot, IconTile, holdName, type Tint } from "./components/ui";
 import { api } from "./lib/api";
@@ -9,6 +9,7 @@ import { AccountsPage } from "./pages/Accounts";
 import { DoctorPage } from "./pages/Doctor";
 import { MachinesPage } from "./pages/Machines";
 import { OverviewPage } from "./pages/Overview";
+import { ProxyPage } from "./pages/Proxy";
 import { SettingsPage } from "./pages/Settings";
 import { SkillsPage } from "./pages/Skills";
 
@@ -26,12 +27,14 @@ interface Page {
   icon: LucideIcon;
   color: Tint;
   page: () => React.ReactNode;
+  wide?: boolean;
 }
 
 const pages: Page[] = [
   { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
   { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
   { path: "/accounts", label: "Accounts", icon: KeyRound, color: "orange", page: AccountsPage },
+  { path: "/proxy", label: "CLIProxyAPI", icon: Server, color: "teal", page: ProxyPage, wide: true },
   { path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage },
   { path: "/doctor", label: "Doctor", icon: Stethoscope, color: "red", page: DoctorPage },
   { path: "/settings", label: "Settings", icon: Settings, color: "gray", page: SettingsPage },
@@ -49,7 +52,7 @@ export default function App() {
         <Sidebar path={current.path} />
         <main className="min-w-0 flex-1">
           <MobileBar path={current.path} />
-          <div className="mx-auto w-full max-w-[860px] px-5 py-8 sm:px-10 lg:py-12">
+          <div className={`mx-auto w-full px-5 py-8 sm:px-10 lg:py-12 ${current.wide ? "max-w-none" : "max-w-[860px]"}`}>
             <ConnectionNotice />
             <Page />
           </div>
@@ -102,11 +105,11 @@ function Sidebar({ path }: { path: string }) {
     <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-separator bg-[var(--sidebar)] px-3 pt-5 pb-4 backdrop-blur-2xl backdrop-saturate-150 lg:flex">
       <MachineCard />
       <nav className="mt-4 flex flex-col gap-0.5">
-        {pages.slice(0, 5).map((p) => (
+        {pages.slice(0, 6).map((p) => (
           <SidebarLink key={p.path} page={p} active={path === p.path} />
         ))}
         <div className="my-2 h-px bg-separator" />
-        <SidebarLink page={pages[5]} active={path === pages[5].path} />
+        <SidebarLink page={pages[6]} active={path === pages[6].path} />
       </nav>
       <HolderStatus />
     </aside>

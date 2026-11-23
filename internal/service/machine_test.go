@@ -170,17 +170,20 @@ type testMachine struct {
 	name string
 	hold config.Hold
 	// keeps: the machine does not hand the accounts back to the hub on its own.
-	keeps   bool
-	dir     string
-	front   string
-	peerAPI string
-	m       *Machine
-	logbook *logbook
-	proxy   *fakeProxy
-	lib     library.Library
-	applied atomic.Int32
-	stop    context.CancelFunc
-	done    chan struct{}
+	keeps bool
+	// own: the model families the machine serves with its own logins, through ownProxy.
+	own      []string
+	ownProxy *fakeProxy
+	dir      string
+	front    string
+	peerAPI  string
+	m        *Machine
+	logbook  *logbook
+	proxy    *fakeProxy
+	lib      library.Library
+	applied  atomic.Int32
+	stop     context.CancelFunc
+	done     chan struct{}
 }
 
 type testTailnet struct {
@@ -235,6 +238,15 @@ func (tn *testTailnet) start(tm *testMachine) {
 	}
 	if tm.hold.CanHold() {
 		o.Proxy, o.Secrets.ManagementPassword = tm.proxy, "m"
+	}
+	if len(tm.own) > 0 {
+		cfg.OwnModels, cfg.OwnProxyPort = tm.own, freePort(tn.t)
+		o.Config = cfg
+		tm.ownProxy = &fakeProxy{
+			machine: tm.name + "-own", port: cfg.OwnProxyPort, running: &atomic.Int32{}, most: &atomic.Int32{},
+			streaming: make(chan struct{}, 8), finish: make(chan struct{}),
+		}
+		o.OwnProxy = tm.ownProxy
 	}
 	tm.m = New(o)
 	ctx, stop := context.WithCancel(context.Background())

@@ -131,13 +131,13 @@ func TestStoredSettingsDifferWhenTheKeysChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := storedSettings()
-	if before != storedSettings() {
+	if !before.same(storedSettings()) {
 		t.Fatal("unchanged files must give equal settings")
 	}
 	if err := config.SaveSecrets(cfg, config.Secrets{APIKey: "b", ManagementPassword: "m"}); err != nil {
 		t.Fatal(err)
 	}
-	if before == storedSettings() {
+	if before.same(storedSettings()) {
 		t.Fatal("a new API key must count as a change")
 	}
 }

@@ -1,6 +1,7 @@
-name: nightly
+name: auto-release
 
-# Main builds are prereleases; stable versions require an explicit version tag.
+# Every push to master is published as the next patch release, with no manual tag or approval.
+# Bump the minor or major version by pushing a tag like v0.4.0 yourself.
 on:
   push:
     branches: [master]
@@ -10,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nightly
+  group: auto-release
   cancel-in-progress: false
 
 jobs:
@@ -24,10 +25,11 @@ jobs:
         with:
           fetch-depth: 0
       - id: next
-        env:
-          RUN: ${{ github.run_number }}
-          ATTEMPT: ${{ github.run_attempt }}
         run: |
+          if git tag --points-at HEAD | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "HEAD already has a version tag; its own release workflow publishes it."
+            exit 0
+          fi
           last=$(git tag --list --sort=-version:refname | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
           if [ -z "$last" ]; then
             next=v0.1.0
@@ -35,7 +37,6 @@ jobs:
             IFS=. read -r major minor patch <<< "${last#v}"
             next="v$major.$minor.$((patch + 1))"
           fi
-          next="$next-nightly.$RUN.$ATTEMPT"
           git tag "$next"
           git push origin "$next"
           echo "tag=$next" >> "$GITHUB_OUTPUT"

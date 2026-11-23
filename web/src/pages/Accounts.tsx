@@ -1,6 +1,7 @@
 import { Bot, Code2, ExternalLink, KeyRound, LifeBuoy, Orbit, RotateCw, Server, Terminal } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
+import { OwnLogins } from "../components/OwnLogins";
 import { Dot, Group, IconTile, LargeTitle, Mono, Row, type Tint } from "../components/ui";
 import { api } from "../lib/api";
 import { capitalize, describeLogin, relative } from "../lib/format";
@@ -72,17 +73,18 @@ export function AccountsPage() {
             value={s?.proxy_running ? (s.in_flight ? `Running · ${s.in_flight} requests` : "Running") : "Standing by"}
           />
           {data?.can_manage && s?.leading ? <Row icon={<IconTile icon={RotateCw} color="blue" />} title="Restart CLIProxyAPI…" tone="accent" onPress={restart} /> : null}
-          {data?.dashboard_url && s?.leading ? (
+          {data?.can_manage ? (
             <Row
               icon={<IconTile icon={ExternalLink} color="teal" />}
               title="Add or Remove Logins"
-              subtitle="Opens the CLIProxyAPI dashboard"
-              tone="accent"
-              onPress={() => window.open(data.dashboard_url, "_blank", "noopener")}
+              subtitle="In CLIProxyAPI’s dashboard"
+              to="/proxy"
             />
           ) : null}
         </Group>
       ) : null}
+
+      {data?.installed ? <OwnLogins /> : null}
 
       {holds ? (
         <Group title="Logins" footer={accounts.length ? `${accounts.length} logins, shared with every machine.` : "Add logins in the CLIProxyAPI dashboard on the machine holding the accounts."}>
