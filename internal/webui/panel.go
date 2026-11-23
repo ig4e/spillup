@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -99,6 +100,11 @@ func (s *Server) servePanelAPI(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(panelCookie); err == nil && c.Value == panelOwn {
 		target = panelOwn
 	}
+	if wait := s.refusals.wait(target, time.Now()); wait > 0 {
+		writeError(w, http.StatusConflict, fmt.Sprintf("CLIProxyAPI refused spillup's key, so spillup stopped asking for %s to keep it from banning this machine. "+
+			"Check that spillup runs this CLIProxyAPI (spinup doctor)", wait.Round(time.Second)))
+		return
+	}
 	p, err := s.b.Panel(target)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
@@ -115,11 +121,46 @@ func (s *Server) servePanelAPI(w http.ResponseWriter, r *http.Request) {
 			pr.Out.Header.Set("Authorization", "Bearer "+p.Key)
 			pr.Out.Header.Set("X-Management-Key", p.Key)
 		},
+		ModifyResponse: func(resp *http.Response) error {
+			if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+				s.refusals.refused(target, time.Now())
+			}
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeError(w, http.StatusBadGateway, "CLIProxyAPI didn't answer: "+err.Error())
 		},
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+// panelBackoff is how long spillup stops calling a CLIProxyAPI that refused its key. CLIProxyAPI bans an
+// address after a few refusals, and the Management Center calls many endpoints at once.
+const panelBackoff = 2 * time.Minute
+
+// refusals remembers which CLIProxyAPI refused spillup's key, and when.
+type refusals struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+func (r *refusals) refused(target string, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.last == nil {
+		r.last = map[string]time.Time{}
+	}
+	r.last[target] = now
+}
+
+// wait is how long calls to target must still wait, or zero.
+func (r *refusals) wait(target string, now time.Time) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if left := r.last[target].Add(panelBackoff).Sub(now); left > 0 {
+		return left
+	}
+	return 0
 }
 
 func writePanelProblem(w http.ResponseWriter, err error) {

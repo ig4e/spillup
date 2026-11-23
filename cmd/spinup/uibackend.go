@@ -139,6 +139,9 @@ func (cliBackend) Remote(machine string) (webui.Remote, error) {
 	return webui.Remote{Base: &url.URL{Scheme: "http", Host: net.JoinHostPort(node.IP, strconv.Itoa(cfg.Port))}, Header: h}, nil
 }
 
+// Panel is a CLIProxyAPI that spillup itself runs, never just whatever answers on a port: a different
+// proxy there, such as an old standalone CLIProxyAPI, would be sent a key it doesn't know until it bans
+// this machine.
 func (cliBackend) Panel(target string) (webui.Panel, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -148,12 +151,25 @@ func (cliBackend) Panel(target string) (webui.Panel, error) {
 	if err != nil {
 		return webui.Panel{}, err
 	}
+	rep, err := localService(cfg, "").report()
+	if err != nil {
+		return webui.Panel{}, fmt.Errorf("spillup's accounts service isn't answering on port %d: is another program, such as an old CLIProxyAPI, using it? Stop that program, then run `spinup setup` again", cfg.Port)
+	}
 	switch target {
 	case "own":
+		if !rep.OwnRunning {
+			return webui.Panel{}, errors.New("this machine's own CLIProxyAPI isn't running: turn on a separate sign-in under Accounts first")
+		}
 		return webui.Panel{Port: cfg.OwnProxyPort, Key: s.APIKey}, nil
 	case "shared":
 		if s.ManagementPassword == "" {
 			return webui.Panel{}, errors.New("only the main machine and standbys keep the password for the shared accounts' dashboard")
+		}
+		if rep.Leading {
+			return webui.Panel{Port: cfg.ProxyPort, Key: s.ManagementPassword}, nil
+		}
+		if rep.Leader == "" {
+			return webui.Panel{}, errors.New("no machine holds the accounts right now, so there is no shared CLIProxyAPI to show")
 		}
 		return webui.Panel{Port: cfg.Port, Key: s.ManagementPassword}, nil
 	}

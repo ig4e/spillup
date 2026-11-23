@@ -63,6 +63,7 @@ type Server struct {
 	assets fs.FS
 	// changing serializes edits, so two clicks never edit the library at once.
 	changing sync.Mutex
+	refusals refusals
 }
 
 func New(b Backend, token string) *Server { return &Server{b: b, token: token, assets: assets()} }

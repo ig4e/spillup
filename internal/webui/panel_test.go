@@ -80,3 +80,31 @@ func TestTheManagementCenterOpensSignedInWithoutTheKeyInTheBrowser(t *testing.T)
 		t.Errorf("a panel call without a session: %d, want 401", w.Code)
 	}
 }
+
+func TestAProxyThatRefusesTheKeyIsLeftAloneBeforeItBansThisMachine(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
+	p, _ := strconv.Atoi(port)
+	b := &fakeBackend{panels: map[string]Panel{"shared": {Port: p, Key: "wrong"}}}
+	h := New(b, testToken).Handler()
+
+	call := func() *httptest.ResponseRecorder {
+		return do(t, h, http.MethodGet, "/v8/management/config", signedIn)
+	}
+	if w := call(); w.Code != http.StatusUnauthorized {
+		t.Fatalf("first call: %d, want the proxy's 401", w.Code)
+	}
+	for range 20 {
+		if w := call(); w.Code != http.StatusConflict {
+			t.Fatalf("a call after a refusal: %d, want 409 without asking the proxy", w.Code)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("the proxy was asked %d times after refusing the key; once is enough to stop", calls)
+	}
+}
