@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -61,6 +62,7 @@ func (m *Machine) routes(a audience) http.Handler {
 		mux.HandleFunc("POST "+api.PathOwn, m.withAPIKey(m.serveOwn))
 	case onTailnet:
 		mux.HandleFunc("GET "+api.PathState, m.keyed(m.serveState))
+		mux.HandleFunc("POST "+api.PathJoin, m.holding(m.serveJoin))
 	}
 	mux.HandleFunc("/spinup/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "no such spinup call here")
@@ -269,6 +271,28 @@ func (m *Machine) serveOwn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, okBody)
+}
+
+// serveJoin gives a new machine its keys without anyone typing them, but only when Tailscale vouches that
+// the caller is one of your own devices: signed in with this machine's account, untagged. Tailscale
+// guarantees a tailnet address can't be forged.
+func (m *Machine) serveJoin(w http.ResponseWriter, r *http.Request) {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	peer, ok := m.tail.owned(ip)
+	if !ok {
+		writeError(w, http.StatusForbidden, "only devices signed in with this machine's own Tailscale account join by themselves; use `spinup keys` instead")
+		return
+	}
+	var req api.Join
+	if !decode(w, r, commandLimit, &req) {
+		return
+	}
+	keys := config.Secrets{APIKey: m.o.Secrets.APIKey}
+	if req.Hold.CanHold() {
+		keys.ManagementPassword = m.o.Secrets.ManagementPassword
+	}
+	m.log.Printf("%s joined as %s", peer.Name, req.Hold)
+	writeJSON(w, keys)
 }
 
 var okBody = map[string]bool{"ok": true}

@@ -99,3 +99,21 @@ func TestOwnLoginsRefuseUnknownFamiliesAndNeedTheAPIKey(t *testing.T) {
 	}
 	tn.shutDown(laptop)
 }
+
+func TestAnOldKeyBecomesTheSharedOneOnThisMachineOnly(t *testing.T) {
+	m := &Machine{cfg: config.Config{LegacyKeys: []string{"old"}}, o: Options{Secrets: config.Secrets{APIKey: "shared"}}}
+	r, _ := http.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r.Header.Set("Authorization", "Bearer old")
+	r.Header.Set("X-Api-Key", "old")
+	r.Header.Set("X-Goog-Api-Key", "someone-else")
+	m.swapLegacyKey(r)
+	if got := r.Header.Get("Authorization"); got != "Bearer shared" {
+		t.Errorf("Authorization %q, want the shared key", got)
+	}
+	if got := r.Header.Get("X-Api-Key"); got != "shared" {
+		t.Errorf("X-Api-Key %q, want the shared key", got)
+	}
+	if got := r.Header.Get("X-Goog-Api-Key"); got != "someone-else" {
+		t.Errorf("a key that isn't an old one was changed to %q", got)
+	}
+}

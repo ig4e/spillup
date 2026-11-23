@@ -50,6 +50,13 @@ func installService(ctx context.Context, req serviceRequest) error {
 	if err := checkLauncherKey(apiKey); err != nil {
 		return err
 	}
+	legacy, hasLegacy := findLegacyProxy(cfg)
+	if hasLegacy {
+		cfg.LegacyKeys = keysBesides(legacy.APIKeys, apiKey)
+		if len(cfg.LegacyKeys) > 0 {
+			step("Your tools' old CLIProxyAPI key keeps working here: spillup's router swaps it for the shared key")
+		}
+	}
 	if err := ensureProxy(ctx, cfg); err != nil {
 		return err
 	}
@@ -58,6 +65,9 @@ func installService(ctx context.Context, req serviceRequest) error {
 	}
 	if err := startAtBoot(cfg, !before.same(storedSettings())); err != nil {
 		return err
+	}
+	if hasLegacy && cfg.Hold == config.HoldHub {
+		importLegacyLogins(legacy, cfg)
 	}
 	if err := writeLauncher(cfg.Port, apiKey); err != nil {
 		return err

@@ -33,6 +33,7 @@ const (
 	PathRestart  = "/spinup/restart"  // restart the proxy after an update, if this machine holds the accounts; localhost only
 	PathRole     = "/spinup/role"     // switch this machine between hub and standby
 	PathMain     = "/spinup/main"     // the user makes one machine the only hub; localhost only
+	PathJoin     = "/spinup/join"     // a new machine on your own Tailscale account asks for the keys; tailnet only
 	PathOwn      = "/spinup/own"      // the model families this machine serves with its own logins; localhost only, with the API key
 
 	PathLibrary         = "/spinup/library"       // GET this machine's library, POST a newer one or fetched copies; with the API key
@@ -85,6 +86,11 @@ type Handoff struct {
 
 // Role switches a machine between hub and standby.
 type Role struct {
+	Hold config.Hold `json:"hold"`
+}
+
+// Join asks a holder for the keys a new machine needs: the API key, and the dashboard password for a standby.
+type Join struct {
 	Hold config.Hold `json:"hold"`
 }
 

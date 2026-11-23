@@ -39,6 +39,17 @@ type Backend interface {
 	OwnManagement() (proxy.Management, error)
 	// Remote is how to reach another machine's dashboard over the tailnet: holders only.
 	Remote(machine string) (Remote, error)
+	// T3State, T3Pair and T3Link drive T3 Code here; SyncT3 links every machine's T3 to every other's.
+	T3State(ctx context.Context) T3State
+	T3Pair(ctx context.Context, label string) (string, error)
+	T3Link(ctx context.Context, url, code string) error
+	SyncT3(ctx context.Context) (string, error)
+
+	// UpdateState, StartUpdate and SetAutoUpdate keep spillup itself up to date.
+	UpdateState(ctx context.Context) Update
+	StartUpdate() error
+	SetAutoUpdate(auto bool) error
+
 	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
 	Panel(target string) (Panel, error)
 
@@ -120,6 +131,15 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("skills/adopt", s.serveSkillAdopt)
 	change("skills/add", s.serveSkillAdd)
 	change("skills/sync", s.serveSkillSync)
+
+	read("t3", s.serveT3)
+	change("t3/pair", s.serveT3Pair)
+	change("t3/link", s.serveT3Link)
+	change("t3/sync", s.serveT3Sync)
+
+	read("update", s.serveUpdateState)
+	change("update", s.serveUpdate)
+	change("update/auto", s.serveAutoUpdate)
 
 	unknown := func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "no such dashboard call")

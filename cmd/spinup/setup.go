@@ -48,6 +48,15 @@ func (c setupCmd) Run() error {
 		{"Skills", false, func(ctx context.Context) error { return syncSkills(ctx, repo) }},
 		{"Packages", false, syncPackages},
 		{"Agent config", false, func(context.Context) error { return installAgentConfig(repo) }},
+		{"T3 Code", false, func(ctx context.Context) error {
+			if err := setUpT3(ctx); err != nil {
+				return err
+			}
+			if summary, err := syncT3Links(ctx); err == nil {
+				step("%s", summary)
+			}
+			return nil
+		}},
 	}
 	var failed []string
 	for i, s := range steps {

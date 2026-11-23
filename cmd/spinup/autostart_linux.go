@@ -58,6 +58,12 @@ func removeLegacyUnit() error {
 			return err
 		}
 	}
+	if userSystemctlSays("is-enabled", legacyUnit) || userSystemctlSays("is-active", legacyUnit) {
+		step("Turning off your own CLIProxyAPI service (%s); spillup runs CLIProxyAPI from now on", legacyUnit)
+		if err := run("systemctl", "--user", "disable", "--now", legacyUnit); err != nil {
+			return err
+		}
+	}
 	if _, err := os.Lstat(legacyUnitPath); err != nil {
 		return nil
 	}
@@ -92,6 +98,10 @@ func unitPath() string {
 
 func systemctlSays(question, unit string) bool {
 	return exec.Command("systemctl", question, "--quiet", unit).Run() == nil
+}
+
+func userSystemctlSays(question, unit string) bool {
+	return exec.Command("systemctl", "--user", question, "--quiet", unit).Run() == nil
 }
 
 func autostartRegistered(config.Hold) bool {

@@ -31,6 +31,25 @@ type Node struct {
 	// Expired means the login has already lapsed, so the machine is off the tailnet until someone logs in on it.
 	Expired bool
 	IsSelf  bool
+	// UserID is the Tailscale account the device is signed in with; a tagged device belongs to no one.
+	UserID int64
+	Tagged bool
+}
+
+// SameOwner reports whether a peer is signed in with this machine's own Tailscale account, untagged: one
+// of your own devices, which Tailscale vouches for by its address.
+func (s Status) SameOwner(peer Node) bool {
+	return peer.UserID != 0 && peer.UserID == s.Self.UserID && !peer.Tagged && !s.Self.Tagged
+}
+
+// PeerByIP finds the peer with a Tailscale address.
+func (s Status) PeerByIP(ip string) (Node, bool) {
+	for _, p := range s.Peers {
+		if p.IP == ip {
+			return p, true
+		}
+	}
+	return Node{}, false
 }
 
 // Status is the tailnet as this machine sees it.
@@ -91,6 +110,8 @@ type rawNode struct {
 	LastSeen     time.Time
 	KeyExpiry    time.Time
 	Expired      bool
+	UserID       int64
+	Tags         []string
 }
 
 func (c CLI) bin() (string, error) {
@@ -156,6 +177,8 @@ func convert(r rawNode) Node {
 		OS:      r.OS,
 		Online:  r.Online,
 		Expired: r.Expired,
+		UserID:  r.UserID,
+		Tagged:  len(r.Tags) > 0,
 	}
 	if r.LastSeen.Year() > 1 {
 		n.LastSeen = r.LastSeen

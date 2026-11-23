@@ -48,6 +48,15 @@ func (r serviceRequest) replacesKeys(h config.Hold) bool {
 }
 
 func obtainSecrets(cfg config.Config, ts tailnet.Status, req serviceRequest) (config.Secrets, error) {
+	if cfg.Hold == config.HoldHub {
+		return newSecrets(cfg, ts, req.password)
+	}
+	if req.password == "" && req.apiKey == "" {
+		if s, from, err := joinFleet(ts, cfg.Port, cfg.Hold); err == nil {
+			step("Joined: %s gave this machine its keys (it's on your own Tailscale account)", from)
+			return s, nil
+		}
+	}
 	if cfg.Hold.CanHold() {
 		return newSecrets(cfg, ts, req.password)
 	}
@@ -55,10 +64,39 @@ func obtainSecrets(cfg config.Config, ts tailnet.Status, req serviceRequest) (co
 	return config.Secrets{APIKey: key}, err
 }
 
+// joinFleet asks the holders on the tailnet for this machine's keys. A holder answers only a device on
+// its own Tailscale account, so this works without typing anything on your own machines.
+func joinFleet(ts tailnet.Status, port int, hold config.Hold) (config.Secrets, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	client := api.Client{HTTP: &http.Client{Transport: &http.Transport{Proxy: nil}}}
+	for _, p := range ts.Peers {
+		if !p.Online || !ts.SameOwner(p) {
+			continue
+		}
+		var s config.Secrets
+		base := "http://" + net.JoinHostPort(p.IP, strconv.Itoa(port))
+		if err := client.Post(ctx, base+api.PathJoin, api.Join{Hold: hold}, &s); err != nil || s.APIKey == "" {
+			continue
+		}
+		if hold.CanHold() && s.ManagementPassword == "" {
+			continue
+		}
+		return s, p.Name, nil
+	}
+	return config.Secrets{}, "", errors.New("no holder on your tailnet let this machine join")
+}
+
 func newSecrets(cfg config.Config, ts tailnet.Status, password string) (config.Secrets, error) {
 	if cfg.Hold == config.HoldHub {
-		step("Making new keys in %s", cfg.SecretsPath())
-		return config.NewSecrets(), nil
+		s := config.NewSecrets()
+		if legacy, ok := findLegacyProxy(cfg); ok && len(legacy.APIKeys) > 0 {
+			s.APIKey = legacy.APIKeys[0]
+			step("Keeping the API key your existing CLIProxyAPI uses (%s), so your tools and T3 Code keep working", legacy.Config)
+		} else {
+			step("Making new keys in %s", cfg.SecretsPath())
+		}
+		return s, nil
 	}
 	password, err := orAsk(password, "Dashboard password (on the hub: spinup keys): ", "dashboard password")
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/darkyeg/spinup/internal/config"
@@ -142,6 +143,7 @@ func (m *Machine) forwardLocal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "couldn't read the request: "+err.Error())
 		return
 	}
+	m.swapLegacyKey(r)
 	f := requestFamily(r)
 	if !m.own.serves(f) {
 		m.forwarder.ServeHTTP(w, r)
@@ -164,4 +166,27 @@ func requestFamily(r *http.Request) route.Family {
 		}
 	}
 	return route.FamilyOf(route.ModelOf(r.URL.Path, body))
+}
+
+// apiKeyHeaders are where clients put the proxy's API key: OpenAI and Claude Code style, Anthropic, Gemini.
+var apiKeyHeaders = []string{"Authorization", "X-Api-Key", "X-Goog-Api-Key"}
+
+// swapLegacyKey lets tools set up for an earlier CLIProxyAPI keep their key: on this machine only, an old
+// key becomes the shared one before the request goes on.
+func (m *Machine) swapLegacyKey(r *http.Request) {
+	if len(m.cfg.LegacyKeys) == 0 || m.o.Secrets.APIKey == "" {
+		return
+	}
+	for _, h := range apiKeyHeaders {
+		v := r.Header.Get(h)
+		token, bearer := strings.CutPrefix(v, "Bearer ")
+		if v == "" || !slices.Contains(m.cfg.LegacyKeys, token) {
+			continue
+		}
+		if bearer {
+			r.Header.Set(h, "Bearer "+m.o.Secrets.APIKey)
+		} else {
+			r.Header.Set(h, m.o.Secrets.APIKey)
+		}
+	}
 }

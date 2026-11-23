@@ -49,6 +49,11 @@ type Config struct {
 	OwnModels []string `json:"own_models,omitempty"`
 	// OwnProxyPort is the CLIProxyAPI that holds this machine's own logins, on 127.0.0.1 only.
 	OwnProxyPort int `json:"own_proxy_port"`
+	// AutoUpdate lets the service install new spillup releases by itself.
+	AutoUpdate bool `json:"auto_update"`
+	// LegacyKeys are API keys this machine's tools used with an earlier CLIProxyAPI; the router swaps
+	// them for the fleet's key, so those tools keep working unchanged.
+	LegacyKeys []string `json:"legacy_keys,omitempty"`
 	// UIPort is where the service hosts the dashboard, on 127.0.0.1 only; 0 turns it off.
 	UIPort int `json:"ui_port"`
 	// OwnAuthDir keeps this machine's own logins; nothing syncs it, so no other machine refreshes them.
@@ -99,6 +104,7 @@ func Defaults() Config {
 		AuthDir:              filepath.Join(home(), ".cli-proxy-api"),
 		OwnProxyPort:         8328,
 		UIPort:               8320,
+		AutoUpdate:           true,
 		OwnAuthDir:           filepath.Join(home(), ".cli-proxy-api-own"),
 	}
 }

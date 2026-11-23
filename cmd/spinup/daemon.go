@@ -46,7 +46,7 @@ func (c daemonCmd) Run() error {
 		return fmt.Errorf("%w (run spinup setup again)", err)
 	}
 	restoreHome(cfg.Home)
-	o := service.Options{Config: cfg, Secrets: secrets, Tailnet: tailnet.CLI{Bin: cfg.Tailscale}, Log: logger, Version: version, SaveConfig: config.Save}
+	o := service.Options{Config: cfg, Secrets: secrets, Tailnet: tailnet.CLI{Bin: cfg.Tailscale}, Log: logger, Version: version, SaveConfig: saveServiceSettings}
 	shareLibrary(&o, cfg, logger)
 	if cfg.Hold.CanHold() {
 		if err := withProxy(&o, cfg, logger); err != nil {
@@ -60,6 +60,8 @@ func (c daemonCmd) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go hostDashboard(ctx, cfg.UIPort, logger)
+	go keepT3Linked(ctx, cfg, logger)
+	go keepUpdated(ctx, logger)
 	if err := service.New(o).Run(ctx); err != nil {
 		logger.Printf("stopped: %v", err)
 		return err
@@ -99,6 +101,17 @@ func withProxy(o *service.Options, cfg config.Config, logger *log.Logger) error 
 	o.Proxy = &proxy.Runner{Exe: cfg.ProxyExe(), Dir: cfg.ProxyDir, Config: cfg.ProxyConfig(), Port: cfg.ProxyPort, Log: logger}
 	o.PrepareProxy = func() error { return proxy.WriteConfig(cfg, o.Secrets) }
 	return nil
+}
+
+// saveServiceSettings keeps what the service changed (its hold, its own logins) in config.json, over
+// whatever the dashboard or a command saved there meanwhile.
+func saveServiceSettings(c config.Config) error {
+	stored, err := config.Load()
+	if err != nil {
+		return config.Save(c)
+	}
+	stored.Hold, stored.OwnModels = c.Hold, c.OwnModels
+	return config.Save(stored)
 }
 
 // withOwnProxy gives the service the CLIProxyAPI for this machine's own logins; it runs only while

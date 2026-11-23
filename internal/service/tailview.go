@@ -31,3 +31,11 @@ func (t *tailView) peer(name string) (tailnet.Node, bool) {
 	defer t.mu.Unlock()
 	return t.status.Peer(name)
 }
+
+// owned finds the device at ip if it is signed in with this machine's own Tailscale account.
+func (t *tailView) owned(ip string) (tailnet.Node, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	peer, ok := t.status.PeerByIP(ip)
+	return peer, ok && t.status.SameOwner(peer)
+}
