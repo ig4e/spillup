@@ -114,7 +114,7 @@ func TestIntegrationChecks(t *testing.T) {
 	if Failures([]Section{T3(T3Facts{App: true})}) != 1 {
 		t.Error("T3's app without its command line must fail")
 	}
-	good := T3(T3Facts{Installed: true, ServiceAtBoot: true, LinkingOn: true, Linked: 2})
+	good := T3(T3Facts{Installed: true, ServiceAtBoot: true, LinkingOn: true, NetworkAccess: true, Linked: 2})
 	if Failures([]Section{good}) != 0 || !strings.Contains(good.Checks[3].Label, "2 machines") {
 		t.Errorf("a linked T3: %+v", good)
 	}

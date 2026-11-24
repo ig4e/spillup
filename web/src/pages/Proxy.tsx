@@ -1,9 +1,8 @@
-import { Tabs } from "@heroui/react";
 import { Button } from "../components/Button";
 import { Crown, ExternalLink, LogIn, Server, Users } from "lucide-react";
 import { useState } from "react";
 import { useOverview } from "../App";
-import { Group, IconTile, Row } from "../components/ui";
+import { Group, IconTile, LargeTitle, Row, Segmented } from "../components/ui";
 import { api } from "../lib/api";
 import { useQuery, useRemote } from "../lib/hooks";
 
@@ -57,34 +56,28 @@ export function ProxyPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-[20px] font-bold tracking-tight">CLIProxyAPI</h1>
-        <span className="flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-xs text-muted shadow-[0_0_0_0.5px_var(--border)]">
-          {hubOnly ? <Crown className="size-3.5 text-warning" /> : <Users className="size-3.5 text-success" />}
-          {hubOnly ? "Main machine only" : "Copied to standbys"}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          {sources.length > 1 ? (
-            <Tabs selectedKey={source?.id} onSelectionChange={(k) => setPicked(String(k) as Source["id"])} variant="primary">
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="Which CLIProxyAPI">
-                  {sources.map((x) => (
-                    <Tabs.Tab key={x.id} id={x.id} className="px-3 text-[13px] whitespace-nowrap">
-                      {x.label}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-            </Tabs>
-          ) : null}
-          {source ? (
-            <Button size="sm" variant="secondary" onPress={() => window.open(src, "_blank", "noopener")}>
-              <ExternalLink className="size-3.5" /> New Tab
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      <LargeTitle
+        bleed
+        title="CLIProxyAPI"
+        center={
+          sources.length > 1 ? (
+            <Segmented label="Which CLIProxyAPI" value={source!.id} onChange={setPicked} options={sources.map((x) => ({ id: x.id, label: x.label }))} />
+          ) : undefined
+        }
+        actions={
+          <>
+            <span className="flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-xs text-muted shadow-[0_0_0_0.5px_var(--border)]">
+              {hubOnly ? <Crown className="size-3.5 text-warning" /> : <Users className="size-3.5 text-success" />}
+              {hubOnly ? "Main machine only" : "Copied to standbys"}
+            </span>
+            {source ? (
+              <Button size="sm" variant="secondary" onPress={() => window.open(src, "_blank", "noopener")}>
+                <ExternalLink className="size-3.5" /> New Tab
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {source ? (
         <div className="mb-3 flex items-center gap-3 rounded-xl bg-surface px-3.5 py-2.5 shadow-[0_0_0_0.5px_var(--border)]">

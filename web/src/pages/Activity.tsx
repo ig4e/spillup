@@ -1,7 +1,6 @@
-import { Tabs } from "@heroui/react";
 import { useMemo, useState } from "react";
 import { bytes } from "../components/Resources";
-import { IconTile, osName, osTile } from "../components/ui";
+import { IconTile, LargeTitle, Segmented, osName, osTile } from "../components/ui";
 import { api } from "../lib/api";
 import { useQuery } from "../lib/hooks";
 import type { Machine, Sample, Stats } from "../lib/types";
@@ -103,24 +102,12 @@ export function ActivityPage() {
   const h: Sample[] = st?.history ?? [];
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex items-center gap-3">
-        <h1 className="text-[20px] font-bold tracking-tight">Activity</h1>
-        <span className="text-[13px] text-muted">{machines.length} machines</span>
-        <div className="ml-auto">
-          <Tabs selectedKey={metric} onSelectionChange={(k) => setMetric(String(k) as Metric)} variant="primary">
-            <Tabs.ListContainer>
-              <Tabs.List aria-label="What to show">
-                {metrics.map((x) => (
-                  <Tabs.Tab key={x.id} id={x.id} className="px-4">
-                    {x.label}
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
-        </div>
-      </div>
+      <LargeTitle
+        bleed
+        title="Activity"
+        center={<Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
+        actions={<span className="text-[12px] text-muted">{machines.length} machines</span>}
+      />
 
       <div className="mb-3 overflow-hidden rounded-xl bg-surface">
         <table className="w-full text-[13px]">

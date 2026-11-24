@@ -174,3 +174,30 @@ body {
 .dark .tabs__indicator {
   background: #636366 !important;
 }
+
+/* macOS segmented control: a faint track; the chosen segment is raised (white in light mode, a lighter
+   gray in dark mode), the others are plain text. */
+.segmented {
+  background: rgb(0 0 0 / 0.06);
+}
+.segment {
+  color: var(--foreground);
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+.segment:not(.segment--on):hover {
+  background: rgb(0 0 0 / 0.04);
+}
+.segment--on {
+  background: #ffffff;
+  box-shadow: 0 0.5px 0 rgb(0 0 0 / 0.04), 0 1px 2.5px rgb(0 0 0 / 0.14);
+}
+.dark .segmented {
+  background: rgb(255 255 255 / 0.07);
+}
+.dark .segment:not(.segment--on):hover {
+  background: rgb(255 255 255 / 0.05);
+}
+.dark .segment--on {
+  background: rgb(255 255 255 / 0.2);
+  box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.3);
+}

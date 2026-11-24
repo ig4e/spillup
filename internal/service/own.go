@@ -240,19 +240,32 @@ var apiKeyHeaders = []string{"Authorization", "X-Api-Key", "X-Goog-Api-Key"}
 // swapLegacyKey lets tools set up for an earlier CLIProxyAPI keep their key: on this machine only, an old
 // key becomes the shared one before the request goes on.
 func (m *Machine) swapLegacyKey(r *http.Request) {
-	if len(m.cfg.LegacyKeys) == 0 || m.o.Secrets.APIKey == "" {
+	if isManagement(r.URL.Path) {
+		m.swapKeys(r, append([]string{"X-Management-Key"}, apiKeyHeaders...), m.cfg.LegacyManagementKeys, m.o.Secrets.ManagementPassword)
 		return
 	}
-	for _, h := range apiKeyHeaders {
+	m.swapKeys(r, apiKeyHeaders, m.cfg.LegacyKeys, m.o.Secrets.APIKey)
+}
+
+func isManagement(path string) bool {
+	return strings.HasPrefix(path, "/v0/management/") || strings.HasPrefix(path, "/v8/management/")
+}
+
+// swapKeys replaces any of old in headers with now, keeping a Bearer prefix.
+func (m *Machine) swapKeys(r *http.Request, headers, old []string, now string) {
+	if len(old) == 0 || now == "" {
+		return
+	}
+	for _, h := range headers {
 		v := r.Header.Get(h)
 		token, bearer := strings.CutPrefix(v, "Bearer ")
-		if v == "" || !slices.Contains(m.cfg.LegacyKeys, token) {
+		if v == "" || !slices.Contains(old, token) {
 			continue
 		}
 		if bearer {
-			r.Header.Set(h, "Bearer "+m.o.Secrets.APIKey)
+			r.Header.Set(h, "Bearer "+now)
 		} else {
-			r.Header.Set(h, m.o.Secrets.APIKey)
+			r.Header.Set(h, now)
 		}
 	}
 }

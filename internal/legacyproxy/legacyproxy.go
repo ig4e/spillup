@@ -15,6 +15,9 @@ type Found struct {
 	Config  string
 	APIKeys []string
 	AuthDir string
+	// ManagementKey is the plaintext management key kept next to the config, which tools such as T3 Code's
+	// quota check send; CLIProxyAPI keeps only a hash of it in the config itself.
+	ManagementKey string
 }
 
 // Find looks in the places people put CLIProxyAPI, skipping spillup's own copy at skip.
@@ -29,6 +32,9 @@ func Find(home, skip string) (Found, bool) {
 		}
 		f := Parse(string(data), home)
 		f.Config = path
+		if key, err := os.ReadFile(filepath.Join(filepath.Dir(path), "management-key")); err == nil {
+			f.ManagementKey = strings.TrimSpace(string(key))
+		}
 		if len(f.APIKeys) > 0 || f.AuthDir != "" {
 			if f.AuthDir == "" {
 				f.AuthDir = filepath.Join(home, ".cli-proxy-api")

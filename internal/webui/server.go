@@ -66,6 +66,7 @@ type Backend interface {
 	UpdateState(ctx context.Context) Update
 	StartUpdate() error
 	SetAutoUpdate(auto bool) error
+	UpdateSystem() error
 	// RestartService restarts the accounts service and the dashboard it hosts.
 	RestartService() error
 
@@ -119,7 +120,7 @@ const (
 )
 
 // localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
-var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true}
+var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true, "update/system": true}
 
 func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	admit := s.needsSession
@@ -187,6 +188,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read("update", s.serveUpdateState)
 	change("update", s.serveUpdate)
 	change("update/auto", s.serveAutoUpdate)
+	change("update/system", s.serveUpdateSystem)
 	change("restart", s.serveRestartService)
 
 	if from == bridged {

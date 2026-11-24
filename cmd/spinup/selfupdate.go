@@ -19,8 +19,11 @@ const autoUpdateEvery = 6 * time.Hour
 
 func (cliBackend) UpdateState(ctx context.Context) webui.Update {
 	cfg, _ := config.Load()
-	return webui.Update{Current: version, Latest: latestVersion(ctx, releases), Auto: cfg.AutoUpdate}
+	return webui.Update{Current: version, Latest: latestVersion(ctx, releases), Auto: cfg.AutoUpdate, System: pendingSystemUpdates(ctx), SystemManaged: systemManaged()}
 }
+
+// UpdateSystem runs a full system update as a dashboard task, which asks for your password.
+func (cliBackend) UpdateSystem() error { return startTask([]string{"update", "--system"}) }
 
 func (cliBackend) StartUpdate() error {
 	if version == "dev" {
@@ -39,12 +42,12 @@ func (cliBackend) SetAutoUpdate(auto bool) error {
 }
 
 // startDetachedUpdate runs `spinup update` outside the service, which the update restarts.
-func startDetachedUpdate() error {
+func startDetachedUpdate(args ...string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return sysproc.StartDetached(filepath.Join(config.StateDir(), "update.log"), exe, "update")
+	return sysproc.StartDetached(filepath.Join(config.StateDir(), "update.log"), exe, append([]string{"update"}, args...)...)
 }
 
 // keepUpdated installs new releases while config.json allows it, trying each version once per run so a
@@ -65,7 +68,7 @@ func keepUpdated(ctx context.Context, logger *log.Logger) {
 		}
 		tried = rel.Version
 		logger.Printf("updating spillup %s → %s", version, rel.Version)
-		if err := startDetachedUpdate(); err != nil {
+		if err := startDetachedUpdate("--auto"); err != nil {
 			logger.Printf("update: %v", err)
 		}
 	}

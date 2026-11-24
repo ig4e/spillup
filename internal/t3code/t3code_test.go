@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -80,5 +81,26 @@ func TestReasonIsT3sErrorLineNotItsStack(t *testing.T) {
 	out := "[02:34:27] ERROR (#2): PeerLinkError: The peer refused to register this environment: Linked environments is off.\n    at environment.runWithPeerLinks (file:///x.mjs:1:2)\n"
 	if got := reason(out); got != "The peer refused to register this environment: Linked environments is off." {
 		t.Errorf("reason = %q", got)
+	}
+}
+
+func TestNetworkAccessTurnsOnTheDesktopAppsSetting(t *testing.T) {
+	home := t.TempDir()
+	t3 := T3{Home: home}
+	if !t3.NetworkAccess() {
+		t.Error("without a desktop app, network access follows the service")
+	}
+	path := filepath.Join(home, "userdata", "desktop-settings.json")
+	os.MkdirAll(filepath.Dir(path), 0o700)
+	os.WriteFile(path, []byte(`{"mainWindowMaximized":true}`), 0o600)
+	if t3.NetworkAccess() {
+		t.Error("a desktop app without the setting answers only this machine")
+	}
+	if changed, err := t3.EnableNetworkAccess(); err != nil || !changed {
+		t.Fatalf("enable: %v %v", changed, err)
+	}
+	data, _ := os.ReadFile(path)
+	if !t3.NetworkAccess() || !strings.Contains(string(data), "mainWindowMaximized") {
+		t.Errorf("after enabling: %s", data)
 	}
 }

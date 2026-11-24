@@ -55,3 +55,20 @@ func same(a, b string) bool {
 	cb, _ := filepath.Abs(b)
 	return filepath.Clean(ca) == filepath.Clean(cb)
 }
+
+// adoptLegacyKeys lets tools set up for an earlier CLIProxyAPI on this machine keep their keys, found
+// afresh each time the service starts, so machines set up before spillup knew them get them too.
+func adoptLegacyKeys(cfg *config.Config, s config.Secrets) {
+	legacy, ok := findLegacyProxy(*cfg)
+	if !ok {
+		return
+	}
+	for _, k := range keysBesides(legacy.APIKeys, s.APIKey) {
+		if !slices.Contains(cfg.LegacyKeys, k) {
+			cfg.LegacyKeys = append(cfg.LegacyKeys, k)
+		}
+	}
+	if k := legacy.ManagementKey; k != "" && k != s.ManagementPassword && !slices.Contains(cfg.LegacyManagementKeys, k) {
+		cfg.LegacyManagementKeys = append(cfg.LegacyManagementKeys, k)
+	}
+}

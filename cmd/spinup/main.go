@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+
+	"github.com/darkyeg/spinup/internal/shell"
 )
 
 // version is set by the release build.
@@ -52,6 +54,7 @@ Start with: spinup setup <name-for-this-machine>
 Guide: https://github.com/ig4e/spillup`
 
 func main() {
+	shell.AddUserBins()
 	var c cli
 	ctx := kong.Parse(&c,
 		kong.Name("spinup"),

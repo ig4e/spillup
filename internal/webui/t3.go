@@ -5,12 +5,14 @@ import "net/http"
 // T3State is T3 Code on a machine, as the main machine needs it to link every machine to every other.
 type T3State struct {
 	// Installed: the `t3` command is here. App: T3 Code has run here, maybe only as the desktop app.
-	Installed bool   `json:"installed"`
-	App       bool   `json:"app"`
-	Port      int    `json:"port,omitempty"`
-	LinkingOn bool   `json:"linking_on,omitempty"`
-	Linked    string `json:"linked,omitempty"`
-	Problem   string `json:"problem,omitempty"`
+	Installed bool `json:"installed"`
+	App       bool `json:"app"`
+	Port      int  `json:"port,omitempty"`
+	LinkingOn bool `json:"linking_on,omitempty"`
+	// NetworkAccess: other machines can reach this T3; the desktop app answers only itself until it's on.
+	NetworkAccess bool   `json:"network_access"`
+	Linked        string `json:"linked,omitempty"`
+	Problem       string `json:"problem,omitempty"`
 }
 
 type pairRequest struct {
@@ -69,6 +71,10 @@ type Update struct {
 	Current string `json:"current"`
 	Latest  string `json:"latest,omitempty"`
 	Auto    bool   `json:"auto"`
+	// System are the system packages waiting to update, where the system's package manager owns
+	// Tailscale, Sunshine and Moonlight (SystemManaged).
+	System        []string `json:"system,omitempty"`
+	SystemManaged bool     `json:"system_managed,omitempty"`
 }
 
 type autoRequest struct {
@@ -97,4 +103,8 @@ func (s *Server) serveAutoUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serveRestartService(w http.ResponseWriter, _ *http.Request) {
 	answer(w, s.b.RestartService(), "Restarting spillup. This page reconnects in a few seconds.")
+}
+
+func (s *Server) serveUpdateSystem(w http.ResponseWriter, _ *http.Request) {
+	answer(w, s.b.UpdateSystem(), "Updating the system…")
 }

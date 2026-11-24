@@ -1,8 +1,8 @@
-import { Alert, Checkbox, Description, Input, Label, Modal, Switch, Tabs, TextField } from "@heroui/react";
+import { Alert, Checkbox, Description, Input, Label, Modal, Switch, TextField } from "@heroui/react";
 import { Button } from "../components/Button";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
+import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Segmented, Toggle } from "../components/ui";
 import { api } from "../lib/api";
 import { capitalize, relative } from "../lib/format";
 import { useAction, useQuery } from "../lib/hooks";
@@ -14,12 +14,27 @@ export function SkillsPage() {
   const skills = useQuery(api.skills);
   const { pending, run } = useAction();
   const [addOpen, setAddOpen] = useState(false);
+  const [tab, setTab] = useState<"shared" | "here" | "removed">("shared");
   const data = skills.data;
 
   return (
     <>
       <LargeTitle
         title="Skills"
+        center={
+          data ? (
+            <Segmented
+              label="Skill lists"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { id: "shared", label: `Shared ${data.shared.length}` },
+                { id: "here", label: `Only Here ${data.only_here.length}` },
+                { id: "removed", label: `Removed ${data.removed.length}` },
+              ]}
+            />
+          ) : undefined
+        }
         subtitle="One library, identical on every machine and linked into Claude Code and Codex."
         actions={
           <>
@@ -57,33 +72,9 @@ export function SkillsPage() {
       ) : (
         <>
           <Budget data={data} />
-          <Tabs defaultSelectedKey="shared" variant="primary">
-            <Tabs.ListContainer className="mx-auto mb-5 w-fit">
-              <Tabs.List aria-label="Skill lists" className="w-auto">
-                <Tabs.Tab id="shared" className="px-4 whitespace-nowrap">
-                  Shared ({data.shared.length})
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="here" className="px-4 whitespace-nowrap">
-                  Only Here ({data.only_here.length})
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="removed" className="px-4 whitespace-nowrap">
-                  Removed ({data.removed.length})
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
-            <Tabs.Panel id="shared" className="p-0">
-              <SharedList skills={data.shared} library={data.library} reload={skills.reload} />
-            </Tabs.Panel>
-            <Tabs.Panel id="here" className="p-0">
-              <OnlyHereList skills={data.only_here} reload={skills.reload} />
-            </Tabs.Panel>
-            <Tabs.Panel id="removed" className="p-0">
-              <RemovedList skills={data.removed} reload={skills.reload} />
-            </Tabs.Panel>
-          </Tabs>
+          {tab === "shared" ? <SharedList skills={data.shared} library={data.library} reload={skills.reload} /> : null}
+          {tab === "here" ? <OnlyHereList skills={data.only_here} reload={skills.reload} /> : null}
+          {tab === "removed" ? <RemovedList skills={data.removed} reload={skills.reload} /> : null}
         </>
       )}
 

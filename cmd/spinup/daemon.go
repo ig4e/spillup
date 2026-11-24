@@ -46,6 +46,7 @@ func (c daemonCmd) Run() error {
 		return fmt.Errorf("%w (run spinup setup again)", err)
 	}
 	restoreHome(cfg.Home)
+	adoptLegacyKeys(&cfg, secrets)
 	o := service.Options{Config: cfg, Secrets: secrets, Tailnet: tailnet.CLI{Bin: cfg.Tailscale}, Log: logger, Version: version, SaveConfig: saveServiceSettings}
 	shareLibrary(&o, cfg, logger)
 	if cfg.Hold.CanHold() {

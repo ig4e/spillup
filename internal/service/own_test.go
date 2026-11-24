@@ -117,3 +117,20 @@ func TestAnOldKeyBecomesTheSharedOneOnThisMachineOnly(t *testing.T) {
 		t.Errorf("a key that isn't an old one was changed to %q", got)
 	}
 }
+
+func TestAnOldManagementKeyBecomesTheDashboardPasswordOnManagementPaths(t *testing.T) {
+	m := &Machine{cfg: config.Config{LegacyManagementKeys: []string{"old-mgmt"}, LegacyKeys: []string{"old"}},
+		o: Options{Secrets: config.Secrets{APIKey: "shared", ManagementPassword: "pw"}}}
+	r, _ := http.NewRequest(http.MethodGet, "/v0/management/auth-files", nil)
+	r.Header.Set("Authorization", "Bearer old-mgmt")
+	m.swapLegacyKey(r)
+	if got := r.Header.Get("Authorization"); got != "Bearer pw" {
+		t.Errorf("management call carries %q, want the dashboard password", got)
+	}
+	api, _ := http.NewRequest(http.MethodPost, "/v1/messages", nil)
+	api.Header.Set("Authorization", "Bearer old-mgmt")
+	m.swapLegacyKey(api)
+	if got := api.Header.Get("Authorization"); got != "Bearer old-mgmt" {
+		t.Errorf("an API call must not get the dashboard password: %q", got)
+	}
+}

@@ -1,10 +1,9 @@
-import { Tabs } from "@heroui/react";
 import { Clock, FolderGit2, Heart, KeyRound, Lock, Network, Palette, Server, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useOverview } from "../App";
-import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, holdName, osName } from "../components/ui";
+import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, holdName, osName } from "../components/ui";
 import { api } from "../lib/api";
-import { useRemote, useTheme, type Theme } from "../lib/hooks";
+import { useRemote, useTheme } from "../lib/hooks";
 import type { Keys } from "../lib/types";
 
 export function SettingsPage() {
@@ -20,18 +19,16 @@ export function SettingsPage() {
           icon={<IconTile icon={Palette} color="blue" />}
           title="Appearance"
           accessory={
-            <Tabs selectedKey={theme} onSelectionChange={(k) => setTheme(String(k) as Theme)} variant="primary">
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="Appearance">
-                  {(["system", "light", "dark"] as const).map((t) => (
-                    <Tabs.Tab key={t} id={t} className="px-3 text-[13px]">
-                      {t === "system" ? "Auto" : t === "light" ? "Light" : "Dark"}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-            </Tabs>
+            <Segmented
+              label="Appearance"
+              value={theme}
+              onChange={setTheme}
+              options={[
+                { id: "system", label: "Auto" },
+                { id: "light", label: "Light" },
+                { id: "dark", label: "Dark" },
+              ]}
+            />
           }
         />
       </Group>

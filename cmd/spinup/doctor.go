@@ -159,7 +159,7 @@ func t3Section(ctx context.Context) doctor.Section {
 	if err != nil {
 		return doctor.T3(doctor.T3Facts{App: t3code.AppPresent(t3.Home)})
 	}
-	f := doctor.T3Facts{Installed: true, App: true, ServiceAtBoot: t3.ServiceAtBoot(ctx), LinkingOn: t3.LinkingOn()}
+	f := doctor.T3Facts{Installed: true, App: true, ServiceAtBoot: t3.ServiceAtBoot(ctx), LinkingOn: t3.LinkingOn(), NetworkAccess: t3.NetworkAccess()}
 	linked, err := t3.Linked(ctx)
 	if err != nil {
 		f.Problem = err.Error()

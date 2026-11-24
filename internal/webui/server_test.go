@@ -46,6 +46,7 @@ func (*fakeBackend) T3Link(context.Context, string, string) error              {
 func (*fakeBackend) RemoteState(context.Context) RemoteState                   { return RemoteState{} }
 func (*fakeBackend) SunshinePIN(context.Context, string, string, string) error { return nil }
 func (*fakeBackend) RemoteSync(context.Context) (string, error)                { return "", nil }
+func (*fakeBackend) UpdateSystem() error                                       { return nil }
 func (*fakeBackend) RemoteSetup() error                                        { return nil }
 func (*fakeBackend) RemoteWebPort() int                                        { return 1 }
 func (*fakeBackend) RestartService() error                                     { return nil }

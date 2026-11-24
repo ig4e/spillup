@@ -282,3 +282,43 @@ func LinkCount(linked string) int {
 	}
 	return len(list)
 }
+
+func (t T3) desktopSettings() string {
+	return filepath.Join(t.Home, "userdata", "desktop-settings.json")
+}
+
+// NetworkAccess reports whether the desktop app answers other machines, not only this one; true where
+// there is no desktop app, since its background service follows `t3 up --lan` instead.
+func (t T3) NetworkAccess() bool {
+	data, err := os.ReadFile(t.desktopSettings())
+	if err != nil {
+		return true
+	}
+	var s struct {
+		Mode string `json:"serverExposureMode"`
+	}
+	return json.Unmarshal(data, &s) == nil && s.Mode == "network-accessible"
+}
+
+// EnableNetworkAccess turns on the desktop app's Network access, which it reads when it starts, keeping
+// every other setting; it reports whether it changed anything, in which case T3 Code needs a restart.
+func (t T3) EnableNetworkAccess() (changed bool, err error) {
+	path := t.desktopSettings()
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	settings := map[string]json.RawMessage{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return false, fmt.Errorf("%s: %w", path, err)
+	}
+	if string(settings["serverExposureMode"]) == `"network-accessible"` {
+		return false, nil
+	}
+	settings["serverExposureMode"] = json.RawMessage(`"network-accessible"`)
+	out, _ := json.MarshalIndent(settings, "", "  ")
+	return true, atomicfile.Write(path, append(out, '\n'), 0o600)
+}

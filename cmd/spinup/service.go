@@ -53,6 +53,9 @@ func installService(ctx context.Context, req serviceRequest) error {
 	legacy, hasLegacy := findLegacyProxy(cfg)
 	if hasLegacy {
 		cfg.LegacyKeys = keysBesides(legacy.APIKeys, apiKey)
+		if legacy.ManagementKey != "" {
+			cfg.LegacyManagementKeys = []string{legacy.ManagementKey}
+		}
 		if len(cfg.LegacyKeys) > 0 {
 			step("Your tools' old CLIProxyAPI key keeps working here: spillup's router swaps it for the shared key")
 		}

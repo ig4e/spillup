@@ -35,25 +35,77 @@ export function IconTile({ icon: Icon, color, size = "md" }: { icon: LucideIcon;
   );
 }
 
-/** The page's toolbar, as in Tahoe's apps: back and forward, the title, and the page's actions, on glass
- * that stays put while the page scrolls under it. */
-export function LargeTitle({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+/** The page's toolbar, as in Tahoe's apps: back and forward, the title, a view switcher in the middle,
+ * and the page's actions, on glass that stays put while the page scrolls under it. Full-width pages use
+ * the same bar, flush with their content. */
+export function LargeTitle({
+  title,
+  subtitle,
+  actions,
+  center,
+  bleed,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  center?: ReactNode;
+  bleed?: boolean;
+}) {
   return (
     <>
-      <header className="glass-toolbar sticky top-0 z-10 -mx-5 mb-2 flex min-h-[52px] items-center gap-3 px-5 py-2 sm:-mx-10 sm:px-10">
-        <div className="flex shrink-0 overflow-hidden rounded-full bg-surface shadow-[0_0_0_0.5px_var(--border)]">
-          <button type="button" aria-label="Back" onClick={() => window.history.back()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
-            <ChevronLeft className="size-4" />
-          </button>
-          <button type="button" aria-label="Forward" onClick={() => window.history.forward()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
-            <ChevronRight className="size-4" />
-          </button>
+      <header
+        className={`glass-toolbar sticky top-0 z-10 grid min-h-[52px] grid-cols-[1fr_auto_1fr] items-center gap-3 py-2 ${
+          bleed ? "mb-3 rounded-xl px-1" : "-mx-5 mb-2 px-5 sm:-mx-10 sm:px-10"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex shrink-0 overflow-hidden rounded-full bg-surface shadow-[0_0_0_0.5px_var(--border)]">
+            <button type="button" aria-label="Back" onClick={() => window.history.back()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
+              <ChevronLeft className="size-4" />
+            </button>
+            <button type="button" aria-label="Forward" onClick={() => window.history.forward()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          <h1 className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em]">{title}</h1>
         </div>
-        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">{title}</h1>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        <div className="flex justify-center">{center}</div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>
       </header>
-      {subtitle ? <p className="mb-6 max-w-2xl text-[13px] text-muted">{subtitle}</p> : <div className="mb-4" />}
+      {subtitle ? <p className={`max-w-2xl text-[13px] text-muted ${bleed ? "mb-3 px-1" : "mb-6"}`}>{subtitle}</p> : bleed ? null : <div className="mb-4" />}
     </>
+  );
+}
+
+/** A macOS segmented control: a light track, the chosen segment raised on it. */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { id: T; label: ReactNode }[];
+  label: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="segmented inline-flex items-center rounded-[7px] p-[2px]">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={o.id === value}
+          onClick={() => onChange(o.id)}
+          className={`segment h-[22px] rounded-[5px] px-3 text-[12px] font-medium whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+            o.id === value ? "segment--on" : ""
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

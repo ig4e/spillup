@@ -30,7 +30,7 @@ func (cliBackend) T3State(ctx context.Context) webui.T3State {
 		return webui.T3State{App: t3code.AppPresent(t3.Home)}
 	}
 	linked, err := t3.Linked(ctx)
-	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked, LinkingOn: t3.LinkingOn()}
+	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked, LinkingOn: t3.LinkingOn(), NetworkAccess: t3.NetworkAccess()}
 	if err != nil {
 		st.Problem = err.Error()
 	}
@@ -115,6 +115,9 @@ func syncT3Links(ctx context.Context) (string, error) {
 	}
 	linked, failed := 0, []string{}
 	for _, m := range withT3 {
+		if !m.state.NetworkAccess {
+			failed = append(failed, fmt.Sprintf("%s's T3 Code answers only itself: open T3 Code there, Settings → Sharing & access → Network access (or set T3 Code up again there), then restart it", m.name))
+		}
 		if m.state.LinkingOn {
 			continue
 		}
@@ -256,6 +259,11 @@ func setUpT3(ctx context.Context) error {
 		return err
 	} else if changed {
 		step("Turned on T3 Code's linked environments")
+	}
+	if changed, err := t3.EnableNetworkAccess(); err != nil {
+		return err
+	} else if changed {
+		step("Turned on the T3 Code app's Network access: restart T3 Code once so your other machines can reach it")
 	}
 	step("Starting T3 Code's background service at boot, on your LAN and tailnet (a pairing code guards it)")
 	return t3.Up(ctx)

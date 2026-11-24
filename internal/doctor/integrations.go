@@ -7,9 +7,9 @@ import (
 
 // T3Facts are what the doctor knows about T3 Code here.
 type T3Facts struct {
-	Installed, App, ServiceAtBoot, LinkingOn bool
-	Linked                                   int
-	Problem                                  string
+	Installed, App, ServiceAtBoot, LinkingOn, NetworkAccess bool
+	Linked                                                  int
+	Problem                                                 string
 }
 
 // T3 checks that T3 Code runs at boot and is linked to your other machines.
@@ -27,6 +27,10 @@ func T3(f T3Facts) Section {
 		s.Checks = append(s.Checks, ok("its background service starts at boot"))
 	} else {
 		s.Checks = append(s.Checks, fail("its background service isn't set to start at boot", "spinup t3 setup"))
+	}
+	if !f.NetworkAccess {
+		s.Checks = append(s.Checks, fail("the T3 Code app answers only this machine, so other machines can't link to it",
+			"spinup t3 setup, then restart T3 Code"))
 	}
 	if f.LinkingOn {
 		s.Checks = append(s.Checks, ok("linked environments are on"))

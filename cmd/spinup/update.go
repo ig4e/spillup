@@ -20,14 +20,19 @@ import (
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
-type updateCmd struct{}
-
-func (updateCmd) Help() string {
-	return `Updates spinup itself and, on a hub or standby, CLIProxyAPI (both checksum-verified from their
-GitHub releases), then your skills and Tailscale. The accounts stay where they are.`
+type updateCmd struct {
+	Auto   bool `help:"An update the service starts by itself: leaves alone what would interrupt you, such as T3 Code's running agents." hidden:""`
+	System bool `help:"Update the system's own packages too (Tailscale, Sunshine, Moonlight on Linux): a full pacman -Syu on Arch, which supports no other way."`
 }
 
-func (updateCmd) Run() error {
+func (updateCmd) Help() string {
+	return `Updates everything spillup set up: spinup itself and CLIProxyAPI (checksum-verified from their
+GitHub releases), your skills and plugins, T3 Code, the remote desktop client, and Tailscale, Sunshine
+and Moonlight where their installer allows it. On Arch, those three come with the system: --system runs
+a full system update. The accounts stay where they are.`
+}
+
+func (c updateCmd) Run() error {
 	ctx := context.Background()
 	removeReplacedBinary()
 	newer, err := updateSelf(ctx)
@@ -35,7 +40,7 @@ func (updateCmd) Run() error {
 	case err != nil:
 		step("Couldn't update spinup: %v", err)
 	case newer != "":
-		return runUpdated(newer)
+		return runUpdated(newer, c.args()...)
 	}
 	var failed []string
 	for _, part := range []struct {
@@ -48,6 +53,9 @@ func (updateCmd) Run() error {
 		{"skills", func(ctx context.Context) error { return syncSkills(ctx, repoData()) }},
 		{"packages", syncPackages},
 		{"Tailscale", updateTailscale},
+		{"T3 Code", func(ctx context.Context) error { return updateT3(ctx, c.Auto) }},
+		{"remote desktop", func(ctx context.Context) error { return updateRemote(ctx, c.Auto) }},
+		{"system packages", func(ctx context.Context) error { return updateSystem(ctx, c.System) }},
 	} {
 		if err := part.run(ctx); err != nil {
 			step("%s: %v", part.name, err)
@@ -118,9 +126,20 @@ func removeReplacedBinary() {
 	}
 }
 
+func (c updateCmd) args() []string {
+	var args []string
+	if c.Auto {
+		args = append(args, "--auto")
+	}
+	if c.System {
+		args = append(args, "--system")
+	}
+	return args
+}
+
 // runUpdated finishes the update with the new binary, so the rest runs the new code.
-func runUpdated(exe string) error {
-	cmd := exec.Command(exe, "update")
+func runUpdated(exe string, args ...string) error {
+	cmd := exec.Command(exe, append([]string{"update"}, args...)...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	err := cmd.Run()
 	if exit := (*exec.ExitError)(nil); errors.As(err, &exit) {
@@ -239,8 +258,12 @@ func fileHash(path string) ([]byte, error) {
 // service started has no terminal for sudo's password, and Tailscale keeps working until the next one run
 // in a terminal, or until the system's package manager updates it.
 func updateTailscale(ctx context.Context) error {
+	if systemManaged() {
+		step("Tailscale: updates with the system's packages")
+		return nil
+	}
 	if runtime.GOOS != "windows" && !interactive() && os.Getenv("SUDO_ASKPASS") == "" && exec.Command("sudo", "-n", "true").Run() != nil {
-		step("Tailscale: left as it is (updating it needs your password; run spinup update in a terminal)")
+		step("Tailscale: left as it is (updating it needs your password)")
 		return nil
 	}
 	return tailnet.Update(ctx)

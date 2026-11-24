@@ -195,7 +195,7 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       case "t3":
         return { installed: true, app: true, port: 3773, linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
       case "update":
-        return { current: "v0.3.6", latest: "v0.3.7", auto: true };
+        return { current: "v0.3.6", latest: "v0.3.7", auto: true, system_managed: true, system: ["tailscale", "linux", "mesa"] };
       case "keys":
         return { api_key: "sk-spinup-3f9c1e7a52b84d06a1c2e9f0", management_password: "m-81b2c4d6e8f0a1b3" } satisfies Keys;
     }

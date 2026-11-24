@@ -161,6 +161,7 @@ export interface LoginStatus {
 export interface T3State {
   installed: boolean;
   app: boolean;
+  network_access?: boolean;
   port?: number;
   linked?: string;
   problem?: string;
@@ -170,6 +171,8 @@ export interface UpdateState {
   current: string;
   latest?: string;
   auto: boolean;
+  system?: string[];
+  system_managed?: boolean;
 }
 
 export interface SignIn {

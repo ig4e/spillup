@@ -53,6 +53,18 @@ export function T3Page() {
         </Group>
       ) : (
         <>
+          {t3.data.network_access === false ? (
+            <Group footer="The T3 Code app answers only this machine, so your other machines can't link to it. Setting T3 Code up turns on its Network access; then quit and reopen T3 Code once.">
+              <Row icon={<IconTile icon={Share2} color="orange" />} title="Other machines can't reach this T3 Code" />
+              <Row
+                icon={<IconTile icon={Download} color="blue" />}
+                title={pending === "setup" ? "Setting up T3 Code…" : "Turn On Network Access"}
+                tone="accent"
+                busy={pending === "setup"}
+                onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
+              />
+            </Group>
+          ) : null}
           <Group>
             <Row icon={<IconTile icon={Share2} color="indigo" />} title="T3 Code here" value={<span className="flex items-center gap-1.5"><Dot tone="success" /> Port {t3.data.port}</span>} />
             <Row icon={<IconTile icon={ShieldCheck} color="green" />} title="Access for linked machines" value="Full access" />

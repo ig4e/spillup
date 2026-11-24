@@ -86,6 +86,13 @@ export const api = {
 
   apps: () => call<App[]>("GET", "apps"),
   remote: () => call<RemoteState>("GET", "remote", undefined, true),
+  /** A host's apps, from this machine's moonlight-web, which the dashboard serves at /remote/. */
+  remoteApps: async (hostId: number): Promise<{ app_id: number; title: string }[]> => {
+    if (mocked) return [{ app_id: 1, title: "Desktop" }, { app_id: 2, title: "Steam Big Picture" }];
+    const res = await fetch(`/remote/api/apps?host_id=${hostId}`, { credentials: "same-origin" });
+    if (!res.ok) throw new ApiError((await res.text()) || res.statusText, res.status);
+    return ((await res.json()) as { apps: { app_id: number; title: string }[] }).apps;
+  },
   remoteSync: () => call<{ message: string }>("POST", "remote/sync", {}, true),
   remoteSetup: () => call<{ message: string }>("POST", "remote/setup", {}, true),
   /** Confirms the PIN Moonlight shows on machine's Sunshine (null: this machine). */
@@ -107,4 +114,5 @@ export const api = {
   startUpdate: () => post("update"),
   setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
   restart: () => post("restart"),
+  updateSystem: () => post("update/system"),
 };

@@ -57,6 +57,9 @@ type Config struct {
 	// LegacyKeys are API keys this machine's tools used with an earlier CLIProxyAPI; the router swaps
 	// them for the fleet's key, so those tools keep working unchanged.
 	LegacyKeys []string `json:"legacy_keys,omitempty"`
+	// LegacyManagementKeys are management keys of that earlier CLIProxyAPI; the router swaps them for the
+	// fleet's dashboard password on CLIProxyAPI's management paths, where this machine has it.
+	LegacyManagementKeys []string `json:"legacy_management_keys,omitempty"`
 	// RemotePort is moonlight-web's, the browser remote desktop client, on 127.0.0.1 only.
 	RemotePort int `json:"remote_port"`
 	// UIPort is where the service hosts the dashboard, on 127.0.0.1 only; 0 turns it off.

@@ -48,6 +48,12 @@ func (i Install) Exe() string {
 
 func (i Install) Config() string { return filepath.Join(i.Dir, "server", "config.json") }
 
+// Version is the moonlight-web release installed here, or "" when unknown.
+func (i Install) Version() string {
+	data, _ := os.ReadFile(filepath.Join(i.Dir, "version.txt"))
+	return strings.TrimSpace(string(data))
+}
+
 func (i Install) Installed() bool {
 	_, err := os.Stat(i.Exe())
 	return err == nil
@@ -103,7 +109,7 @@ func (i Install) Download(ctx context.Context) (string, error) {
 			return "", err
 		}
 	}
-	return rel.Version, nil
+	return rel.Version, os.WriteFile(filepath.Join(i.Dir, "version.txt"), []byte(rel.Version+"\n"), 0o644)
 }
 
 // unpack returns the archive's files under its package/ folder, by their path inside it.
