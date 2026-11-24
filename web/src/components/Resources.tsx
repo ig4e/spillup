@@ -2,7 +2,8 @@ import { Cpu, HardDrive, MemoryStick, Timer } from "lucide-react";
 import { api } from "../lib/api";
 import { useQuery } from "../lib/hooks";
 import type { Machine, Sample, Stats } from "../lib/types";
-import { Dot, IconTile, osName, osTile } from "./ui";
+import { Dot, osName } from "./ui";
+import { OsTile } from "./brand";
 
 const unit = ["B", "KB", "MB", "GB", "TB"];
 
@@ -55,7 +56,6 @@ function Meter({ label, icon: Icon, value, detail, color }: { label: string; ico
 
 function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote: string | null }) {
   const stats = useQuery(() => api.statsOf(viaRemote), 3000);
-  const t = osTile(machine.os);
   const st: Stats | undefined = stats.data;
   if (stats.error && !st) return null;
   const h: Sample[] = st?.history ?? [];
@@ -65,7 +65,7 @@ function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote:
   return (
     <div className="flex flex-col gap-3.5 rounded-xl bg-surface p-4">
       <div className="flex items-center gap-3">
-        <IconTile icon={t.icon} color={t.color} />
+        <OsTile os={machine.os} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[14px] font-semibold">
             {machine.name}

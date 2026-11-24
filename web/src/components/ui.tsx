@@ -64,9 +64,7 @@ function Toolbar({
   return (
     <>
       <header
-        className={`glass-toolbar sticky top-0 z-10 grid min-h-[52px] grid-cols-[1fr_auto_1fr] items-center gap-3 py-2 ${
-          bleed ? "mb-3 rounded-xl px-1" : "-mx-5 mb-2 px-5 sm:-mx-10 sm:px-10"
-        }`}
+        className={`glass-toolbar sticky top-0 z-10 grid min-h-[52px] grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 py-2 ${bleed ? "-mx-5 -mt-5 mb-3" : "toolbar-span mb-2"}`}
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex shrink-0 overflow-hidden rounded-full bg-surface shadow-[0_0_0_0.5px_var(--border)]">
@@ -241,8 +239,8 @@ export const holdName: Record<Hold, string> = { hub: "Main", standby: "Worker + 
 
 export function osTile(os?: string): { icon: LucideIcon; color: Tint } {
   const o = (os ?? "").toLowerCase();
-  if (o.includes("ios") || o.includes("android")) return { icon: Smartphone, color: "green" };
   if (o.includes("mac") || o.includes("darwin")) return { icon: Apple, color: "graphite" };
+  if (o.includes("ios") || o.includes("android")) return { icon: Smartphone, color: "green" };
   if (o.includes("windows")) return { icon: Monitor, color: "blue" };
   if (o.includes("linux")) return { icon: Laptop, color: "orange" };
   return { icon: Server, color: "gray" };

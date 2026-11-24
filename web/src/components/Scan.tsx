@@ -3,7 +3,8 @@ import { Radar } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { Device } from "../lib/types";
-import { Dot, Group, IconTile, Row, holdName, osName, osTile } from "./ui";
+import { Dot, Group, IconTile, Row, holdName, osName } from "./ui";
+import { OsTile } from "./brand";
 
 /** Finds which devices on the tailnet run spillup, and which of yours still need it. */
 export function Scan() {
@@ -47,11 +48,10 @@ export function Scan() {
         }
       />
       {devices?.map((d) => {
-        const t = osTile(d.os);
         return (
           <Row
             key={d.name}
-            icon={<IconTile icon={t.icon} color={d.online ? t.color : "gray"} />}
+            icon={<OsTile os={d.os} dim={!d.online} />}
             title={
               <span className="flex items-center gap-2">
                 {d.name}

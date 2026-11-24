@@ -296,3 +296,9 @@ body {
 .dark .ios-fill {
   background: rgb(118 118 128 / 0.24);
 }
+
+/* A narrow page's toolbar spans the whole window, as a wide page's does, so its arrows and actions stay put. */
+.toolbar-span {
+  width: 100cqw;
+  margin-inline: calc(50% - 50cqw);
+}

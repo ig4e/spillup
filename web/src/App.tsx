@@ -23,7 +23,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
-import { BackAction, Dot, Group, IconTile, LargeTitle, Row, holdName, type Tint } from "./components/ui";
+import { BrandTile } from "./components/brand";
+import { BackAction, Dot, Group, LargeTitle, Row, holdName, type Tint } from "./components/ui";
 import { api, setRemote } from "./lib/api";
 import { canGoBack, navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
@@ -55,11 +56,15 @@ interface Page {
   label: string;
   icon: LucideIcon;
   color: Tint;
+  /** A brand whose mark replaces the icon, for integrations. */
+  brand?: string;
   page: () => React.ReactNode;
   /** Full-bleed pages use the whole window, for embedded dashboards. */
   bleed?: boolean;
   /** Tabs get their own button in the phone's tab bar; every other page is listed under More. */
   tab?: boolean;
+  /** shows hides the page while it has nothing to offer, such as Sign-In while only the main machine keeps logins. */
+  shows?: (o: Overview) => boolean;
 }
 
 type Section = { title: string; pages: Page[] };
@@ -72,22 +77,22 @@ const sections: Section[] = [
       { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage, tab: true },
       { path: "/activity", label: "Activity", icon: Activity, color: "teal", page: ActivityPage, bleed: true, tab: true },
       { path: "/desktop", label: "Remote", icon: MonitorSmartphone, color: "indigo", page: RemotePage, bleed: true },
-      { path: "/terminal", label: "Terminal", icon: SquareTerminal, color: "graphite", page: TerminalPage, bleed: true },
+      { path: "/terminal", label: "Terminal", icon: SquareTerminal, color: "graphite", page: TerminalPage, bleed: true, shows: (o) => o.settings.terminals !== false },
     ],
   },
   {
     title: "Accounts",
     pages: [
       { path: "/accounts", label: "Accounts", icon: KeyRound, color: "orange", page: AccountsPage },
-      { path: "/sign-in", label: "Sign-In", icon: LogIn, color: "pink", page: SignInPage },
+      { path: "/sign-in", label: "Sign-In", icon: LogIn, color: "pink", page: SignInPage, shows: (o) => !o.service?.hub_only },
       { path: "/proxy", label: "CLIProxyAPI", icon: Server, color: "teal", page: ProxyPage, bleed: true },
     ],
   },
   {
     title: "Integrations",
     pages: [
-      { path: "/t3", label: "T3 Code", icon: Share2, color: "indigo", page: T3Page },
-      { path: "/tailscale", label: "Tailscale", icon: Waypoints, color: "graphite", page: TailscalePage },
+      { path: "/t3", label: "T3 Code", icon: Share2, color: "indigo", brand: "t3", page: T3Page },
+      { path: "/tailscale", label: "Tailscale", icon: Waypoints, color: "graphite", brand: "tailscale", page: TailscalePage },
     ],
   },
   { title: "Agents", pages: [{ path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage }] },
@@ -107,6 +112,21 @@ const MORE = "/more";
 const morePage: Page = { path: MORE, label: "More", icon: Ellipsis, color: "gray", page: MorePage };
 const tabs = [...pages.filter((p) => p.tab), morePage];
 const moreSections = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => !p.tab) })).filter((s) => s.pages.length);
+
+/** The paths a machine that isn't set up yet shows: setting it up, and what helps with that. */
+const beforeSetup = new Set(["/", "/tailscale", "/doctor", "/updates", "/settings"]);
+
+function pageShows(page: Page, o: Overview | null | undefined) {
+  if (!o) return true;
+  if (!o.installed) return beforeSetup.has(page.path) || page === morePage;
+  return page.shows?.(o) ?? true;
+}
+
+/** The sections with only the pages this machine's settings make useful. */
+function useShownSections(list: Section[]) {
+  const { data } = useOverview();
+  return list.map((s) => ({ ...s, pages: s.pages.filter((p) => pageShows(p, data)) })).filter((s) => s.pages.length);
+}
 
 function filterSections(list: Section[], query: string) {
   const q = query.trim().toLowerCase();
@@ -133,7 +153,8 @@ function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
   const path = usePath();
   const [collapsed, toggle] = useCollapsed();
-  const current = pages.find((p) => p.path === path) ?? (path === MORE ? morePage : pages[0]);
+  const found = pages.find((p) => p.path === path) ?? (path === MORE ? morePage : pages[0]);
+  const current = pageShows(found, overview.data) ? found : pages[0];
   const Page = current.page;
 
   return (
@@ -141,7 +162,7 @@ function Fleet({ remote }: { remote: string | null }) {
       <BackAction.Provider value={backFrom(current)}>
         <div className="flex min-h-screen">
           <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
-          <main className="min-w-0 flex-1">
+          <main className="@container/main min-w-0 flex-1">
             {current.bleed ? (
               <div className="flex h-dvh flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] lg:h-screen lg:p-5">
                 {remote ? <RemoteBanner name={remote} /> : null}
@@ -218,7 +239,7 @@ function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean;
         collapsed ? "justify-center px-1" : "px-2"
       } ${active ? "bg-accent text-white" : "text-foreground hover:bg-foreground/[0.06]"}`}
     >
-      <IconTile icon={page.icon} color={page.color} size="sm" />
+      <BrandTile brand={page.brand} icon={page.icon} color={page.color} size="sm" />
       {collapsed ? null : <span className="truncate">{page.label}</span>}
     </a>
   );
@@ -234,7 +255,7 @@ function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean;
 function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boolean; onToggle: () => void }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
-  const shown = filterSections(sections, q);
+  const shown = filterSections(useShownSections(sections), q);
   return (
     <aside
       className={`glass-sidebar sticky top-2 z-20 m-2 hidden h-[calc(100vh-16px)] shrink-0 flex-col rounded-[18px] pt-3 pb-3 transition-[width] duration-200 lg:flex ${
@@ -394,7 +415,7 @@ function HolderStatus() {
 /** Every page not in the tab bar, as iOS Settings lists them: the machine first, then a group per section. */
 function MorePage() {
   const [query, setQuery] = useState("");
-  const shown = filterSections(moreSections, query);
+  const shown = filterSections(useShownSections(moreSections), query);
   return (
     <>
       <LargeTitle title="More" />
@@ -413,7 +434,7 @@ function MorePage() {
       {shown.map((section) => (
         <Group key={section.title} title={section.title}>
           {section.pages.map((p) => (
-            <Row key={p.path} icon={<IconTile icon={p.icon} color={p.color} />} title={p.label} to={p.path} />
+            <Row key={p.path} icon={<BrandTile brand={p.brand} icon={p.icon} color={p.color} />} title={p.label} to={p.path} />
           ))}
         </Group>
       ))}

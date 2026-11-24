@@ -1,7 +1,8 @@
-import { Boxes, Crown, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
+import { AppWindow, Boxes, Crown, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
 import { Choice, Dot, Group, IconTile, LargeTitle, Mono, Row } from "../components/ui";
+import { BrandTile } from "../components/brand";
 import { api } from "../lib/api";
 import { describeLogin, relative } from "../lib/format";
 import { hintsFor } from "../lib/hints";
@@ -119,7 +120,7 @@ export function AccountsPage() {
 
       <Group title="Use Them in Your Apps">
         {hintsFor(apps.data, data).map((h) => (
-          <Row key={h.app} title={h.app} subtitle={<span className="whitespace-normal">{h.text}</span>} accessory={h.code ? <Mono copy>{h.code}</Mono> : undefined} />
+          <Row key={h.app} icon={<BrandTile brand={h.brand} icon={AppWindow} color="gray" />} title={h.app} subtitle={<span className="whitespace-normal">{h.text}</span>} accessory={h.code ? <Mono copy>{h.code}</Mono> : undefined} />
         ))}
       </Group>
 
@@ -142,7 +143,7 @@ export function AccountsPage() {
               return (
                 <Row
                   key={a.name}
-                  icon={<IconTile icon={look.icon} color={look.color} />}
+                  icon={<BrandTile brand={provider} icon={look.icon} color={look.color} />}
                   title={label}
                   subtitle={`${look.name} · refreshed ${relative(a.refreshed)}`}
                   value={

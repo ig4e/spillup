@@ -1,9 +1,13 @@
+import { AlertDialog, toast } from "@heroui/react";
+import { CircleX } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Button } from "../components/Button";
 import { bytes } from "../components/Resources";
-import { IconTile, LargeTitle, Segmented, osName, osTile } from "../components/ui";
+import { LargeTitle, Segmented, osName } from "../components/ui";
+import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
 import { useQuery } from "../lib/hooks";
-import type { Machine, Sample, Stats } from "../lib/types";
+import type { Machine, Process, Sample, Stats } from "../lib/types";
 
 type Metric = "cpu" | "memory" | "disk" | "network";
 
@@ -86,6 +90,8 @@ export function ActivityPage() {
   const fleet = useFleetStats(machines);
   const [metric, setMetric] = useState<Metric>("cpu");
   const [picked, setPicked] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<number | null>(null);
+  const [ending, setEnding] = useState<Process | null>(null);
   const selected = machines.find((m) => m.name === picked) ?? machines.find((m) => m.is_self) ?? machines[0];
   const st = selected ? fleet[selected.name] : undefined;
 
@@ -93,6 +99,8 @@ export function ActivityPage() {
     const list = [...(st?.processes ?? [])];
     return metric === "memory" ? list.sort((a, b) => b.mem - a.mem) : list.sort((a, b) => b.cpu - a.cpu || b.mem - a.mem);
   }, [st, metric]);
+
+  const chosenProcess = processes.find((p) => p.pid === chosen) ?? null;
 
   const rows = machines.map((m) => ({ m, s: fleet[m.name] }));
   const sortKey = (s?: Stats) =>
@@ -106,7 +114,18 @@ export function ActivityPage() {
         bleed
         title="Activity"
         center={<Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
-        actions={<span className="text-[12px] text-muted">{machines.length} machines</span>}
+        actions={
+          <button
+            type="button"
+            aria-label="End the selected process"
+            title="End the selected process"
+            disabled={!chosenProcess}
+            onClick={() => chosenProcess && setEnding(chosenProcess)}
+            className="flex size-8 items-center justify-center rounded-full text-foreground outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:text-muted disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <CircleX className="size-[18px]" />
+          </button>
+        }
       />
 
       <div className="mb-3 overflow-hidden rounded-xl bg-surface max-lg:overflow-x-auto">
@@ -124,17 +143,19 @@ export function ActivityPage() {
           </thead>
           <tbody>
             {rows.map(({ m, s }) => {
-              const t = osTile(m.os);
               const on = m.name === selected?.name;
               return (
                 <tr
                   key={m.name}
-                  onClick={() => setPicked(m.name)}
+                  onClick={() => {
+                  setPicked(m.name);
+                  setChosen(null);
+                }}
                   className={`cursor-default ${on ? "bg-accent text-white [&_*]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
                 >
                   <td className="px-3 py-1.5">
                     <span className="flex items-center gap-2">
-                      <IconTile icon={t.icon} color={t.color} size="sm" />
+                      <OsTile os={m.os} size="sm" />
                       <span className="font-medium">{m.name}</span>
                       <span className="text-xs text-muted">{osName(m.os)}</span>
                     </span>
@@ -164,7 +185,13 @@ export function ActivityPage() {
           </thead>
           <tbody>
             {processes.map((p) => (
-              <tr key={p.pid} className="odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]">
+              <tr
+                key={p.pid}
+                aria-selected={p.pid === chosen}
+                onClick={() => setChosen(p.pid === chosen ? null : p.pid)}
+                onDoubleClick={() => setEnding(p)}
+                className={`cursor-default select-none ${p.pid === chosen ? "bg-accent text-white [&_td]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
+              >
                 <td className="max-w-0 truncate px-3 py-1">{p.name}</td>
                 <td className="w-24 px-3 py-1 text-right tabular-nums">{pct(p.cpu)}</td>
                 <td className="w-28 px-3 py-1 text-right tabular-nums">{bytes(p.mem)}</td>
@@ -189,6 +216,14 @@ export function ActivityPage() {
           <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">Reading {selected?.name ?? "this machine"}…</div>
         )}
       </div>
+      <EndDialog
+        process={ending}
+        machine={selected?.is_self ? null : (selected?.name ?? null)}
+        onClose={(ended) => {
+          setEnding(null);
+          if (ended) setChosen(null);
+        }}
+      />
     </div>
   );
 }
@@ -289,5 +324,51 @@ function BottomPanel({ metric, st, h }: { metric: Metric; st: Stats; h: Sample[]
         <Stat label="Data sent" value={bytes(n.tx_total)} />
       </div>
     </>
+  );
+}
+
+/** Activity Monitor's question before it ends a program: quit it politely, or force it. */
+function EndDialog({ process, machine, onClose }: { process: Process | null; machine: string | null; onClose: (ended: boolean) => void }) {
+  const [busy, setBusy] = useState<"quit" | "force" | null>(null);
+  const end = async (force: boolean) => {
+    if (!process) return;
+    setBusy(force ? "force" : "quit");
+    try {
+      const done = await api.endProcess(machine, process.pid, force);
+      toast.success(done.message);
+      onClose(true);
+    } catch (e) {
+      toast.danger((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <AlertDialog.Backdrop isOpen={!!process} onOpenChange={(open) => !open && !busy && onClose(false)}>
+      <AlertDialog.Container>
+        <AlertDialog.Dialog className="sm:max-w-[420px]">
+          <AlertDialog.Header>
+            <AlertDialog.Icon status="warning" />
+            <AlertDialog.Heading>Are you sure you want to quit “{process?.name}”?</AlertDialog.Heading>
+          </AlertDialog.Header>
+          <AlertDialog.Body>
+            <div className="text-sm text-muted">
+              Quit asks it to close{machine ? ` on ${machine}` : ""}, so it can save its work. Force Quit ends it at once; unsaved work is lost.
+            </div>
+          </AlertDialog.Body>
+          <AlertDialog.Footer>
+            <Button variant="tertiary" isDisabled={!!busy} onPress={() => onClose(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger-soft" isPending={busy === "force"} isDisabled={!!busy} onPress={() => void end(true)}>
+              <>Force Quit</>
+            </Button>
+            <Button isPending={busy === "quit"} isDisabled={!!busy} onPress={() => void end(false)}>
+              <>Quit</>
+            </Button>
+          </AlertDialog.Footer>
+        </AlertDialog.Dialog>
+      </AlertDialog.Container>
+    </AlertDialog.Backdrop>
   );
 }

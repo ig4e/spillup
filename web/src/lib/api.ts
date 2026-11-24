@@ -100,6 +100,9 @@ export const api = {
     call<{ message: string }>("POST", machine ? `remote/${encodeURIComponent(machine)}/sunshine/pin` : "sunshine/pin", { pin }, true),
   /** A machine's specs and load: this one, or another by name, whichever dashboard is shown. */
   statsOf: (machine: string | null) => call<Stats>("GET", machine ? `remote/${encodeURIComponent(machine)}/stats` : "stats", undefined, true),
+  /** Asks a program on machine (null: this one) to quit, or with force ends it. */
+  endProcess: (machine: string | null, pid: number, force: boolean) =>
+    call<Done>("POST", machine ? `remote/${encodeURIComponent(machine)}/processes/end` : "processes/end", { pid, force }, true),
   proxyLogins: () => call<LoginStatus>("GET", "proxy/logins"),
   t3: () => call<T3State>("GET", "t3"),
   t3Sync: () => post("t3/sync"),

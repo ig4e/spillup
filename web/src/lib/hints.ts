@@ -2,6 +2,8 @@ import type { App, Overview } from "./types";
 
 export interface Hint {
   app: string;
+  /** The app's brand, for its icon. */
+  brand?: string;
   text: string;
   code?: string;
 }
@@ -14,12 +16,12 @@ export function hintsFor(apps: App[] | undefined, overview: Overview | undefined
   if (has("claude")) {
     hints.push(
       has("ccp")
-        ? { app: "Claude Code", text: "Run ccp instead of claude to use the shared accounts; plain claude keeps its own login.", code: "ccp" }
-        : { app: "Claude Code", text: "ccp, Claude Code with the shared accounts, isn't here yet; setting this machine up adds it." },
+        ? { app: "Claude Code", brand: "claude", text: "Run ccp instead of claude to use the shared accounts; plain claude keeps its own login.", code: "ccp" }
+        : { app: "Claude Code", brand: "claude", text: "ccp, Claude Code with the shared accounts, isn't here yet; setting this machine up adds it." },
     );
   }
-  if (has("codex")) hints.push({ app: "Codex", text: "Point Codex's base URL at the router, with the API key from Settings.", code: `${url}/v1` });
-  if (has("t3")) hints.push({ app: "T3 Code", text: "Its providers use the router; spillup keeps every machine's T3 linked.", code: url });
+  if (has("codex")) hints.push({ app: "Codex", brand: "openai", text: "Point Codex's base URL at the router, with the API key from Settings.", code: `${url}/v1` });
+  if (has("t3")) hints.push({ app: "T3 Code", brand: "t3", text: "Its providers use the router; spillup keeps every machine's T3 linked.", code: url });
   for (const [id, name] of [
     ["opencode", "OpenCode"],
     ["gemini", "Gemini CLI"],
@@ -27,7 +29,7 @@ export function hintsFor(apps: App[] | undefined, overview: Overview | undefined
     ["amp", "Amp"],
     ["droid", "Factory Droid"],
   ] as const) {
-    if (has(id)) hints.push({ app: name, text: `Use ${name} with an OpenAI-compatible provider at the router, with the API key from Settings.`, code: `${url}/v1` });
+    if (has(id)) hints.push({ app: name, brand: id, text: `Use ${name} with an OpenAI-compatible provider at the router, with the API key from Settings.`, code: `${url}/v1` });
   }
   if (!hints.length) hints.push({ app: "Your apps", text: "Point any OpenAI-, Anthropic- or Gemini-compatible app at the router, with the API key from Settings.", code: url });
   return hints;

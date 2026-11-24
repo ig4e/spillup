@@ -3,7 +3,8 @@ import { Button } from "../components/Button";
 import { Activity, AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
-import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName, osTile } from "../components/ui";
+import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName } from "../components/ui";
+import { OsTile } from "../components/brand";
 import { Resources } from "../components/Resources";
 import { Scan } from "../components/Scan";
 import { api, currentRemote, setRemote } from "../lib/api";
@@ -136,7 +137,6 @@ export function MachinesPage() {
 }
 
 function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canManage: boolean; onMakeMain: () => void; onMoveHere: () => void }) {
-  const t = osTile(m.os);
   const canHold = m.hold === "hub" || m.hold === "standby";
   const actions = [
     canHold && m.hold !== "hub" ? { id: "main", label: "Make Main Machine", icon: Crown } : null,
@@ -148,7 +148,7 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
 
   return (
     <Row
-      icon={<IconTile icon={t.icon} color={m.online ? t.color : "gray"} />}
+      icon={<OsTile os={m.os} dim={!m.online} />}
       title={
         <span className="flex items-center gap-2">
           <span className="font-medium">{m.name}</span>

@@ -3,7 +3,8 @@ import { Expand, KeyRound, Link2, Monitor, MonitorSmartphone, Play, Sun, X } fro
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { TaskLog } from "../components/TaskProgress";
-import { Dot, Group, IconTile, LargeTitle, Row, osName, osTile } from "../components/ui";
+import { Dot, Group, IconTile, LargeTitle, Row, osName } from "../components/ui";
+import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
 import type { Machine, RemoteHost, SetupProgress } from "../lib/types";
@@ -133,14 +134,13 @@ function HostCard({
   onStart: (appId: number, title: string) => void;
 }) {
   const apps = useQuery(() => (host.paired ? api.remoteApps(host.id) : Promise.resolve([])), 0);
-  const t = osTile(machine?.os);
   const online = machine?.online ?? host.state !== "Offline";
   const list = apps.data ?? [];
   const desktop = list.find((a) => a.title.toLowerCase() === "desktop") ?? list[0];
   return (
     <div className="flex flex-col gap-4 rounded-xl bg-surface p-4">
       <div className="flex items-center gap-3">
-        <IconTile icon={t.icon} color={online ? t.color : "gray"} size="lg" />
+        <OsTile os={machine?.os} dim={!online} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold">{host.machine || host.name}</div>
           <div className="flex items-center gap-1.5 text-xs text-muted">

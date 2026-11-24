@@ -3,7 +3,8 @@ import { Download, Link2, RefreshCw, Share2, ShieldCheck, Smartphone } from "luc
 import { useState } from "react";
 import { QR } from "../components/QR";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, osTile } from "../components/ui";
+import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row } from "../components/ui";
+import { BrandTile, OsTile } from "../components/brand";
 import { api } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
 
@@ -44,7 +45,7 @@ export function T3Page() {
               : "Installs T3 Code's command line with T3's own installer, starts it at boot, and links it to your other machines."
           }
         >
-          <Row icon={<IconTile icon={Share2} color={t3.data.app ? "indigo" : "gray"} />} title={t3.data.app ? "T3 Code's app is installed" : "T3 Code isn't installed on this machine"} />
+          <Row icon={<BrandTile brand="t3" icon={Share2} dim={!t3.data.app} />} title={t3.data.app ? "T3 Code's app is installed" : "T3 Code isn't installed on this machine"} />
           <Row
             icon={<IconTile icon={Download} color="blue" />}
             title={pending === "setup" ? "Setting up T3 Code…" : t3.data.app ? "Set Up T3 Code" : "Install and Set Up T3 Code"}
@@ -73,7 +74,7 @@ export function T3Page() {
             </Group>
           ) : null}
           <Group>
-            <Row icon={<IconTile icon={Share2} color="indigo" />} title="T3 Code here" value={<span className="flex items-center gap-1.5"><Dot tone="success" /> Port {t3.data.port}</span>} />
+            <Row icon={<BrandTile brand="t3" icon={Share2} />} title="T3 Code here" value={<span className="flex items-center gap-1.5"><Dot tone="success" /> Port {t3.data.port}</span>} />
             <Row icon={<IconTile icon={ShieldCheck} color="green" />} title="Access for linked machines" value="Full access" />
           </Group>
           <Group
@@ -87,11 +88,10 @@ export function T3Page() {
               others.map((m) => {
                 const dns = m.dns_name?.replace(/\.$/, "").toLowerCase();
                 const linked = hosts.some((h) => h === m.ip || h === m.name.toLowerCase() || h === dns || h.startsWith(`${m.name.toLowerCase()}.`));
-                const t = osTile(m.os);
                 return (
                   <Row
                     key={m.name}
-                    icon={<IconTile icon={t.icon} color={m.online ? t.color : "gray"} />}
+                    icon={<OsTile os={m.os} dim={!m.online} />}
                     title={m.name}
                     subtitle={m.online ? m.ip : "Offline"}
                     value={<span className="flex items-center gap-1.5"><Dot tone={linked ? "success" : "muted"} /> {linked ? "Linked" : "Not linked yet"}</span>}

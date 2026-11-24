@@ -2,6 +2,7 @@ import { Alert, Checkbox, Description, Input, Label, Modal, Switch, TextField } 
 import { Button } from "../components/Button";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { BrandTile } from "../components/brand";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Segmented, Toggle } from "../components/ui";
 import { api } from "../lib/api";
 import { capitalize, relative } from "../lib/format";
@@ -172,7 +173,7 @@ function SharedList({ skills, library, reload }: { skills: SharedSkill[]; librar
                   </Checkbox.Content>
                 </Checkbox>
               ) : (
-                <IconTile icon={s.source === "yours" ? HardDrive : FolderGit2} color={s.source === "yours" ? "indigo" : "purple"} />
+                <BrandTile brand={s.source === "yours" ? undefined : "github"} icon={s.source === "yours" ? HardDrive : FolderGit2} color={s.source === "yours" ? "indigo" : "purple"} />
               )
             }
             title={

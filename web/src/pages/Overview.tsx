@@ -3,7 +3,8 @@ import { Button } from "../components/Button";
 import { Crown, KeyRound, Network, RefreshCw, Sparkles, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOverview } from "../App";
-import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName, osTile } from "../components/ui";
+import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName } from "../components/ui";
+import { OsTile } from "../components/brand";
 import type { SetupProgress } from "../lib/types";
 import { TaskLog } from "../components/TaskProgress";
 import { api } from "../lib/api";
@@ -91,12 +92,11 @@ export function OverviewPage() {
       ) : (
         <Group title="Machines">
           {all.map((m) => {
-            const t = osTile(m.os);
             return (
               <Row
                 key={m.name}
                 to="/machines"
-                icon={<IconTile icon={t.icon} color={m.online ? t.color : "gray"} />}
+                icon={<OsTile os={m.os} dim={!m.online} />}
                 title={
                   <span className="flex items-center gap-2">
                     {m.name}

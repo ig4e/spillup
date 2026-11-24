@@ -198,6 +198,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("sunshine/pin", s.serveSunshinePin)
 	change("remote/sync", s.serveRemoteSync)
 	change("remote/setup", s.serveRemoteSetup)
+	change("processes/end", s.serveEndProcess)
 	read("stats", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.stats.Stats()) })
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)

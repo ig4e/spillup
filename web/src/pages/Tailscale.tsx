@@ -2,7 +2,8 @@ import { Alert } from "@heroui/react";
 import { ExternalLink, Globe, KeyRound, Network, RefreshCw, SquareTerminal, Waypoints } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Toggle, osName, osTile } from "../components/ui";
+import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Toggle, osName } from "../components/ui";
+import { BrandTile, OsTile } from "../components/brand";
 import { TaskLog } from "../components/TaskProgress";
 import type { SetupProgress } from "../lib/types";
 import { api } from "../lib/api";
@@ -33,7 +34,7 @@ export function TailscalePage() {
       ) : (
         <>
           <Group>
-            <Row icon={<IconTile icon={Waypoints} color="graphite" />} title="This machine" value={<span className="flex items-center gap-1.5"><Dot tone={self?.online ? "success" : "danger"} /> {self?.name ?? data?.name ?? "—"}</span>} />
+            <Row icon={<BrandTile brand="tailscale" icon={Waypoints} />} title="This machine" value={<span className="flex items-center gap-1.5"><Dot tone={self?.online ? "success" : "danger"} /> {self?.name ?? data?.name ?? "—"}</span>} />
             <Row icon={<IconTile icon={Globe} color="blue" />} title="Address" accessory={self?.ip ? <Mono copy>{self.ip}</Mono> : <span className="text-muted">—</span>} />
             {self?.dns_name ? <Row icon={<IconTile icon={Network} color="teal" />} title="Name on the tailnet" accessory={<Mono copy>{self.dns_name}</Mono>} /> : null}
             <Row icon={<IconTile icon={ExternalLink} color="gray" />} title="Admin Console" tone="accent" onPress={() => window.open("https://login.tailscale.com/admin/machines", "_blank", "noopener")} />
@@ -48,11 +49,10 @@ export function TailscalePage() {
           ) : null}
           <Group title="Devices" footer={`${all.filter((m) => m.online).length} of ${all.length} online. spillup reads this list from Tailscale; there's nothing to keep up to date.`}>
             {all.map((m) => {
-              const t = osTile(m.os);
               return (
                 <Row
                   key={m.name}
-                  icon={<IconTile icon={t.icon} color={m.online ? t.color : "gray"} />}
+                  icon={<OsTile os={m.os} dim={!m.online} />}
                   title={m.name}
                   subtitle={`${osName(m.os)} · ${m.ip ?? "—"}`}
                   value={<span className="flex items-center gap-1.5"><Dot tone={m.expired ? "danger" : m.online ? "success" : "muted"} /> {m.expired ? "Key expired" : m.online ? "Online" : `Seen ${relative(m.last_seen)}`}</span>}

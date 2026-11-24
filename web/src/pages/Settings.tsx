@@ -2,6 +2,7 @@ import { Clock, FolderGit2, Heart, KeyRound, Lock, Network, Palette, Server, Sma
 import { useState } from "react";
 import { useOverview } from "../App";
 import { QR } from "../components/QR";
+import { BrandTile } from "../components/brand";
 import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, Toggle, holdName, osName } from "../components/ui";
 import { api } from "../lib/api";
 import { useAction, useRemote, useTheme } from "../lib/hooks";
@@ -54,7 +55,7 @@ export function SettingsPage() {
       <Group title="About">
         <Row icon={<img src="/icon.svg" alt="" className="size-7 rounded-[7px]" />} title="spillup" value={data ? `${data.version} · ${osName(data.os)}` : "—"} />
         <Row
-          icon={<IconTile icon={FolderGit2} color="graphite" />}
+          icon={<BrandTile brand="github" icon={FolderGit2} />}
           title="Source"
           tone="accent"
           value="ig4e/spillup"

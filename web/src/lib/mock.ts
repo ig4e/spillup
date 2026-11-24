@@ -230,6 +230,8 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       return { message: "Updating. spillup restarts in a minute; this page reconnects by itself." };
     case "restart":
       return { message: "Restarting spillup. This page reconnects in a few seconds." };
+    case "processes/end":
+      return { message: body.force ? "Ended it." : "Asked it to quit." };
     case "ssh/enable":
       return { message: body.on ? "Turning SSH on…" : "Turning SSH off…" };
     case "ssh/sync":

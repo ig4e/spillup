@@ -7,7 +7,8 @@ import { describeLogin, relative } from "../lib/format";
 import { useQuery, useRemote } from "../lib/hooks";
 import { providerLook } from "../lib/providers";
 import type { Account, OwnState, ProviderInfo } from "../lib/types";
-import { Group, GroupSkeleton, IconTile, Row, Toggle } from "./ui";
+import { BrandTile } from "./brand";
+import { Group, GroupSkeleton, Row, Toggle } from "./ui";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,7 +100,7 @@ export function OwnLogins() {
     const rows = [
       <Row
         key={p.id}
-        icon={<IconTile icon={look.icon} color={look.color} />}
+        icon={<BrandTile brand={p.id} icon={look.icon} color={look.color} />}
         title={p.name}
         subtitle={on ? (mine.length ? `${mine.length} account${mine.length === 1 ? "" : "s"} on this machine` : "Not signed in yet") : "Shared accounts"}
         accessory={<Toggle label={`${p.name} uses this machine's own sign-in`} isSelected={on} isDisabled={busy === p.id} onChange={(v) => toggle(p.id, v)} />}

@@ -106,9 +106,9 @@ func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	}
 }
 
-// opensShell reports whether a dashboard call reaches a terminal, which only you may open.
+// opensShell reports whether a dashboard call reaches a terminal or ends a program, which only you may do.
 func opensShell(path string) bool {
-	return strings.HasPrefix(path, dashboardPrefix+"api/term")
+	return strings.HasPrefix(path, dashboardPrefix+"api/term") || strings.HasPrefix(path, dashboardPrefix+"api/processes")
 }
 
 // bridgeAdmitsOwner admits the dashboard password, or the API key from one of your own devices, even where
