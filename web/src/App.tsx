@@ -1,5 +1,6 @@
 import { Alert, Dropdown, Label, Toast, Tooltip } from "@heroui/react";
 import {
+  Activity,
   ChevronsUpDown,
   CloudDownload,
   Eye,
@@ -23,6 +24,7 @@ import { api, setRemote } from "./lib/api";
 import { navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
+import { ActivityPage } from "./pages/Activity";
 import { DoctorPage } from "./pages/Doctor";
 import { MachinesPage } from "./pages/Machines";
 import { OverviewPage } from "./pages/Overview";
@@ -58,6 +60,7 @@ const sections: { title: string; pages: Page[] }[] = [
     pages: [
       { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
       { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
+      { path: "/activity", label: "Activity", icon: Activity, color: "teal", page: ActivityPage, bleed: true },
     ],
   },
   {

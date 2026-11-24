@@ -13,7 +13,21 @@ var (
 	getSystemTimes       = kernel32.NewProc("GetSystemTimes")
 	globalMemoryStatusEx = kernel32.NewProc("GlobalMemoryStatusEx")
 	getTickCount64       = kernel32.NewProc("GetTickCount64")
+	getProcessMemoryInfo = kernel32.NewProc("K32GetProcessMemoryInfo")
 )
+
+type processMemoryCounters struct {
+	cb                         uint32
+	pageFaultCount             uint32
+	peakWorkingSetSize         uintptr
+	workingSetSize             uintptr
+	quotaPeakPagedPoolUsage    uintptr
+	quotaPagedPoolUsage        uintptr
+	quotaPeakNonPagedPoolUsage uintptr
+	quotaNonPagedPoolUsage     uintptr
+	pagefileUsage              uintptr
+	peakPagefileUsage          uintptr
+}
 
 type memoryStatusEx struct {
 	length, memoryLoad                 uint32
@@ -70,5 +84,38 @@ func read() reading {
 		}
 		windows.FreeMibTable(unsafe.Pointer(table))
 	}
+	r.procs = processes()
 	return r
+}
+
+// processes reads every program it may open: its CPU time, in the 100ns units GetSystemTimes counts in,
+// and its working set.
+func processes() map[int]procTimes {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return nil
+	}
+	defer windows.CloseHandle(snap)
+	out := map[int]procTimes{}
+	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
+	for err := windows.Process32First(snap, &entry); err == nil; err = windows.Process32Next(snap, &entry) {
+		pid := entry.ProcessID
+		if pid == 0 {
+			continue
+		}
+		p := procTimes{name: windows.UTF16ToString(entry.ExeFile[:])}
+		if h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid); err == nil {
+			var created, exited, kernel, user windows.Filetime
+			if windows.GetProcessTimes(h, &created, &exited, &kernel, &user) == nil {
+				p.cpu = filetime(kernel) + filetime(user)
+			}
+			mem := processMemoryCounters{cb: uint32(unsafe.Sizeof(processMemoryCounters{}))}
+			if ok, _, _ := getProcessMemoryInfo.Call(uintptr(h), uintptr(unsafe.Pointer(&mem)), uintptr(mem.cb)); ok != 0 {
+				p.mem = uint64(mem.workingSetSize)
+			}
+			windows.CloseHandle(h)
+		}
+		out[int(pid)] = p
+	}
+	return out
 }

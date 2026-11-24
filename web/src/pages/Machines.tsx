@@ -1,6 +1,6 @@
 import { Alert, Dropdown, Label, ListBox, Select } from "@heroui/react";
 import { Button } from "../components/Button";
-import { AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
+import { Activity, AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
 import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName, osTile } from "../components/ui";
@@ -114,6 +114,11 @@ export function MachinesPage() {
       </Group>
 
       {machines.data && !currentRemote() ? <Resources machines={all} /> : null}
+      {machines.data && !currentRemote() ? (
+        <Group>
+          <Row icon={<IconTile icon={Activity} color="teal" />} title="Activity" subtitle="Every machine's CPU, memory, disk, network and programs, live" to="/activity" />
+        </Group>
+      ) : null}
 
       {machines.loading && !machines.data ? (
         <GroupSkeleton rows={4} />

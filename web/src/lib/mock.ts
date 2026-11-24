@@ -294,7 +294,19 @@ function mockStats(name: string) {
       uptime: 3 * 86400 + 4 * 3600,
     };
   });
+  const mb = 1024 ** 2;
+  const names = seed.os === "windows"
+    ? ["t3code.exe", "spinup.exe", "cli-proxy-api.exe", "chrome.exe", "Code.exe", "node.exe", "tailscaled.exe", "explorer.exe", "dwm.exe", "claude.exe"]
+    : ["t3code", "spinup", "cli-proxy-api", "chromium", "node", "claude", "codex", "tailscaled", "Hyprland", "go"];
+  const processes = names.map((n, i) => ({
+    pid: 1200 + i * 37,
+    name: n,
+    cpu: Math.max(0, (seed.cpu / (i + 1.4)) * (1 + Math.sin(now / 3000 + i) * 0.4)),
+    mem: (900 / (i + 1)) * mb + i * 40 * mb,
+  }));
   return {
+    processes,
+    process_count: 312,
     specs: { hostname: name, os: seed.os, arch: "amd64", cpu_model: seed.model, cores: seed.cores, mem_total: seed.mem * gb, disk_total: 1000 * gb },
     now: history[history.length - 1],
     history,

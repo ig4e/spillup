@@ -223,8 +223,17 @@ export interface Sample {
   uptime: number;
 }
 
+export interface Process {
+  pid: number;
+  name: string;
+  cpu: number;
+  mem: number;
+}
+
 export interface Stats {
   specs: Specs;
   now: Sample;
   history: Sample[];
+  processes: Process[];
+  process_count: number;
 }

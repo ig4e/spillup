@@ -29,3 +29,12 @@ func TestPercentHandlesNoTimeAndWraparound(t *testing.T) {
 		t.Error("percent")
 	}
 }
+
+func TestBusiestRanksByCPUThenMemory(t *testing.T) {
+	before := map[int]procTimes{1: {name: "a", cpu: 100}, 2: {name: "b", cpu: 100}, 3: {name: "c", cpu: 0}}
+	now := map[int]procTimes{1: {name: "a", cpu: 150, mem: 10}, 2: {name: "b", cpu: 300, mem: 5}, 3: {name: "c", cpu: 0, mem: 99}, 4: {name: "new", mem: 1}}
+	got := busiest(now, before, 400, 2)
+	if got[0].Name != "b" || got[0].CPU != 100 || got[1].Name != "a" || got[1].CPU != 25 || got[2].Name != "c" {
+		t.Errorf("ranking: %+v", got)
+	}
+}

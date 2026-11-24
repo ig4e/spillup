@@ -74,5 +74,41 @@ func read() reading {
 			}
 		}
 	}
+	r.procs = processes()
 	return r
+}
+
+var pageSize = uint64(os.Getpagesize())
+
+// processes reads every program's CPU ticks and resident memory from /proc.
+func processes() map[int]procTimes {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil
+	}
+	out := make(map[int]procTimes, len(entries))
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
+		data, err := os.ReadFile("/proc/" + e.Name() + "/stat")
+		if err != nil {
+			continue
+		}
+		text := string(data)
+		open, close := strings.IndexByte(text, '('), strings.LastIndexByte(text, ')')
+		if open < 0 || close < open {
+			continue
+		}
+		f := strings.Fields(text[close+1:])
+		if len(f) < 22 {
+			continue
+		}
+		utime, _ := strconv.ParseUint(f[11], 10, 64)
+		stime, _ := strconv.ParseUint(f[12], 10, 64)
+		rss, _ := strconv.ParseUint(f[21], 10, 64)
+		out[pid] = procTimes{name: text[open+1 : close], cpu: utime + stime, mem: rss * pageSize}
+	}
+	return out
 }

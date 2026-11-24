@@ -5,6 +5,7 @@ package sysinfo
 import (
 	"os"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 )
@@ -34,11 +35,29 @@ type Sample struct {
 	Uptime   float64   `json:"uptime"`
 }
 
-// Stats are a machine's specs, its load now, and its recent history, oldest first.
+// Process is one program's share of the machine, as Activity Monitor shows it: CPU is a percentage of
+// one core, so a busy program on several cores goes over 100.
+type Process struct {
+	PID  int     `json:"pid"`
+	Name string  `json:"name"`
+	CPU  float64 `json:"cpu"`
+	Mem  uint64  `json:"mem"`
+}
+
+// Stats are a machine's specs, its load now, its recent history, oldest first, and its busiest programs.
 type Stats struct {
-	Specs   Specs    `json:"specs"`
-	Now     Sample   `json:"now"`
-	History []Sample `json:"history"`
+	Specs     Specs     `json:"specs"`
+	Now       Sample    `json:"now"`
+	History   []Sample  `json:"history"`
+	Processes []Process `json:"processes"`
+	Count     int       `json:"process_count"`
+}
+
+// procTimes are one program's raw readings: its CPU time, in the same unit as the machine's, and memory.
+type procTimes struct {
+	name string
+	cpu  uint64
+	mem  uint64
 }
 
 // counters are the raw cumulative readings two samples are compared from.
@@ -50,6 +69,7 @@ type counters struct {
 // reading is one look at the machine: what can be read directly, plus the counters for rates.
 type reading struct {
 	counters
+	procs               map[int]procTimes
 	memUsed, memTotal   uint64
 	diskUsed, diskTotal uint64
 	load1, uptime       float64
@@ -58,6 +78,8 @@ type reading struct {
 const (
 	every   = 2 * time.Second
 	history = 90
+	// topProcesses is how many programs the dashboard lists.
+	topProcesses = 40
 	// idleAfter stops sampling when nobody has asked for a while, so an unwatched dashboard costs nothing.
 	idleAfter = 2 * time.Minute
 )
@@ -71,6 +93,8 @@ type Sampler struct {
 	lastAt  time.Time
 	asked   time.Time
 	running bool
+	procs   []Process
+	count   int
 }
 
 func NewSampler() *Sampler { return &Sampler{} }
@@ -86,7 +110,7 @@ func (s *Sampler) Stats() Stats {
 		s.sampleLocked()
 		go s.loop()
 	}
-	out := Stats{Specs: s.specs, History: append([]Sample(nil), s.samples...)}
+	out := Stats{Specs: s.specs, History: append([]Sample(nil), s.samples...), Processes: append([]Process{}, s.procs...), Count: s.count}
 	if n := len(s.samples); n > 0 {
 		out.Now = s.samples[n-1]
 	}
@@ -124,6 +148,7 @@ func (s *Sampler) sampleLocked() {
 			sample.RxRate = float64(r.rx-s.last.rx) / secs
 			sample.TxRate = float64(r.tx-s.last.tx) / secs
 		}
+		s.procs, s.count = busiest(r.procs, s.last.procs, r.cpuTotal-s.last.cpuTotal, s.specs.Cores), len(r.procs)
 		s.samples = append(s.samples, sample)
 		if len(s.samples) > history {
 			s.samples = s.samples[len(s.samples)-history:]
@@ -142,4 +167,29 @@ func percent(busy, total uint64) float64 {
 func baseSpecs() Specs {
 	host, _ := os.Hostname()
 	return Specs{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Cores: runtime.NumCPU()}
+}
+
+// busiest ranks programs by CPU, then memory, from two readings a sample apart.
+func busiest(now, before map[int]procTimes, totalDelta uint64, cores int) []Process {
+	if cores < 1 {
+		cores = 1
+	}
+	out := make([]Process, 0, len(now))
+	for pid, p := range now {
+		proc := Process{PID: pid, Name: p.name, Mem: p.mem}
+		if b, ok := before[pid]; ok && b.name == p.name && totalDelta > 0 && p.cpu >= b.cpu {
+			proc.CPU = float64(p.cpu-b.cpu) / (float64(totalDelta) / float64(cores)) * 100
+		}
+		out = append(out, proc)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CPU != out[j].CPU {
+			return out[i].CPU > out[j].CPU
+		}
+		return out[i].Mem > out[j].Mem
+	})
+	if len(out) > topProcesses {
+		out = out[:topProcesses]
+	}
+	return out
 }
