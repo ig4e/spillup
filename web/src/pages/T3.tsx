@@ -65,6 +65,11 @@ export function T3Page() {
               />
             </Group>
           ) : null}
+          {t3.data.awaits_restart ? (
+            <Group footer="Network access is on, but T3 Code reads it when it starts. Quit and reopen T3 Code here, then link your machines again.">
+              <Row icon={<IconTile icon={Share2} color="orange" />} title="Restart T3 Code so other machines can reach it" />
+            </Group>
+          ) : null}
           <Group>
             <Row icon={<IconTile icon={Share2} color="indigo" />} title="T3 Code here" value={<span className="flex items-center gap-1.5"><Dot tone="success" /> Port {t3.data.port}</span>} />
             <Row icon={<IconTile icon={ShieldCheck} color="green" />} title="Access for linked machines" value="Full access" />

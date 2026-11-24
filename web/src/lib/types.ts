@@ -162,6 +162,7 @@ export interface T3State {
   installed: boolean;
   app: boolean;
   network_access?: boolean;
+  awaits_restart?: boolean;
   port?: number;
   linked?: string;
   problem?: string;

@@ -7,9 +7,9 @@ import (
 
 // T3Facts are what the doctor knows about T3 Code here.
 type T3Facts struct {
-	Installed, App, ServiceAtBoot, LinkingOn, NetworkAccess bool
-	Linked                                                  int
-	Problem                                                 string
+	Installed, App, ServiceAtBoot, LinkingOn, NetworkAccess, AwaitsRestart bool
+	Linked, StaleQuotaKeys                                                 int
+	Problem                                                                string
 }
 
 // T3 checks that T3 Code runs at boot and is linked to your other machines.
@@ -31,6 +31,12 @@ func T3(f T3Facts) Section {
 	if !f.NetworkAccess {
 		s.Checks = append(s.Checks, fail("the T3 Code app answers only this machine, so other machines can't link to it",
 			"spinup t3 setup, then restart T3 Code"))
+	} else if f.AwaitsRestart {
+		s.Checks = append(s.Checks, fail("Network access is on, but T3 Code hasn't restarted since, so other machines can't reach it yet",
+			"quit and reopen T3 Code"))
+	}
+	if f.StaleQuotaKeys > 0 {
+		s.Checks = append(s.Checks, fail("its usage limits read CLIProxyAPI with the API key, which can't read quotas (401)", "spinup t3 setup"))
 	}
 	if f.LinkingOn {
 		s.Checks = append(s.Checks, ok("linked environments are on"))

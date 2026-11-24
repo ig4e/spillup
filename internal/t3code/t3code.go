@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -298,6 +300,28 @@ func (t T3) NetworkAccess() bool {
 		Mode string `json:"serverExposureMode"`
 	}
 	return json.Unmarshal(data, &s) == nil && s.Mode == "network-accessible"
+}
+
+// AwaitsRestart reports whether Network access is on but the running T3 Code still answers only itself,
+// which it does until it restarts: it refuses this machine's own tailnet address while it answers locally.
+func (t T3) AwaitsRestart(tailnetIP string) bool {
+	if tailnetIP == "" || !t.NetworkAccess() {
+		return false
+	}
+	port := strconv.Itoa(t.Port())
+	if !answers(net.JoinHostPort("127.0.0.1", port)) {
+		return false
+	}
+	return !answers(net.JoinHostPort(tailnetIP, port))
+}
+
+func answers(addr string) bool {
+	c, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 // EnableNetworkAccess turns on the desktop app's Network access, which it reads when it starts, keeping

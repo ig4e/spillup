@@ -10,7 +10,9 @@ type T3State struct {
 	Port      int  `json:"port,omitempty"`
 	LinkingOn bool `json:"linking_on,omitempty"`
 	// NetworkAccess: other machines can reach this T3; the desktop app answers only itself until it's on.
-	NetworkAccess bool   `json:"network_access"`
+	NetworkAccess bool `json:"network_access"`
+	// AwaitsRestart: Network access is on, but T3 Code hasn't restarted since, so it still answers only itself.
+	AwaitsRestart bool   `json:"awaits_restart,omitempty"`
 	Linked        string `json:"linked,omitempty"`
 	Problem       string `json:"problem,omitempty"`
 }

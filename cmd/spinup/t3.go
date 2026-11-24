@@ -30,7 +30,7 @@ func (cliBackend) T3State(ctx context.Context) webui.T3State {
 		return webui.T3State{App: t3code.AppPresent(t3.Home)}
 	}
 	linked, err := t3.Linked(ctx)
-	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked, LinkingOn: t3.LinkingOn(), NetworkAccess: t3.NetworkAccess()}
+	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked, LinkingOn: t3.LinkingOn(), NetworkAccess: t3.NetworkAccess(), AwaitsRestart: t3.AwaitsRestart(selfTailnetIP(ctx))}
 	if err != nil {
 		st.Problem = err.Error()
 	}
@@ -117,6 +117,8 @@ func syncT3Links(ctx context.Context) (string, error) {
 	for _, m := range withT3 {
 		if !m.state.NetworkAccess {
 			failed = append(failed, fmt.Sprintf("%s's T3 Code answers only itself: open T3 Code there, Settings → Sharing & access → Network access (or set T3 Code up again there), then restart it", m.name))
+		} else if m.state.AwaitsRestart {
+			failed = append(failed, fmt.Sprintf("quit and reopen T3 Code on %s: its Network access is on, but it hasn't restarted since, so other machines can't reach it yet", m.name))
 		}
 		if m.state.LinkingOn {
 			continue
@@ -227,6 +229,11 @@ func keepT3Linked(ctx context.Context, cfg config.Config, logger *log.Logger) {
 		return
 	}
 	for sleepCtx(ctx, t3SyncEvery); ctx.Err() == nil; sleepCtx(ctx, t3SyncEvery) {
+		if n, err := fixT3QuotaKeys(); err != nil {
+			logger.Printf("T3 Code quota: %v", err)
+		} else if n > 0 {
+			logger.Printf("T3 Code quota: gave %d source(s) the management key", n)
+		}
 		rep, err := localService(cfg, "").report()
 		if err != nil || !rep.Leading {
 			continue
@@ -265,6 +272,52 @@ func setUpT3(ctx context.Context) error {
 	} else if changed {
 		step("Turned on the T3 Code app's Network access: restart T3 Code once so your other machines can reach it")
 	}
+	if n, err := fixT3QuotaKeys(); err != nil {
+		return err
+	} else if n > 0 {
+		step("Gave T3 Code's usage limits CLIProxyAPI's management key, which they need to read quotas")
+	}
 	step("Starting T3 Code's background service at boot, on your LAN and tailnet (a pairing code guards it)")
 	return t3.Up(ctx)
+}
+
+// fixT3QuotaKeys gives T3 Code's usage-limit sources that read this machine's CLIProxyAPI its management
+// key, in place of the API key they're often given, which CLIProxyAPI refuses for quotas.
+func fixT3QuotaKeys() (int, error) {
+	t3, err := t3code.Find()
+	if err != nil {
+		return 0, nil
+	}
+	cfg, err := config.Load()
+	if err != nil || !cfg.Hold.CanHold() {
+		return 0, nil
+	}
+	s, err := config.LoadSecrets(cfg)
+	if err != nil {
+		return 0, nil
+	}
+	return t3.FixQuotaKeys(cfg.Port, s.ManagementPassword)
+}
+
+// staleT3QuotaSources are those fixT3QuotaKeys would fix.
+func staleT3QuotaSources(t3 t3code.T3) int {
+	cfg, err := config.Load()
+	if err != nil || !cfg.Hold.CanHold() {
+		return 0
+	}
+	s, err := config.LoadSecrets(cfg)
+	if err != nil {
+		return 0
+	}
+	return len(t3.StaleQuotaSources(cfg.Port, s.ManagementPassword))
+}
+
+// selfTailnetIP is this machine's Tailscale address, or "" while Tailscale isn't up.
+func selfTailnetIP(ctx context.Context) string {
+	cfg, _ := config.Load()
+	st, err := tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
+	if err != nil {
+		return ""
+	}
+	return st.Self.IP
 }
