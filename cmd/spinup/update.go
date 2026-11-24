@@ -47,7 +47,7 @@ func (updateCmd) Run() error {
 		{"CLIProxyAPI", updateProxy},
 		{"skills", func(ctx context.Context) error { return syncSkills(ctx, repoData()) }},
 		{"packages", syncPackages},
-		{"Tailscale", tailnet.Update},
+		{"Tailscale", updateTailscale},
 	} {
 		if err := part.run(ctx); err != nil {
 			step("%s: %v", part.name, err)
@@ -233,4 +233,15 @@ func fileHash(path string) ([]byte, error) {
 		return nil, err
 	}
 	return h.Sum(nil), nil
+}
+
+// updateTailscale updates Tailscale where it can do so without a question: an update the dashboard or the
+// service started has no terminal for sudo's password, and Tailscale keeps working until the next one run
+// in a terminal, or until the system's package manager updates it.
+func updateTailscale(ctx context.Context) error {
+	if runtime.GOOS != "windows" && !interactive() && os.Getenv("SUDO_ASKPASS") == "" && exec.Command("sudo", "-n", "true").Run() != nil {
+		step("Tailscale: left as it is (updating it needs your password; run spinup update in a terminal)")
+		return nil
+	}
+	return tailnet.Update(ctx)
 }
