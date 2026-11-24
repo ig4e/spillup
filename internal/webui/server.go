@@ -50,6 +50,7 @@ type Backend interface {
 	T3Link(ctx context.Context, url, code string) error
 	SyncT3(ctx context.Context) (string, error)
 	T3Setup(ctx context.Context) error
+	T3EnableLinking() error
 
 	// Apps are the AI apps installed here, for hints that fit this machine.
 	Apps() []App
@@ -159,6 +160,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("t3/link", s.serveT3Link)
 	change("t3/sync", s.serveT3Sync)
 	change("t3/setup", s.serveT3Setup)
+	change("t3/linking", s.serveT3Linking)
 
 	change("fix", s.serveFix)
 	change("setup", s.serveSetup)

@@ -113,9 +113,9 @@ func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		why := strings.TrimSpace(lastLine(stderr.String()))
+		why := reason(stderr.String())
 		if why == "" {
-			why = strings.TrimSpace(lastLine(string(out)))
+			why = reason(string(out))
 		}
 		if why == "" {
 			why = "no reason given"
@@ -123,6 +123,22 @@ func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {
 		return out, fmt.Errorf("t3 %s: %s (%w)", strings.Join(args[:min(2, len(args))], " "), why, err)
 	}
 	return out, nil
+}
+
+// reason is the line of T3's output that says what went wrong: its error line, not the stack under it.
+func reason(out string) string {
+	var last string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "at ") {
+			continue
+		}
+		if i := strings.Index(line, "Error: "); i >= 0 {
+			return strings.TrimSpace(line[i+len("Error: "):])
+		}
+		last = line
+	}
+	return last
 }
 
 func lastLine(s string) string {

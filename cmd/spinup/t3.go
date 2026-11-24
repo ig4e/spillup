@@ -30,7 +30,7 @@ func (cliBackend) T3State(ctx context.Context) webui.T3State {
 		return webui.T3State{App: t3code.AppPresent(t3.Home)}
 	}
 	linked, err := t3.Linked(ctx)
-	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked}
+	st := webui.T3State{Installed: true, App: true, Port: t3.Port(), Linked: linked, LinkingOn: t3.LinkingOn()}
 	if err != nil {
 		st.Problem = err.Error()
 	}
@@ -56,6 +56,15 @@ func (cliBackend) T3Link(ctx context.Context, url, code string) error {
 
 func (cliBackend) SyncT3(ctx context.Context) (string, error) { return syncT3Links(ctx) }
 
+func (cliBackend) T3EnableLinking() error {
+	t3, err := t3code.Find()
+	if err != nil {
+		return err
+	}
+	_, err = t3.EnableLinking()
+	return err
+}
+
 func (cliBackend) T3Setup(ctx context.Context) error { return setUpT3(ctx) }
 
 // t3Machine is one machine's T3 Code, here or reached through its dashboard over the tailnet.
@@ -65,8 +74,14 @@ type t3Machine struct {
 	state         webui.T3State
 }
 
+// url is where other machines link to this T3: its Tailscale name, which T3 accepts over plain http,
+// unlike a bare address.
 func (m t3Machine) url() string {
-	return "http://" + net.JoinHostPort(m.ip, strconv.Itoa(m.state.Port))
+	host := m.dns
+	if host == "" {
+		host = m.ip
+	}
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(m.state.Port))
 }
 
 // syncT3Links links every machine's T3 Code to every other's, so agents on any of them can hand work to
@@ -99,6 +114,23 @@ func syncT3Links(ctx context.Context) (string, error) {
 		}
 	}
 	linked, failed := 0, []string{}
+	for _, m := range withT3 {
+		if m.state.LinkingOn {
+			continue
+		}
+		var err error
+		if m.self {
+			err = cliBackend{}.T3EnableLinking()
+		} else {
+			err = bridgeCall(ctx, m.name, http.MethodPost, "t3/linking", struct{}{}, nil)
+		}
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("turn on linking on %s: %v", m.name, err))
+		}
+	}
+	if len(failed) == 0 {
+		time.Sleep(2 * time.Second)
+	}
 	for _, from := range withT3 {
 		for _, to := range withT3 {
 			if from.name == to.name || t3code.LinksTo(from.state.Linked, to.ip, to.name, to.dns) {

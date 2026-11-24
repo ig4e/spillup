@@ -47,6 +47,7 @@ func (*fakeBackend) RestartService() error                           { return ni
 func (*fakeBackend) AnswerSetup(string, bool) error                  { return nil }
 func (*fakeBackend) SetHubOnly(bool) error                           { return nil }
 func (*fakeBackend) ScanDevices(context.Context) ([]Device, error)   { return nil, nil }
+func (*fakeBackend) T3EnableLinking() error                          { return nil }
 func (*fakeBackend) T3Setup(context.Context) error                   { return nil }
 func (*fakeBackend) RunFix(context.Context, string) (string, error)  { return "", nil }
 func (*fakeBackend) StartSetup(string, string) error                 { return nil }

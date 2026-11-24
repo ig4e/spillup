@@ -75,3 +75,10 @@ func TestTheDesktopAppsLauncherIsFoundOffPath(t *testing.T) {
 		t.Fatalf("with the launcher: %+v %v", t3, err)
 	}
 }
+
+func TestReasonIsT3sErrorLineNotItsStack(t *testing.T) {
+	out := "[02:34:27] ERROR (#2): PeerLinkError: The peer refused to register this environment: Linked environments is off.\n    at environment.runWithPeerLinks (file:///x.mjs:1:2)\n"
+	if got := reason(out); got != "The peer refused to register this environment: Linked environments is off." {
+		t.Errorf("reason = %q", got)
+	}
+}

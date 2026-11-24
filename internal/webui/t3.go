@@ -8,6 +8,7 @@ type T3State struct {
 	Installed bool   `json:"installed"`
 	App       bool   `json:"app"`
 	Port      int    `json:"port,omitempty"`
+	LinkingOn bool   `json:"linking_on,omitempty"`
 	Linked    string `json:"linked,omitempty"`
 	Problem   string `json:"problem,omitempty"`
 }
@@ -52,6 +53,10 @@ func (s *Server) serveT3Link(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serveT3Setup(w http.ResponseWriter, r *http.Request) {
 	answer(w, s.b.T3Setup(r.Context()), "T3 Code starts at boot now, with linking on. The main machine links it to your other machines within a few minutes.")
+}
+
+func (s *Server) serveT3Linking(w http.ResponseWriter, _ *http.Request) {
+	answer(w, s.b.T3EnableLinking(), "Linked environments are on.")
 }
 
 func (s *Server) serveT3Sync(w http.ResponseWriter, r *http.Request) {
