@@ -57,6 +57,8 @@ type Config struct {
 	// LegacyKeys are API keys this machine's tools used with an earlier CLIProxyAPI; the router swaps
 	// them for the fleet's key, so those tools keep working unchanged.
 	LegacyKeys []string `json:"legacy_keys,omitempty"`
+	// RemotePort is moonlight-web's, the browser remote desktop client, on 127.0.0.1 only.
+	RemotePort int `json:"remote_port"`
 	// UIPort is where the service hosts the dashboard, on 127.0.0.1 only; 0 turns it off.
 	UIPort int `json:"ui_port"`
 	// OwnAuthDir keeps this machine's own logins; nothing syncs it, so no other machine refreshes them.
@@ -107,6 +109,7 @@ func Defaults() Config {
 		AuthDir:              filepath.Join(home(), ".cli-proxy-api"),
 		OwnProxyPort:         8328,
 		UIPort:               8320,
+		RemotePort:           8322,
 		AutoUpdate:           true,
 		OwnAuthDir:           filepath.Join(home(), ".cli-proxy-api-own"),
 	}

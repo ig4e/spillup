@@ -237,3 +237,21 @@ export interface Stats {
   processes: Process[];
   process_count: number;
 }
+
+export interface RemoteHost {
+  id: number;
+  name: string;
+  machine?: string;
+  paired: boolean;
+  state?: string;
+}
+
+export interface RemoteState {
+  sunshine_installed: boolean;
+  sunshine_running: boolean;
+  moonlight_installed: boolean;
+  web_installed: boolean;
+  web_running: boolean;
+  problem?: string;
+  hosts: RemoteHost[];
+}

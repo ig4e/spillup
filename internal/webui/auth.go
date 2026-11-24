@@ -87,7 +87,7 @@ func loopbackHost(hostport string) bool {
 // so its calls must carry this dashboard's Origin instead.
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
-	if isPanelAPI(r.URL.Path) {
+	if isPanelAPI(r.URL.Path) || isRemoteWeb(r.URL.Path) {
 		return origin == "http://"+r.Host
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))

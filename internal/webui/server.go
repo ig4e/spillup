@@ -15,6 +15,7 @@ import (
 	"github.com/darkyeg/spinup/internal/doctor"
 	"github.com/darkyeg/spinup/internal/logins"
 	"github.com/darkyeg/spinup/internal/proxy"
+	"github.com/darkyeg/spinup/internal/remoteweb"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/sysinfo"
 	"github.com/darkyeg/spinup/internal/tailnet"
@@ -68,6 +69,14 @@ type Backend interface {
 	// RestartService restarts the accounts service and the dashboard it hosts.
 	RestartService() error
 
+	// Remote desktop: this machine's Sunshine, Moonlight and moonlight-web, PINs for Sunshine, pairing the
+	// other machines, setting it up, and where moonlight-web answers.
+	RemoteState(ctx context.Context) RemoteState
+	SunshinePIN(ctx context.Context, pin, name, fromIP string) error
+	RemoteSync(ctx context.Context) (string, error)
+	RemoteSetup() error
+	RemoteWebPort() int
+
 	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
 	Panel(target string) (Panel, error)
 
@@ -110,7 +119,7 @@ const (
 )
 
 // localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
-var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true}
+var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true}
 
 func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	admit := s.needsSession
@@ -167,6 +176,10 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read("setup", s.serveSetupProgress)
 	change("setup/answer", s.serveSetupAnswer)
 
+	read("remote", s.serveRemoteState)
+	change("sunshine/pin", s.serveSunshinePin)
+	change("remote/sync", s.serveRemoteSync)
+	change("remote/setup", s.serveRemoteSetup)
 	read("stats", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.stats.Stats()) })
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)
@@ -205,6 +218,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
 
 	s.panelRoutes(mux, s.needsSession)
+	for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
+		mux.HandleFunc(method+" "+remoteweb.Prefix+"/", s.needsSession(s.serveRemoteWeb))
+	}
 	mux.HandleFunc("GET /", s.serveApp)
 	return s.guard(securityHeaders(mux))
 }
@@ -246,7 +262,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		if strings.HasPrefix(r.URL.Path, "/cpa/") {
+		if strings.HasPrefix(r.URL.Path, "/cpa/") || isRemoteWeb(r.URL.Path) {
 			h.Set("X-Frame-Options", "SAMEORIGIN")
 			h.Set("Content-Security-Policy", "frame-ancestors 'self'")
 		} else {

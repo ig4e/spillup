@@ -177,6 +177,11 @@ export async function mock(method: string, fullPath: string, body: any): Promise
             { name: "antigravity-work@example.com.json", status: "active", status_message: "", unavailable: false, disabled: false },
           ],
         };
+      case "remote":
+        return {
+          sunshine_installed: true, sunshine_running: true, moonlight_installed: true, web_installed: true, web_running: true,
+          hosts: [{ id: 1, name: "DESKTOP-7Q2", machine: "desktop", paired: true, state: "Free" }, { id: 2, name: "nas", machine: "nas", paired: false, state: "Free" }],
+        };
       case "machines/scan":
         await wait(900);
         return [
@@ -200,6 +205,13 @@ export async function mock(method: string, fullPath: string, body: any): Promise
     case "own":
       own.providers = body.providers;
       return { message: body.providers.length ? `This machine now signs in to ${body.providers.join(", ")} by itself.` : "Every provider uses the shared accounts again." };
+    case "remote/sync":
+      await wait(1200);
+      return { message: "1 machine(s) newly paired for remote desktop." };
+    case "remote/setup":
+      return { message: "Setting up remote desktop…" };
+    case "sunshine/pin":
+      return { message: "Paired." };
     case "accounts/mode":
       hubOnly = body.hub_only;
       return { message: body.hub_only ? "Only the main machine keeps the logins now." : "Standbys keep copies again." };

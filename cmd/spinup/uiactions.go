@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
@@ -90,36 +91,28 @@ func (cliBackend) StartSetup(name, role string) error {
 	default:
 		return fmt.Errorf("no role called %q", role)
 	}
+	return startTask(args)
+}
+
+// startTask runs a spinup command for the dashboard, one at a time, and keeps what it prints; sudo's
+// questions and Windows' admin prompts reach you while it runs.
+func startTask(args []string) error {
 	setupRun.Lock()
 	defer setupRun.Unlock()
 	if setupRun.running {
-		return errors.New("setup is already running")
+		return errors.New("a setup is already running")
 	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(exe, args...)
-	sysproc.Hide(cmd)
 	setupRun.answers = make(chan string)
-	stopAsking, err := askForPasswords(cmd, exe)
+	out, wait, err := launchTask(exe, args)
 	if err != nil {
-		return err
-	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	cmd.Stderr = cmd.Stdout
-	if err := cmd.Start(); err != nil {
-		stopAsking()
 		return err
 	}
 	setupRun.running, setupRun.done, setupRun.failed, setupRun.log = true, false, "", nil
-	go func() {
-		followSetup(cmd, out)
-		stopAsking()
-	}()
+	go followSetup(out, wait)
 	return nil
 }
 
@@ -142,7 +135,7 @@ func (cliBackend) AnswerSetup(password string, cancel bool) error {
 	}
 }
 
-func followSetup(cmd *exec.Cmd, out interface{ Read([]byte) (int, error) }) {
+func followSetup(out io.Reader, wait func() error) {
 	sc := bufio.NewScanner(out)
 	for sc.Scan() {
 		setupRun.Lock()
@@ -152,7 +145,7 @@ func followSetup(cmd *exec.Cmd, out interface{ Read([]byte) (int, error) }) {
 		}
 		setupRun.Unlock()
 	}
-	err := cmd.Wait()
+	err := wait()
 	setupRun.Lock()
 	defer setupRun.Unlock()
 	setupRun.running, setupRun.done = false, true

@@ -48,6 +48,7 @@ func (c setupCmd) Run() error {
 		{"Skills", false, func(ctx context.Context) error { return syncSkills(ctx, repo) }},
 		{"Packages", false, syncPackages},
 		{"Agent config", false, func(context.Context) error { return installAgentConfig(repo) }},
+		{"Remote desktop", false, setUpRemote},
 		{"T3 Code", false, func(ctx context.Context) error {
 			if err := setUpT3(ctx); err != nil {
 				return err

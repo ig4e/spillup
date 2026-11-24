@@ -17,6 +17,8 @@ import (
 type Release struct {
 	Version string
 	assets  map[string]string
+	// digests are GitHub's own SHA-256 of each asset, for projects that publish no checksums.txt.
+	digests map[string]string
 }
 
 // Latest is the newest release of repo ("owner/name").
@@ -24,8 +26,9 @@ func Latest(ctx context.Context, repo string) (Release, error) {
 	var raw struct {
 		TagName string `json:"tag_name"`
 		Assets  []struct {
-			Name string `json:"name"`
-			URL  string `json:"browser_download_url"`
+			Name   string `json:"name"`
+			URL    string `json:"browser_download_url"`
+			Digest string `json:"digest"`
 		} `json:"assets"`
 	}
 	data, err := get(ctx, "https://api.github.com/repos/"+repo+"/releases/latest")
@@ -35,14 +38,24 @@ func Latest(ctx context.Context, repo string) (Release, error) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return Release{}, fmt.Errorf("%s releases: %w", repo, err)
 	}
-	rel := Release{Version: strings.TrimPrefix(raw.TagName, "v"), assets: map[string]string{}}
+	rel := Release{Version: strings.TrimPrefix(raw.TagName, "v"), assets: map[string]string{}, digests: map[string]string{}}
 	for _, a := range raw.Assets {
 		rel.assets[a.Name] = a.URL
+		if d, ok := strings.CutPrefix(a.Digest, "sha256:"); ok {
+			rel.digests[a.Name] = d
+		}
 	}
 	return rel, nil
 }
 
-// Fetch downloads one file of the release and refuses it unless it matches checksums.txt.
+// Has reports whether the release has a file called name.
+func (r Release) Has(name string) bool {
+	_, ok := r.assets[name]
+	return ok
+}
+
+// Fetch downloads one file of the release and refuses it unless it matches checksums.txt, or, for a
+// project that publishes none, the SHA-256 GitHub records for it.
 func (r Release) Fetch(ctx context.Context, name string) ([]byte, error) {
 	url, ok := r.assets[name]
 	if !ok {
@@ -50,7 +63,7 @@ func (r Release) Fetch(ctx context.Context, name string) ([]byte, error) {
 	}
 	sumsURL, ok := r.assets["checksums.txt"]
 	if !ok {
-		return nil, fmt.Errorf("release %s has no checksums.txt", r.Version)
+		return r.fetchByDigest(ctx, name, url)
 	}
 	data, err := get(ctx, url)
 	if err != nil {
@@ -62,6 +75,21 @@ func (r Release) Fetch(ctx context.Context, name string) ([]byte, error) {
 	}
 	sum := sha256.Sum256(data)
 	if want := checksumFor(string(sums), name); want == "" || want != hex.EncodeToString(sum[:]) {
+		return nil, fmt.Errorf("checksum mismatch for %s: refusing it", name)
+	}
+	return data, nil
+}
+
+func (r Release) fetchByDigest(ctx context.Context, name, url string) ([]byte, error) {
+	want, ok := r.digests[name]
+	if !ok {
+		return nil, fmt.Errorf("release %s has no checksums.txt and GitHub records no digest for %s", r.Version, name)
+	}
+	data, err := get(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != want {
 		return nil, fmt.Errorf("checksum mismatch for %s: refusing it", name)
 	}
 	return data, nil

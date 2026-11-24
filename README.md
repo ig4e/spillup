@@ -46,6 +46,7 @@ spinup setup my-desktop --hub
 | ✨ **The same agents, everywhere** | Skills, agent instructions and plugins live in one library that every machine keeps identical. Change it anywhere; the rest follow within seconds. |
 | 🖥️ **One dashboard for the fleet** | Always on at `http://localhost:8320`. From the main machine, open any other machine's dashboard too. |
 | 🩺 **A straight answer when something breaks** | `spinup doctor` (or the Doctor page) checks everything and gives the fix for each problem. |
+| 🖥️ **Remote desktop to every machine** | Sunshine on each machine, Moonlight as the app, and a browser client right in the dashboard: reach and control any machine from any other, paired over Tailscale with no PINs to type. |
 | ⬆️ **Keeps itself current** | spillup updates itself (switch it off under Updates), handing the accounts on first so nothing is cut off. |
 
 Under the hood: [Tailscale](https://tailscale.com) connects your machines privately, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) shares the accounts, and one Go binary with no dependencies runs it all, 24/7, from boot.
@@ -205,6 +206,7 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
 | `spinup t3 [setup\|link]` | T3 Code at boot, and linked between every machine |
+| `spinup remote [setup\|pair]` | Remote desktop: Sunshine, Moonlight and the browser client, paired between every machine |
 
 `spinup <command> --help` explains each one.
 

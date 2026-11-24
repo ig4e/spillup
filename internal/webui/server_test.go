@@ -29,35 +29,40 @@ func (*fakeBackend) Facts() webuiFacts {
 func (*fakeBackend) Report(context.Context) (api.Report, error) {
 	return api.Report{Name: "desk", Hold: config.HoldHub, Leading: true}, nil
 }
-func (*fakeBackend) Tailnet(context.Context) (tailnet.Status, error) { return tailnet.Status{}, nil }
-func (*fakeBackend) Doctor(context.Context) []doctor.Section         { return nil }
-func (*fakeBackend) Keys() (config.Secrets, error)                   { return config.Secrets{APIKey: "k"}, nil }
-func (*fakeBackend) HandOff(string) error                            { return errors.New("no") }
-func (*fakeBackend) TakeOver() error                                 { return nil }
-func (b *fakeBackend) MakeMain(m string) error                       { b.mainTo = m; return nil }
-func (*fakeBackend) RestartProxy() error                             { return nil }
-func (*fakeBackend) Skills() skills.Manager                          { return skills.Manager{} }
-func (*fakeBackend) CatchUpLibrary()                                 {}
-func (*fakeBackend) OwnLogins() ([]logins.Summary, error)            { return nil, nil }
-func (*fakeBackend) SetOwn(context.Context, []string) error          { return nil }
-func (*fakeBackend) T3State(context.Context) T3State                 { return T3State{} }
-func (*fakeBackend) T3Pair(context.Context, string) (string, error)  { return "", nil }
-func (*fakeBackend) T3Link(context.Context, string, string) error    { return nil }
-func (*fakeBackend) RestartService() error                           { return nil }
-func (*fakeBackend) AnswerSetup(string, bool) error                  { return nil }
-func (*fakeBackend) SetHubOnly(bool) error                           { return nil }
-func (*fakeBackend) ScanDevices(context.Context) ([]Device, error)   { return nil, nil }
-func (*fakeBackend) T3EnableLinking() error                          { return nil }
-func (*fakeBackend) T3Setup(context.Context) error                   { return nil }
-func (*fakeBackend) RunFix(context.Context, string) (string, error)  { return "", nil }
-func (*fakeBackend) StartSetup(string, string) error                 { return nil }
-func (*fakeBackend) SetupProgress() SetupProgress                    { return SetupProgress{} }
-func (*fakeBackend) SyncT3(context.Context) (string, error)          { return "", nil }
-func (*fakeBackend) UpdateState(context.Context) Update              { return Update{Current: "test"} }
-func (*fakeBackend) Apps() []App                                     { return nil }
-func (*fakeBackend) StartUpdate() error                              { return nil }
-func (*fakeBackend) SetAutoUpdate(bool) error                        { return nil }
-func (*fakeBackend) Remote(string) (Remote, error)                   { return Remote{}, errors.New("no remote in tests") }
+func (*fakeBackend) Tailnet(context.Context) (tailnet.Status, error)           { return tailnet.Status{}, nil }
+func (*fakeBackend) Doctor(context.Context) []doctor.Section                   { return nil }
+func (*fakeBackend) Keys() (config.Secrets, error)                             { return config.Secrets{APIKey: "k"}, nil }
+func (*fakeBackend) HandOff(string) error                                      { return errors.New("no") }
+func (*fakeBackend) TakeOver() error                                           { return nil }
+func (b *fakeBackend) MakeMain(m string) error                                 { b.mainTo = m; return nil }
+func (*fakeBackend) RestartProxy() error                                       { return nil }
+func (*fakeBackend) Skills() skills.Manager                                    { return skills.Manager{} }
+func (*fakeBackend) CatchUpLibrary()                                           {}
+func (*fakeBackend) OwnLogins() ([]logins.Summary, error)                      { return nil, nil }
+func (*fakeBackend) SetOwn(context.Context, []string) error                    { return nil }
+func (*fakeBackend) T3State(context.Context) T3State                           { return T3State{} }
+func (*fakeBackend) T3Pair(context.Context, string) (string, error)            { return "", nil }
+func (*fakeBackend) T3Link(context.Context, string, string) error              { return nil }
+func (*fakeBackend) RemoteState(context.Context) RemoteState                   { return RemoteState{} }
+func (*fakeBackend) SunshinePIN(context.Context, string, string, string) error { return nil }
+func (*fakeBackend) RemoteSync(context.Context) (string, error)                { return "", nil }
+func (*fakeBackend) RemoteSetup() error                                        { return nil }
+func (*fakeBackend) RemoteWebPort() int                                        { return 1 }
+func (*fakeBackend) RestartService() error                                     { return nil }
+func (*fakeBackend) AnswerSetup(string, bool) error                            { return nil }
+func (*fakeBackend) SetHubOnly(bool) error                                     { return nil }
+func (*fakeBackend) ScanDevices(context.Context) ([]Device, error)             { return nil, nil }
+func (*fakeBackend) T3EnableLinking() error                                    { return nil }
+func (*fakeBackend) T3Setup(context.Context) error                             { return nil }
+func (*fakeBackend) RunFix(context.Context, string) (string, error)            { return "", nil }
+func (*fakeBackend) StartSetup(string, string) error                           { return nil }
+func (*fakeBackend) SetupProgress() SetupProgress                              { return SetupProgress{} }
+func (*fakeBackend) SyncT3(context.Context) (string, error)                    { return "", nil }
+func (*fakeBackend) UpdateState(context.Context) Update                        { return Update{Current: "test"} }
+func (*fakeBackend) Apps() []App                                               { return nil }
+func (*fakeBackend) StartUpdate() error                                        { return nil }
+func (*fakeBackend) SetAutoUpdate(bool) error                                  { return nil }
+func (*fakeBackend) Remote(string) (Remote, error)                             { return Remote{}, errors.New("no remote in tests") }
 
 func (b *fakeBackend) Panel(target string) (Panel, error) {
 	if p, ok := b.panels[target]; ok {

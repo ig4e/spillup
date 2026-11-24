@@ -8,6 +8,7 @@ import {
   Search,
   KeyRound,
   LogIn,
+  MonitorSmartphone,
   Network,
   PanelLeft,
   Server,
@@ -29,6 +30,7 @@ import { DoctorPage } from "./pages/Doctor";
 import { MachinesPage } from "./pages/Machines";
 import { OverviewPage } from "./pages/Overview";
 import { ProxyPage } from "./pages/Proxy";
+import { RemotePage } from "./pages/Remote";
 import { SettingsPage } from "./pages/Settings";
 import { SignInPage } from "./pages/SignIn";
 import { SkillsPage } from "./pages/Skills";
@@ -61,6 +63,7 @@ const sections: { title: string; pages: Page[] }[] = [
       { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
       { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
       { path: "/activity", label: "Activity", icon: Activity, color: "teal", page: ActivityPage, bleed: true },
+      { path: "/desktop", label: "Remote", icon: MonitorSmartphone, color: "indigo", page: RemotePage, bleed: true },
     ],
   },
   {

@@ -62,6 +62,7 @@ func (c daemonCmd) Run() error {
 	go hostDashboard(ctx, cfg.UIPort, logger)
 	go keepT3Linked(ctx, cfg, logger)
 	go keepUpdated(ctx, logger)
+	go keepRemoteWeb(ctx, logger)
 	if err := service.New(o).Run(ctx); err != nil {
 		logger.Printf("stopped: %v", err)
 		return err
