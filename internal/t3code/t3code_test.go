@@ -12,6 +12,9 @@ func TestLinksToMatchesTheHostInAURL(t *testing.T) {
 	if !LinksTo(linked, "100.88.30.17") {
 		t.Error("the linked desktop wasn't found")
 	}
+	if !LinksTo(`[{"url":"http://my-desktop.tail1234.ts.net:3773"}]`, "100.1.2.3", "my-desktop") {
+		t.Error("a link under the MagicDNS name wasn't found")
+	}
 	if LinksTo(linked, "100.88.30.1") || LinksTo(linked, "") || LinksTo("[]", "100.88.30.17") {
 		t.Error("matched a host that isn't linked")
 	}

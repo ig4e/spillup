@@ -56,13 +56,13 @@ func (cliBackend) T3Link(ctx context.Context, url, code string) error {
 
 func (cliBackend) SyncT3(ctx context.Context) (string, error) { return syncT3Links(ctx) }
 
-func (cliBackend) T3Setup(ctx context.Context) error { return setUpT3(ctx, installAlways) }
+func (cliBackend) T3Setup(ctx context.Context) error { return setUpT3(ctx) }
 
 // t3Machine is one machine's T3 Code, here or reached through its dashboard over the tailnet.
 type t3Machine struct {
-	name, ip string
-	self     bool
-	state    webui.T3State
+	name, ip, dns string
+	self          bool
+	state         webui.T3State
 }
 
 func (m t3Machine) url() string {
@@ -82,14 +82,14 @@ func syncT3Links(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("Tailscale: %w", err)
 	}
 	b := cliBackend{}
-	machines := []t3Machine{{name: ts.Self.Name, ip: ts.Self.IP, self: true, state: b.T3State(ctx)}}
+	machines := []t3Machine{{name: ts.Self.Name, ip: ts.Self.IP, dns: ts.Self.DNSName, self: true, state: b.T3State(ctx)}}
 	for _, p := range ts.Peers {
 		if !p.Online {
 			continue
 		}
 		var st webui.T3State
 		if err := bridgeCall(ctx, p.Name, http.MethodGet, "t3", nil, &st); err == nil {
-			machines = append(machines, t3Machine{name: p.Name, ip: p.IP, state: st})
+			machines = append(machines, t3Machine{name: p.Name, ip: p.IP, dns: p.DNSName, state: st})
 		}
 	}
 	var withT3 []t3Machine
@@ -101,10 +101,14 @@ func syncT3Links(ctx context.Context) (string, error) {
 	linked, failed := 0, []string{}
 	for _, from := range withT3 {
 		for _, to := range withT3 {
-			if from.name == to.name || t3code.LinksTo(from.state.Linked, to.ip) {
+			if from.name == to.name || t3code.LinksTo(from.state.Linked, to.ip, to.name, to.dns) {
 				continue
 			}
-			if err := linkT3(ctx, from, to); err != nil {
+			err := linkT3(ctx, from, to)
+			if errors.Is(err, t3code.ErrAlreadyLinked) || err != nil && strings.Contains(err.Error(), t3code.ErrAlreadyLinked.Error()) {
+				continue
+			}
+			if err != nil {
 				failed = append(failed, fmt.Sprintf("%s → %s: %v", from.name, to.name, err))
 				continue
 			}
@@ -200,24 +204,11 @@ func keepT3Linked(ctx context.Context, cfg config.Config, logger *log.Logger) {
 	}
 }
 
-// t3Install says whether setting T3 up may install its command line: always when the user asks from the
-// dashboard, and from setup only where T3 Code already runs, so setup never brings T3 to a machine without it.
-type t3Install int
-
-const (
-	installIfPresent t3Install = iota
-	installAlways
-)
-
-// setUpT3 runs T3 Code's background service at boot, reachable on the LAN and tailnet, with linked
+// setUpT3 installs T3 Code's command line where it's missing, and runs its background service at boot, reachable on the LAN and tailnet, with linked
 // environments on, so the machine holding the accounts can link it to the others.
-func setUpT3(ctx context.Context, install t3Install) error {
+func setUpT3(ctx context.Context) error {
 	t3, err := t3code.Find()
 	if errors.Is(err, t3code.ErrNotInstalled) {
-		if install == installIfPresent && !t3code.AppPresent(t3.Home) {
-			step("T3 Code isn't installed here; skipping")
-			return nil
-		}
 		step("Installing T3 Code's command line")
 		if err := t3code.InstallCLI(ctx); err != nil {
 			return err

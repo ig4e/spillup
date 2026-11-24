@@ -1,4 +1,4 @@
-import type { App, Device, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { App, Device, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -85,6 +85,8 @@ export const api = {
   signOut: (name: string) => post("own/signout", { name }),
 
   apps: () => call<App[]>("GET", "apps"),
+  /** A machine's specs and load: this one, or another by name, whichever dashboard is shown. */
+  statsOf: (machine: string | null) => call<Stats>("GET", machine ? `remote/${encodeURIComponent(machine)}/stats` : "stats", undefined, true),
   proxyLogins: () => call<LoginStatus>("GET", "proxy/logins"),
   t3: () => call<T3State>("GET", "t3"),
   t3Sync: () => post("t3/sync"),

@@ -1,4 +1,5 @@
-import { AlertDialog, Button, Spinner } from "@heroui/react";
+import { AlertDialog } from "@heroui/react";
+import { Button } from "./Button";
 import { useState, type ReactNode } from "react";
 
 export interface ConfirmRequest {
@@ -43,12 +44,7 @@ export function useConfirm() {
                 }
               }}
             >
-              {({ isPending }) => (
-                <>
-                  {isPending ? <Spinner size="sm" color="current" /> : null}
-                  {request?.confirm}
-                </>
-              )}
+              <>{request?.confirm}</>
             </Button>
           </AlertDialog.Footer>
         </AlertDialog.Dialog>

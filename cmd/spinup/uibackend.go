@@ -121,9 +121,6 @@ func (cliBackend) Remote(machine string) (webui.Remote, error) {
 	if err != nil {
 		return webui.Remote{}, err
 	}
-	if s.ManagementPassword == "" {
-		return webui.Remote{}, errors.New("only the main machine and standbys can open other machines' dashboards")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	st, err := tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
@@ -135,7 +132,9 @@ func (cliBackend) Remote(machine string) (webui.Remote, error) {
 		return webui.Remote{}, fmt.Errorf("%s isn't on your tailnet", machine)
 	}
 	h := http.Header{}
-	h.Set(api.KeyHeader, s.ManagementPassword)
+	if s.ManagementPassword != "" {
+		h.Set(api.KeyHeader, s.ManagementPassword)
+	}
 	h.Set(api.APIKeyHeader, s.APIKey)
 	return webui.Remote{Base: &url.URL{Scheme: "http", Host: net.JoinHostPort(node.IP, strconv.Itoa(cfg.Port))}, Header: h}, nil
 }
@@ -166,13 +165,13 @@ func (cliBackend) Panel(target string) (webui.Panel, error) {
 		if s.ManagementPassword == "" {
 			return webui.Panel{}, errors.New("only the main machine and standbys keep the password for the shared accounts' dashboard")
 		}
-		if rep.Leading {
-			return webui.Panel{Port: cfg.ProxyPort, Key: s.ManagementPassword}, nil
+		if !rep.Leading {
+			if rep.Leader == "" {
+				return webui.Panel{}, errors.New("no machine holds the accounts right now, so there is no shared CLIProxyAPI to show")
+			}
+			return webui.Panel{}, fmt.Errorf("the shared accounts' CLIProxyAPI runs on %s, not here: open it there", rep.Leader)
 		}
-		if rep.Leader == "" {
-			return webui.Panel{}, errors.New("no machine holds the accounts right now, so there is no shared CLIProxyAPI to show")
-		}
-		return webui.Panel{Port: cfg.Port, Key: s.ManagementPassword}, nil
+		return webui.Panel{Port: cfg.ProxyPort, Key: s.ManagementPassword}, nil
 	}
 	return webui.Panel{}, fmt.Errorf("no CLIProxyAPI called %q", target)
 }

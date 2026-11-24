@@ -4,6 +4,7 @@ import {
   CloudDownload,
   Eye,
   Gauge,
+  Search,
   KeyRound,
   LogIn,
   Network,
@@ -19,7 +20,7 @@ import {
 import { createContext, useContext, useEffect, useState } from "react";
 import { Dot, IconTile, holdName, type Tint } from "./components/ui";
 import { api, setRemote } from "./lib/api";
-import { navigate, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
+import { navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
 import { DoctorPage } from "./pages/Doctor";
@@ -118,7 +119,7 @@ function Fleet({ remote }: { remote: string | null }) {
               <Page />
             </div>
           ) : (
-            <div className="mx-auto w-full max-w-[780px] px-5 py-8 sm:px-10 lg:py-12">
+            <div className="mx-auto w-full max-w-[760px] px-5 pb-12 sm:px-10">
               {remote ? <RemoteBanner name={remote} /> : null}
               <ConnectionNotice remote={remote} />
               <Page />
@@ -126,9 +127,14 @@ function Fleet({ remote }: { remote: string | null }) {
           )}
         </main>
       </div>
+      <BusyBar />
       <Toast.Provider placement="top end" />
     </OverviewContext.Provider>
   );
+}
+
+function BusyBar() {
+  return useBusy() ? <div className="busy-bar" role="progressbar" aria-label="Working…" /> : null;
 }
 
 function RemoteBanner({ name }: { name: string }) {
@@ -177,7 +183,7 @@ function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean;
       }}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? page.label : undefined}
-      className={`flex items-center gap-2.5 rounded-md py-[5px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+      className={`flex items-center gap-2.5 rounded-[8px] py-[5px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
         collapsed ? "justify-center px-1" : "px-2"
       } ${active ? "bg-accent text-white" : "text-foreground hover:bg-foreground/[0.06]"}`}
     >
@@ -195,13 +201,30 @@ function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean;
 }
 
 function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boolean; onToggle: () => void }) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = sections
+    .map((section) => ({ ...section, pages: section.pages.filter((p) => !q || p.label.toLowerCase().includes(q) || section.title.toLowerCase().includes(q)) }))
+    .filter((section) => section.pages.length);
   return (
     <aside
-      className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-separator bg-[var(--sidebar)] pt-3 pb-4 backdrop-blur-2xl backdrop-saturate-150 transition-[width] duration-200 lg:flex ${
-        collapsed ? "w-[60px] px-2" : "w-[236px] px-3"
+      className={`glass-sidebar sticky top-2 z-20 m-2 hidden h-[calc(100vh-16px)] shrink-0 flex-col rounded-[18px] pt-3 pb-3 transition-[width] duration-200 lg:flex ${
+        collapsed ? "w-[60px] px-2" : "w-[232px] px-2.5"
       }`}
     >
-      <div className={`mb-2 flex ${collapsed ? "justify-center" : "justify-end"}`}>
+      <div className={`mb-2 flex items-center gap-1.5 ${collapsed ? "justify-center" : ""}`}>
+        {collapsed ? null : (
+          <label className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-[8px] bg-foreground/[0.06] px-2 text-muted focus-within:ring-2 focus-within:ring-accent/50">
+            <Search className="size-3.5 shrink-0" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              aria-label="Search the sidebar"
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted"
+            />
+          </label>
+        )}
         <button
           type="button"
           onClick={onToggle}
@@ -211,9 +234,9 @@ function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boole
           <PanelLeft className="size-4" />
         </button>
       </div>
-      {collapsed ? null : <MachineCard />}
-      <nav className="mt-3 flex flex-1 flex-col overflow-y-auto">
-        {sections.map((section, i) => (
+      {collapsed || q ? null : <MachineCard />}
+      <nav className="mt-2 flex flex-1 flex-col overflow-y-auto">
+        {shown.map((section, i) => (
           <div key={section.title} className="mb-2">
             {collapsed ? (
               i > 0 ? <div className="mx-2 my-2 h-px bg-separator" /> : null
@@ -227,6 +250,7 @@ function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boole
             </div>
           </div>
         ))}
+        {!shown.length ? <div className="px-2 py-4 text-[13px] text-muted">No results</div> : null}
       </nav>
       {collapsed ? null : <HolderStatus />}
     </aside>
@@ -240,7 +264,7 @@ function MachineCard() {
   const machines = useQuery(api.localMachines, 15000);
   const name = data?.name || "This machine";
   const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online);
-  const canSwitch = !!local.data?.can_manage && (others.length > 0 || !!remote);
+  const canSwitch = others.length > 0 || !!remote;
 
   const card = (
     <span className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-foreground/[0.06]">

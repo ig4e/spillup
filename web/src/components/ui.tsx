@@ -1,5 +1,6 @@
-import { Button, Skeleton, Switch } from "@heroui/react";
-import { Apple, Check, ChevronRight, Copy, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
+import { Skeleton, Spinner, Switch } from "@heroui/react";
+import { Button } from "./Button";
+import { Apple, Check, ChevronLeft, ChevronRight, Copy, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { navigate } from "../lib/hooks";
 import type { Hold } from "../lib/types";
@@ -34,15 +35,25 @@ export function IconTile({ icon: Icon, color, size = "md" }: { icon: LucideIcon;
   );
 }
 
+/** The page's toolbar, as in Tahoe's apps: back and forward, the title, and the page's actions, on glass
+ * that stays put while the page scrolls under it. */
 export function LargeTitle({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="text-[30px] leading-tight font-bold tracking-[-0.022em]">{title}</h1>
-        {subtitle ? <p className="mt-1 max-w-2xl text-[15px] text-muted">{subtitle}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </header>
+    <>
+      <header className="glass-toolbar sticky top-0 z-10 -mx-5 mb-2 flex min-h-[52px] items-center gap-3 px-5 py-2 sm:-mx-10 sm:px-10">
+        <div className="flex shrink-0 overflow-hidden rounded-full bg-surface shadow-[0_0_0_0.5px_var(--border)]">
+          <button type="button" aria-label="Back" onClick={() => window.history.back()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
+            <ChevronLeft className="size-4" />
+          </button>
+          <button type="button" aria-label="Forward" onClick={() => window.history.forward()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">{title}</h1>
+        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      </header>
+      {subtitle ? <p className="mb-6 max-w-2xl text-[13px] text-muted">{subtitle}</p> : <div className="mb-4" />}
+    </>
   );
 }
 
@@ -51,7 +62,7 @@ export function Group({ title, footer, children, className = "" }: { title?: Rea
   return (
     <section className={`mb-7 ${className}`}>
       {title ? <h2 className="mb-1.5 px-1 text-[13px] font-semibold text-foreground/80">{title}</h2> : null}
-      <div className="group-list overflow-hidden rounded-xl bg-surface shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
+      <div className="group-list overflow-hidden rounded-xl bg-surface">
         {children}
       </div>
       {footer ? <p className="mt-1.5 px-1 text-xs leading-relaxed text-muted">{footer}</p> : null}
@@ -68,6 +79,7 @@ export function Row({
   to,
   onPress,
   tone,
+  busy,
 }: {
   icon?: ReactNode;
   title: ReactNode;
@@ -77,8 +89,10 @@ export function Row({
   to?: string;
   onPress?: () => void;
   tone?: "danger" | "accent";
+  /** busy shows a spinner and ignores presses while the row's action runs. */
+  busy?: boolean;
 }) {
-  const pressable = !!(to || onPress);
+  const pressable = !!(to || onPress) && !busy;
   const body = (
     <>
       {icon}
@@ -88,7 +102,8 @@ export function Row({
       </div>
       {value !== undefined ? <div className="shrink-0 text-[14px] text-muted">{value}</div> : null}
       {accessory}
-      {to ? <ChevronRight className="size-4 shrink-0 text-muted/60" /> : null}
+      {busy ? <Spinner size="sm" color="current" className="shrink-0 text-muted" /> : null}
+      {to && !busy ? <ChevronRight className="size-4 shrink-0 text-muted/60" /> : null}
     </>
   );
   const cls = `group-row relative flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left ${icon ? "group-row--icon" : ""}`;
@@ -159,7 +174,7 @@ export function Mono({ children, copy }: { children: string; copy?: boolean }) {
 
 export function Widget({ label, value, detail, icon }: { label: string; value: ReactNode; detail?: ReactNode; icon: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl bg-surface p-4 shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
+    <div className="flex flex-col gap-2 rounded-xl bg-surface p-4">
       <div className="flex items-center gap-2 text-xs font-medium text-muted">
         {icon}
         {label}

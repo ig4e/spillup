@@ -1,4 +1,5 @@
-import { Button, toast } from "@heroui/react";
+import { toast } from "@heroui/react";
+import { Button } from "./Button";
 import { LogIn } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
@@ -135,6 +136,7 @@ export function OwnLogins() {
           }
           title={busy === `signin-${p.id}` ? "Waiting for the browser…" : `Sign In to ${p.name}${mine.length ? " with Another Account" : ""}…`}
           tone="accent"
+          busy={busy === `signin-${p.id}`}
           onPress={busy ? undefined : () => signIn(p)}
         />,
       );

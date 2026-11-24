@@ -14,6 +14,7 @@ import (
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/release"
 	"github.com/darkyeg/spinup/internal/source"
+	"github.com/darkyeg/spinup/internal/t3code"
 	"github.com/darkyeg/spinup/internal/tailnet"
 	"github.com/darkyeg/spinup/internal/tools"
 )
@@ -45,6 +46,8 @@ func doctorSections(ctx context.Context) []doctor.Section {
 		accountsSection(ctx),
 		agentsSection(repo),
 		packagesSection(ctx),
+		proxySection(ctx),
+		t3Section(ctx),
 		doctor.Update(version, latestVersion(ctx, releases)),
 	}
 }
@@ -149,4 +152,40 @@ func latestVersion(ctx context.Context, repo string) string {
 		return ""
 	}
 	return rel.Version
+}
+
+func t3Section(ctx context.Context) doctor.Section {
+	t3, err := t3code.Find()
+	if err != nil {
+		return doctor.T3(doctor.T3Facts{App: t3code.AppPresent(t3.Home)})
+	}
+	f := doctor.T3Facts{Installed: true, App: true, ServiceAtBoot: t3.ServiceAtBoot(ctx), LinkingOn: t3.LinkingOn()}
+	linked, err := t3.Linked(ctx)
+	if err != nil {
+		f.Problem = err.Error()
+	}
+	f.Linked = t3code.LinkCount(linked)
+	return doctor.T3(f)
+}
+
+func proxySection(ctx context.Context) doctor.Section {
+	cfg, err := config.Load()
+	if err != nil {
+		return doctor.Section{}
+	}
+	f := doctor.ProxyFacts{Port: cfg.Port, OwnProviders: cfg.OwnModels}
+	r, err := localService(cfg, "").report()
+	if err != nil {
+		f.ForeignOnPort = proxy.AnswersOn(ctx, cfg.Port)
+		return doctor.Proxy(f)
+	}
+	f.Leading, f.Running, f.OwnRunning = r.Leading, r.ProxyRunning, r.OwnRunning
+	if r.Leading && r.ProxyRunning {
+		if s, err := config.LoadSecrets(cfg); err == nil {
+			if _, err := proxy.LoginStates(ctx, cfg.ProxyPort, s.ManagementPassword); err != nil {
+				f.KeyProblem = err.Error()
+			}
+		}
+	}
+	return doctor.Proxy(f)
 }

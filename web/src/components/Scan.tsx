@@ -1,4 +1,4 @@
-import { Button, Spinner } from "@heroui/react";
+import { Button } from "./Button";
 import { Radar } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
@@ -42,12 +42,7 @@ export function Scan() {
         subtitle={devices ? `${devices.filter((d) => d.spillup).length} of ${devices.length} devices run spillup` : undefined}
         accessory={
           <Button size="sm" variant="secondary" isPending={scanning} onPress={scan}>
-            {({ isPending }) => (
-              <>
-                {isPending ? <Spinner size="sm" color="current" /> : null}
-                {devices ? "Scan Again" : "Scan"}
-              </>
-            )}
+            <>{devices ? "Scan Again" : "Scan"}</>
           </Button>
         }
       />

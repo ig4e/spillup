@@ -1,4 +1,4 @@
-import { Button, Spinner } from "@heroui/react";
+import { Button } from "../components/Button";
 import { CloudDownload, RefreshCw, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
@@ -25,12 +25,7 @@ export function UpdatesPage() {
             <div className="mt-1 text-[14px] text-muted">This machine runs {data.current}.</div>
             {newer ? (
               <Button className="mt-5" isPending={pending === "update"} onPress={() => run("update", api.startUpdate)}>
-                {({ isPending }) => (
-                  <>
-                    {isPending ? <Spinner size="sm" color="current" /> : null}
-                    Update Now
-                  </>
-                )}
+                <>Update Now</>
               </Button>
             ) : null}
           </div>
@@ -55,6 +50,7 @@ export function UpdatesPage() {
               icon={<IconTile icon={RotateCcw} color="gray" />}
               title={pending === "restart" ? "Restarting…" : "Restart spillup"}
               tone="accent"
+              busy={pending === "restart"}
               onPress={pending ? undefined : () => run("restart", api.restart)}
             />
           </Group>

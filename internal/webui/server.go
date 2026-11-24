@@ -16,6 +16,7 @@ import (
 	"github.com/darkyeg/spinup/internal/logins"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
+	"github.com/darkyeg/spinup/internal/sysinfo"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
@@ -91,9 +92,12 @@ type Server struct {
 	// changing serializes edits, so two clicks never edit the library at once.
 	changing sync.Mutex
 	refusals refusals
+	stats    *sysinfo.Sampler
 }
 
-func New(b Backend, token string) *Server { return &Server{b: b, token: token, assets: assets()} }
+func New(b Backend, token string) *Server {
+	return &Server{b: b, token: token, assets: assets(), stats: sysinfo.NewSampler()}
+}
 
 // reach says who may call a dashboard route: the browser signed in here, or the main machine's dashboard
 // over the tailnet, which the service has already checked.
@@ -161,6 +165,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read("setup", s.serveSetupProgress)
 	change("setup/answer", s.serveSetupAnswer)
 
+	read("stats", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.stats.Stats()) })
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)
 

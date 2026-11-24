@@ -1,4 +1,5 @@
-import { Alert, Button } from "@heroui/react";
+import { Alert } from "@heroui/react";
+import { Button } from "../components/Button";
 import { Crown, KeyRound, Lock, Network, RefreshCw, Sparkles, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOverview } from "../App";

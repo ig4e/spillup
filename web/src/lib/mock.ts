@@ -132,6 +132,7 @@ export async function mock(method: string, fullPath: string, body: any): Promise
     return { ...o, name, hold, can_manage: hold !== "never", os: "windows", service: { ...o.service!, name, hold, leading: fleet.leader === name } };
   }
   if (method === "GET" && path.startsWith("own/signin?")) return { status: "ok" };
+  if (method === "GET" && fullPath.endsWith("stats")) return mockStats(viewing ?? "laptop");
   if (method === "GET") {
     switch (path) {
       case "overview":
@@ -267,4 +268,35 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       return { message: `${skills.shared.length} skills installed for claude, codex.` };
   }
   throw new Error(`mock: no ${method} ${path}`);
+}
+
+const statSeeds: Record<string, { cpu: number; cores: number; mem: number; model: string; os: string }> = {
+  laptop: { cpu: 18, cores: 16, mem: 32, model: "AMD Ryzen 7 7840U", os: "linux" },
+  desktop: { cpu: 42, cores: 24, mem: 64, model: "AMD Ryzen 9 7950X3D", os: "windows" },
+  nas: { cpu: 6, cores: 4, mem: 16, model: "Intel N100", os: "linux" },
+};
+function mockStats(name: string) {
+  const seed = statSeeds[name] ?? statSeeds.laptop;
+  const gb = 1024 ** 3;
+  const now = Date.now();
+  const history = Array.from({ length: 60 }, (_, i) => {
+    const wave = Math.sin((now / 4000 + i) / 4);
+    return {
+      at: new Date(now - (60 - i) * 2000).toISOString(),
+      cpu: Math.max(2, seed.cpu + wave * 12 + Math.random() * 6),
+      mem_used: seed.mem * gb * (0.48 + wave * 0.03),
+      disk_used: 610 * gb,
+      load1: seed.cores * (seed.cpu / 100) * (1 + wave * 0.2),
+      rx_rate: 1.2e6 * (1.5 + wave) + Math.random() * 3e5,
+      tx_rate: 3.4e5 * (1.4 + wave) + Math.random() * 1e5,
+      rx_total: 48 * gb,
+      tx_total: 9 * gb,
+      uptime: 3 * 86400 + 4 * 3600,
+    };
+  });
+  return {
+    specs: { hostname: name, os: seed.os, arch: "amd64", cpu_model: seed.model, cores: seed.cores, mem_total: seed.mem * gb, disk_total: 1000 * gb },
+    now: history[history.length - 1],
+    history,
+  };
 }

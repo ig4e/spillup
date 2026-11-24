@@ -1,8 +1,10 @@
-import { Alert, Button, Dropdown, Label, ListBox, Select } from "@heroui/react";
+import { Alert, Dropdown, Label, ListBox, Select } from "@heroui/react";
+import { Button } from "../components/Button";
 import { AppWindow, ArrowRightLeft, Crown, Ellipsis, KeyRound } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
 import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName, osTile } from "../components/ui";
+import { Resources } from "../components/Resources";
 import { Scan } from "../components/Scan";
 import { api, currentRemote, setRemote } from "../lib/api";
 import { relative } from "../lib/format";
@@ -111,6 +113,8 @@ export function MachinesPage() {
         />
       </Group>
 
+      {machines.data && !currentRemote() ? <Resources machines={all} /> : null}
+
       {machines.loading && !machines.data ? (
         <GroupSkeleton rows={4} />
       ) : (
@@ -132,7 +136,7 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
   const actions = [
     canHold && m.hold !== "hub" ? { id: "main", label: "Make Main Machine", icon: Crown } : null,
     canHold && !m.leading && m.online ? { id: "move", label: "Move Accounts Here Now", icon: ArrowRightLeft } : null,
-    !m.is_self && m.online && !currentRemote() ? { id: "open", label: "Open Dashboard", icon: AppWindow } : null,
+    !m.is_self && m.online && !currentRemote() && m.hold ? { id: "open", label: "Open Dashboard", icon: AppWindow } : null,
   ].filter((a): a is NonNullable<typeof a> => !!a);
 
   const status = m.expired ? "Tailscale login expired" : m.online ? "Online" : `Offline · seen ${relative(m.last_seen)}`;

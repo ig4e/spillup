@@ -1,4 +1,5 @@
-import { Alert, Button, Checkbox, Description, Input, Label, Modal, Spinner, Switch, Tabs, TextField } from "@heroui/react";
+import { Alert, Checkbox, Description, Input, Label, Modal, Switch, Tabs, TextField } from "@heroui/react";
+import { Button } from "../components/Button";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
@@ -23,11 +24,7 @@ export function SkillsPage() {
         actions={
           <>
             <Button variant="secondary" size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.syncSkills, skills.reload)}>
-              {({ isPending }) => (
-                <>
-                  {isPending ? <Spinner size="sm" color="current" /> : <RefreshCw className="size-3.5" />} Sync
-                </>
-              )}
+              <><RefreshCw className="size-3.5" />Sync</>
             </Button>
             <Button size="sm" onPress={() => setAddOpen(true)}>
               <Plus className="size-3.5" /> Add Skills
@@ -310,12 +307,7 @@ function AddSkills({ isOpen, onOpenChange, onAdded }: { isOpen: boolean; onOpenC
               Cancel
             </Button>
             <Button isDisabled={!valid} isPending={pending === "add"} onPress={submit}>
-              {({ isPending }) => (
-                <>
-                  {isPending ? <Spinner size="sm" color="current" /> : null}
-                  Add
-                </>
-              )}
+              <>Add</>
             </Button>
           </Modal.Footer>
         </Modal.Dialog>

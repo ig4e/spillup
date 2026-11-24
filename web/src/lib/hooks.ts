@@ -41,11 +41,30 @@ export function useQuery<T>(load: () => Promise<T>, every = 0): Query<T> {
   return { data, error, loading, reload };
 }
 
+let busyCount = 0;
+const busyListeners = new Set<() => void>();
+const setBusy = (delta: number) => {
+  busyCount += delta;
+  busyListeners.forEach((l) => l());
+};
+
+/** Whether any action anywhere in the dashboard is still running, for the bar across the top. */
+export function useBusy() {
+  return useSyncExternalStore(
+    (l) => {
+      busyListeners.add(l);
+      return () => busyListeners.delete(l);
+    },
+    () => busyCount > 0,
+  );
+}
+
 /** Runs a change, toasts its answer, then refreshes what it changed. */
 export function useAction() {
   const [pending, setPending] = useState<string | null>(null);
   const run = useCallback(async (key: string, change: () => Promise<Done>, after?: () => unknown) => {
     setPending(key);
+    setBusy(1);
     try {
       const done = await change();
       toast.success(done.message);
@@ -56,6 +75,7 @@ export function useAction() {
       return false;
     } finally {
       setPending(null);
+      setBusy(-1);
     }
   }, []);
   return { pending, run };

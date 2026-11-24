@@ -1,4 +1,5 @@
-import { Alert, Button, Spinner } from "@heroui/react";
+import { Alert, Spinner } from "@heroui/react";
+import { Button } from "../components/Button";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
 import { useState } from "react";
 import { Group, GroupSkeleton, LargeTitle, Row } from "../components/ui";
@@ -13,7 +14,7 @@ const mark: Record<Level, React.ReactNode> = {
 };
 
 // fixable is what the dashboard can run with one click; other fixes are things to do by hand.
-const fixable = /^spinup (skills|update|tools|agents|packages|t3)\b/;
+const fixable = /^spinup (skills|update|tools|agents|packages|t3|restart)\b/;
 
 export function DoctorPage() {
   const doctor = useQuery(api.doctor);
@@ -40,12 +41,7 @@ export function DoctorPage() {
               setRechecking(false);
             }}
           >
-            {({ isPending }) => (
-              <>
-                {isPending ? <Spinner size="sm" color="current" /> : null}
-                Check Again
-              </>
-            )}
+            <>Check Again</>
           </Button>
         }
       />

@@ -199,3 +199,32 @@ export interface SetupProgress {
   log: string[];
   prompt?: string;
 }
+
+export interface Specs {
+  hostname: string;
+  os: string;
+  arch: string;
+  cpu_model?: string;
+  cores: number;
+  mem_total: number;
+  disk_total?: number;
+}
+
+export interface Sample {
+  at: string;
+  cpu: number;
+  mem_used: number;
+  disk_used?: number;
+  load1?: number;
+  rx_rate: number;
+  tx_rate: number;
+  rx_total: number;
+  tx_total: number;
+  uptime: number;
+}
+
+export interface Stats {
+  specs: Specs;
+  now: Sample;
+  history: Sample[];
+}

@@ -3,6 +3,7 @@ package doctor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -151,14 +152,26 @@ func Accounts(svc Service, port int) Section {
 
 func loginsCheck(r api.Report, port int) Check {
 	counts := map[string]int{}
+	var kinds []string
 	for _, a := range r.Accounts {
-		counts[a.Type]++
+		kind := a.Type
+		if kind == "" {
+			kind = "other"
+		}
+		if counts[kind] == 0 {
+			kinds = append(kinds, kind)
+		}
+		counts[kind]++
 	}
-	label := fmt.Sprintf("logins: %d Claude, %d Codex", counts["claude"], counts["codex"])
-	if counts["claude"]+counts["codex"] == 0 {
-		return warn(label, fmt.Sprintf("add accounts: http://localhost:%d/management.html > OAuth Login", port))
+	if len(r.Accounts) == 0 {
+		return warn("no logins yet", fmt.Sprintf("add accounts: http://localhost:%d/management.html > OAuth Login", port))
 	}
-	return ok(label)
+	sort.Strings(kinds)
+	parts := make([]string, len(kinds))
+	for i, k := range kinds {
+		parts[i] = fmt.Sprintf("%d %s", counts[k], k)
+	}
+	return ok("logins: " + strings.Join(parts, ", "))
 }
 
 // Agents checks the skills and the agent config against spinup's data and your library.

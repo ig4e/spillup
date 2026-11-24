@@ -1,4 +1,4 @@
-import { Button, Spinner } from "@heroui/react";
+import { Button } from "../components/Button";
 import { Download, Link2, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import { useOverview } from "../App";
 import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, osTile } from "../components/ui";
@@ -27,11 +27,7 @@ export function T3Page() {
         actions={
           data?.can_manage ? (
             <Button size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.t3Sync, t3.reload)}>
-              {({ isPending }) => (
-                <>
-                  {isPending ? <Spinner size="sm" color="current" /> : <Link2 className="size-3.5" />} Link All Machines Now
-                </>
-              )}
+              {pending === "sync" ? null : <Link2 className="size-3.5" />} Link All Machines Now
             </Button>
           ) : null
         }
@@ -51,7 +47,8 @@ export function T3Page() {
             icon={<IconTile icon={Download} color="blue" />}
             title={pending === "setup" ? "Setting up T3 Code…" : t3.data.app ? "Set Up T3 Code" : "Install and Set Up T3 Code"}
             tone="accent"
-            onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
+            busy={pending === "setup"}
+              onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
           />
         </Group>
       ) : (
@@ -90,6 +87,7 @@ export function T3Page() {
               icon={<IconTile icon={RefreshCw} color="gray" />}
               title={pending === "setup" ? "Setting up T3 Code…" : "Set Up T3 Code Again"}
               tone="accent"
+              busy={pending === "setup"}
               onPress={pending ? undefined : () => run("setup", api.t3Setup, t3.reload)}
             />
           </Group>

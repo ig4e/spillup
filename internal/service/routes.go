@@ -92,20 +92,32 @@ func (m *Machine) tailnetHandler() http.Handler {
 	return mux
 }
 
-// bridged admits the main machine's dashboard: with the dashboard password on a machine that keeps it, so
-// a machine that only uses the accounts can't steer a holder, and with the API key on the others.
+// bridged admits another machine's dashboard. A machine that keeps the dashboard password answers to it,
+// and to the API key from a device Tailscale says is on its own account, so your workers can open the main
+// machine's dashboard and nobody else's device can; the others answer to the API key.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		header, want := api.KeyHeader, m.o.Secrets.ManagementPassword
-		if want == "" {
-			header, want = api.APIKeyHeader, m.o.Secrets.APIKey
-		}
-		if want == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(want)) != 1 {
-			writeError(w, http.StatusUnauthorized, "missing or wrong "+header)
+		if m.bridgeAdmits(r) {
+			h.ServeHTTP(w, r)
 			return
 		}
-		h.ServeHTTP(w, r)
+		writeError(w, http.StatusUnauthorized, "missing or wrong key for this machine's dashboard")
 	}
+}
+
+func (m *Machine) bridgeAdmits(r *http.Request) bool {
+	matches := func(header, want string) bool {
+		return want != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(want)) == 1
+	}
+	if m.o.Secrets.ManagementPassword == "" {
+		return matches(api.APIKeyHeader, m.o.Secrets.APIKey)
+	}
+	if matches(api.KeyHeader, m.o.Secrets.ManagementPassword) {
+		return true
+	}
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	_, yours := m.tail.owned(ip)
+	return yours && matches(api.APIKeyHeader, m.o.Secrets.APIKey)
 }
 
 // keyed admits callers with the management password, and remembers callers that can hold.

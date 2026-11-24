@@ -19,7 +19,7 @@ import (
 
 // fixable are the spinup commands a doctor fix may name that the dashboard runs with one click: they
 // change only this machine's own setup, and none asks a question.
-var fixable = []string{"skills", "update", "tools", "agents", "packages", "t3"}
+var fixable = []string{"skills", "update", "tools", "agents", "packages", "t3", "restart"}
 
 // RunFix runs a doctor fix that is a spinup command, such as `spinup skills sync`, as a button.
 func (cliBackend) RunFix(ctx context.Context, fix string) (string, error) {
@@ -27,8 +27,11 @@ func (cliBackend) RunFix(ctx context.Context, fix string) (string, error) {
 	if len(args) < 2 || args[0] != "spinup" || !slices.Contains(fixable, args[1]) {
 		return "", fmt.Errorf("the dashboard runs only spinup's own fixes, not %q", fix)
 	}
-	if args[1] == "update" {
+	switch args[1] {
+	case "update":
 		return "Updating. spillup restarts in a minute.", startDetachedUpdate()
+	case "restart":
+		return "Restarting spillup. This page reconnects in a few seconds.", cliBackend{}.RestartService()
 	}
 	exe, err := os.Executable()
 	if err != nil {

@@ -60,3 +60,8 @@ func LoginStates(ctx context.Context, port int, managementPassword string) ([]Lo
 	}
 	return out.Files, json.NewDecoder(resp.Body).Decode(&out)
 }
+
+// AnswersOn reports whether a CLIProxyAPI answers on 127.0.0.1:port.
+func AnswersOn(ctx context.Context, port int) bool {
+	return healthy(ctx, fmt.Sprintf("http://127.0.0.1:%d", port))
+}

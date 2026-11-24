@@ -113,7 +113,14 @@ func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return out, fmt.Errorf("t3 %s: %w: %s", args[0], err, strings.TrimSpace(lastLine(stderr.String())))
+		why := strings.TrimSpace(lastLine(stderr.String()))
+		if why == "" {
+			why = strings.TrimSpace(lastLine(string(out)))
+		}
+		if why == "" {
+			why = "no reason given"
+		}
+		return out, fmt.Errorf("t3 %s: %s (%w)", strings.Join(args[:min(2, len(args))], " "), why, err)
 	}
 	return out, nil
 }
@@ -157,13 +164,30 @@ func (t T3) Linked(ctx context.Context) (string, error) {
 	return string(out), err
 }
 
-// LinksTo reports whether a linked environment answers at host (an IP or name).
-func LinksTo(linked, host string) bool {
-	return host != "" && strings.Contains(linked, "//"+host+":")
+// LinksTo reports whether a linked environment answers at any of hosts: its tailnet address, its name or
+// its full MagicDNS name, since T3 may have linked it under any of them.
+func LinksTo(linked string, hosts ...string) bool {
+	lower := strings.ToLower(linked)
+	for _, h := range hosts {
+		if h == "" {
+			continue
+		}
+		h = strings.ToLower(h)
+		if strings.Contains(lower, "//"+h+":") || strings.Contains(lower, "//"+h+"/") || strings.Contains(lower, "//"+h+".") {
+			return true
+		}
+	}
+	return false
 }
+
+// ErrAlreadyLinked means the other T3 already has this link, perhaps under another address.
+var ErrAlreadyLinked = errors.New("already linked")
 
 func (t T3) Link(ctx context.Context, url, code string) error {
 	_, err := t.run(ctx, "environment", "link", url, "--pairing-code", code, "--access", LinkAccess)
+	if err != nil && (strings.Contains(err.Error(), "Conflict") || strings.Contains(strings.ToLower(err.Error()), "already")) {
+		return ErrAlreadyLinked
+	}
 	return err
 }
 
@@ -206,4 +230,39 @@ func (t T3) EnableLinking() (changed bool, err error) {
 		return false, err
 	}
 	return true, atomicfile.Write(path, append(out, '\n'), 0o600)
+}
+
+// ServiceAtBoot reports whether T3's background service is installed to start at boot.
+func (t T3) ServiceAtBoot(ctx context.Context) bool {
+	out, err := t.run(ctx, "status", "--json")
+	if err != nil {
+		return false
+	}
+	var st struct {
+		Service struct {
+			Installed bool `json:"installed"`
+		} `json:"service"`
+	}
+	return json.Unmarshal(out, &st) == nil && st.Service.Installed
+}
+
+// LinkingOn reports whether T3's linked environments are on.
+func (t T3) LinkingOn() bool {
+	data, err := os.ReadFile(filepath.Join(t.Home, "userdata", "settings.json"))
+	if err != nil {
+		return false
+	}
+	var s struct {
+		Linked bool `json:"linkedEnvironmentsEnabled"`
+	}
+	return json.Unmarshal(data, &s) == nil && s.Linked
+}
+
+// LinkCount is how many environments a `t3 environment list --json` names.
+func LinkCount(linked string) int {
+	var list []json.RawMessage
+	if json.Unmarshal([]byte(linked), &list) != nil {
+		return 0
+	}
+	return len(list)
 }

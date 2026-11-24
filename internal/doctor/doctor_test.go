@@ -37,8 +37,8 @@ func TestAccounts(t *testing.T) {
 	}{
 		{"not set up", Service{}, Fail, "isn't set up"},
 		{"not answering", Service{Installed: true, Problem: "refused"}, Fail, "doesn't answer: refused"},
-		{"held here with logins", Service{Installed: true, Report: &leading}, OK, "1 Claude, 1 Codex"},
-		{"held here without logins", Service{Installed: true, Report: &api.Report{Leading: true, ProxyRunning: true}}, Warn, "0 Claude, 0 Codex"},
+		{"held here with logins", Service{Installed: true, Report: &leading}, OK, "1 claude, 1 codex"},
+		{"held here without logins", Service{Installed: true, Report: &api.Report{Leading: true, ProxyRunning: true}}, Warn, "no logins yet"},
 		{"held here but the proxy is down", Service{Installed: true, Report: &api.Report{Leading: true}}, Fail, "isn't running"},
 		{"waiting", Service{Installed: true, Report: &api.Report{Waiting: "hub online but silent"}}, Warn, "hub online but silent"},
 		{"held elsewhere", Service{Installed: true, Report: &api.Report{Leader: "office-pc"}}, OK, "held by office-pc"},
@@ -107,5 +107,27 @@ func TestAgentsToolsUpdate(t *testing.T) {
 		if got := Update(c.running, c.latest).Checks[0].Level; got != c.level {
 			t.Errorf("Update(%q, %q) = %v, want %v", c.running, c.latest, got, c.level)
 		}
+	}
+}
+
+func TestIntegrationChecks(t *testing.T) {
+	if Failures([]Section{T3(T3Facts{App: true})}) != 1 {
+		t.Error("T3's app without its command line must fail")
+	}
+	good := T3(T3Facts{Installed: true, ServiceAtBoot: true, LinkingOn: true, Linked: 2})
+	if Failures([]Section{good}) != 0 || !strings.Contains(good.Checks[3].Label, "2 machines") {
+		t.Errorf("a linked T3: %+v", good)
+	}
+	if Failures([]Section{Proxy(ProxyFacts{ForeignOnPort: true, Port: 8317})}) != 1 {
+		t.Error("another program on spillup's port must fail")
+	}
+	if Failures([]Section{Proxy(ProxyFacts{Leading: true, Running: true, KeyProblem: "403"})}) != 1 {
+		t.Error("a refused key must fail")
+	}
+	if Failures([]Section{Proxy(ProxyFacts{OwnProviders: []string{"claude"}})}) != 1 {
+		t.Error("own sign-ins that don't run must fail")
+	}
+	if got := Proxy(ProxyFacts{}); len(got.Checks) != 1 || got.Checks[0].Level != OK {
+		t.Errorf("a worker: %+v", got)
 	}
 }
