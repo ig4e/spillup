@@ -66,6 +66,8 @@ type Backend interface {
 	UpdateState(ctx context.Context) Update
 	StartUpdate() error
 	SetAutoUpdate(auto bool) error
+	// SetAccess lets your devices open this dashboard over Tailscale, and the dashboard open terminals here.
+	SetAccess(devices, terminals bool) error
 	UpdateSystem() error
 	// RestartService restarts the accounts service and the dashboard it hosts.
 	RestartService() error
@@ -77,6 +79,11 @@ type Backend interface {
 	RemoteSync(ctx context.Context) (string, error)
 	RemoteSetup() error
 	RemoteWebPort() int
+
+	// SSHState, SSHEnable and SSHSync make `ssh <machine>` work between your machines.
+	SSHState(ctx context.Context) SSHState
+	SSHEnable(on bool) error
+	SSHSync(ctx context.Context) (string, error)
 
 	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
 	Panel(target string) (Panel, error)
@@ -104,6 +111,8 @@ type Server struct {
 	changing sync.Mutex
 	refusals refusals
 	stats    *sysinfo.Sampler
+	tailnet  tailnetView
+	terms    terminals
 }
 
 func New(b Backend, token string) *Server {
@@ -117,24 +126,32 @@ type reach int
 const (
 	browser reach = iota
 	bridged
+	// device is the dashboard on one of your devices, such as a phone, over the tailnet.
+	device
 )
 
 // localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
-var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true, "update/system": true}
+var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true, "update/system": true, "ssh/enable": true, "settings/access": true}
 
 func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	admit := s.needsSession
-	if from == bridged {
+	switch from {
+	case bridged:
 		admit = jsonOnly
+	case device:
+		admit = func(h http.HandlerFunc) http.HandlerFunc { return h }
 	}
-	add := func(method, path string, h http.HandlerFunc) {
-		if from == bridged && localOnly[path] {
+	route := func(method, path string, h http.HandlerFunc) {
+		if from != browser && localOnly[path] {
 			return
 		}
+		mux.HandleFunc(method+" /api/"+path, admit(h))
+	}
+	add := func(method, path string, h http.HandlerFunc) {
 		if method == http.MethodPost {
 			h = s.serialized(h)
 		}
-		mux.HandleFunc(method+" /api/"+path, admit(h))
+		route(method, path, h)
 	}
 	read := func(path string, h http.HandlerFunc) { add(http.MethodGet, path, h) }
 	change := func(path string, h http.HandlerFunc) { add(http.MethodPost, path, h) }
@@ -185,9 +202,20 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)
 
+	route(http.MethodPost, "term", s.serveTerminalStart)
+	route(http.MethodGet, "term/{id}/out", s.serveTerminalOutput)
+	route(http.MethodPost, "term/{id}/in", s.serveTerminalInput)
+	route(http.MethodPost, "term/{id}/size", s.serveTerminalResize)
+	route(http.MethodPost, "term/{id}/close", s.serveTerminalClose)
+
+	read("ssh", s.serveSSH)
+	change("ssh/enable", s.serveSSHEnable)
+	change("ssh/sync", s.serveSSHSync)
+
 	read("update", s.serveUpdateState)
 	change("update", s.serveUpdate)
 	change("update/auto", s.serveAutoUpdate)
+	change("settings/access", s.serveAccess)
 	change("update/system", s.serveUpdateSystem)
 	change("restart", s.serveRestartService)
 
@@ -214,17 +242,22 @@ func (s *Server) panelRoutes(mux *http.ServeMux, admit func(http.HandlerFunc) ht
 }
 
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	s.apiRoutes(mux, browser)
-	mux.HandleFunc("GET /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
-	mux.HandleFunc("POST /api/remote/{machine}/{path...}", s.needsSession(s.serveRemote))
+	return s.guard(securityHeaders(s.appMux(browser, s.needsSession)))
+}
 
-	s.panelRoutes(mux, s.needsSession)
+// appMux is the whole dashboard, the app and its API, for a browser that admit lets in.
+func (s *Server) appMux(from reach, admit func(http.HandlerFunc) http.HandlerFunc) *http.ServeMux {
+	mux := http.NewServeMux()
+	s.apiRoutes(mux, from)
+	mux.HandleFunc("GET /api/remote/{machine}/{path...}", admit(s.serveRemote))
+	mux.HandleFunc("POST /api/remote/{machine}/{path...}", admit(s.serveRemote))
+
+	s.panelRoutes(mux, admit)
 	for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
-		mux.HandleFunc(method+" "+remoteweb.Prefix+"/", s.needsSession(s.serveRemoteWeb))
+		mux.HandleFunc(method+" "+remoteweb.Prefix+"/", admit(s.serveRemoteWeb))
 	}
 	mux.HandleFunc("GET /", s.serveApp)
-	return s.guard(securityHeaders(mux))
+	return mux
 }
 
 // BridgePrefix is where the service serves BridgeHandler on the tailnet.

@@ -69,7 +69,7 @@ function overview(): Overview {
           may_have_led: false,
         })),
     },
-    settings: { port: 8317, proxy_port: 8327, failover_after_seconds: 180, auto_failback: true, library: "~/.spinup" },
+    settings: { port: 8317, proxy_port: 8327, failover_after_seconds: 180, auto_failback: true, library: "~/.spinup", device_access: true, terminals: true, device_url: "http://desktop.tail1234.ts.net:8320" },
     router_url: "http://localhost:8317",
     dashboard_url: "http://localhost:8317/management.html",
   };
@@ -193,9 +193,11 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       case "setup":
         return { running: false, done: false, log: [] };
       case "t3":
-        return { installed: true, app: true, port: 3773, linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
+        return { installed: true, app: true, port: 3773, address: "http://desktop.tail1234.ts.net:3773", linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
       case "update":
         return { current: "v0.3.6", latest: "v0.3.7", auto: true, system_managed: true, system: ["tailscale", "linux", "mesa"] };
+      case "ssh":
+        return { server: "openssh", on: true, user: "you", address: "desktop.tail1234.ts.net", hosts: ["laptop", "nas"], key: "ssh-ed25519 AAAAC3Nza… you@desktop (spillup)" };
       case "keys":
         return { api_key: "sk-spinup-3f9c1e7a52b84d06a1c2e9f0", management_password: "m-81b2c4d6e8f0a1b3" } satisfies Keys;
     }
@@ -228,6 +230,15 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       return { message: "Updating. spillup restarts in a minute; this page reconnects by itself." };
     case "restart":
       return { message: "Restarting spillup. This page reconnects in a few seconds." };
+    case "ssh/enable":
+      return { message: body.on ? "Turning SSH on…" : "Turning SSH off…" };
+    case "ssh/sync":
+      await wait(800);
+      return { message: "`ssh <name>` reaches 2 machine(s) from here; 2 key(s) let in." };
+    case "settings/access":
+      return { message: "Saved." };
+    case "t3/pair":
+      return { code: "MOCKPAIR42" };
     case "update/auto":
       return { message: body.auto ? "spillup now updates itself when a new version is out." : "Automatic updates are off." };
     case "own/signin":

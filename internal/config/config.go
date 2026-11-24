@@ -64,6 +64,11 @@ type Config struct {
 	RemotePort int `json:"remote_port"`
 	// UIPort is where the service hosts the dashboard, on 127.0.0.1 only; 0 turns it off.
 	UIPort int `json:"ui_port"`
+	// DeviceAccess also serves the dashboard on the Tailscale address, at UIPort, to devices signed in to
+	// your own Tailscale account, such as your phone.
+	DeviceAccess bool `json:"device_access"`
+	// Terminals lets the dashboard, here or on your other devices, open a shell on this machine.
+	Terminals bool `json:"terminals"`
 	// OwnAuthDir keeps this machine's own logins; nothing syncs it, so no other machine refreshes them.
 	OwnAuthDir string `json:"own_auth_dir"`
 }
@@ -114,6 +119,8 @@ func Defaults() Config {
 		UIPort:               8320,
 		RemotePort:           8322,
 		AutoUpdate:           true,
+		DeviceAccess:         true,
+		Terminals:            true,
 		OwnAuthDir:           filepath.Join(home(), ".cli-proxy-api-own"),
 	}
 }

@@ -61,9 +61,11 @@ func (c daemonCmd) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go hostDashboard(ctx, cfg.UIPort, logger)
+	go hostDeviceDashboard(ctx, cfg.UIPort, logger)
 	go keepT3Linked(ctx, cfg, logger)
 	go keepUpdated(ctx, logger)
 	go keepRemoteWeb(ctx, logger)
+	go keepSSH(ctx, logger)
 	if err := service.New(o).Run(ctx); err != nil {
 		logger.Printf("stopped: %v", err)
 		return err

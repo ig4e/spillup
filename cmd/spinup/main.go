@@ -38,6 +38,7 @@ type cli struct {
 	Agents   agentsCmd   `cmd:"" group:"agents" help:"Install shared and personal agent instructions."`
 	Repo     repoCmd     `cmd:"" group:"agents" help:"Get a project ready for agents: its stack's skills, AGENTS.md, remote."`
 	Remote   remoteCmd   `cmd:"" group:"machine" help:"Remote desktop between your machines: Sunshine, Moonlight and the dashboard's Remote page."`
+	SSH      sshCmd      `cmd:"" name:"ssh" group:"machine" help:"Make ssh <machine> work between all your machines over Tailscale."`
 	T3       t3Cmd       `cmd:"" name:"t3" group:"agents" help:"Keep T3 Code on all your machines linked, so agents can hand work to any of them."`
 
 	Daemon  daemonCmd  `cmd:"" hidden:"" help:"Run the accounts service in the foreground (what the boot task runs)."`

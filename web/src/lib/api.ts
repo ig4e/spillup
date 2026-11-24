@@ -1,4 +1,4 @@
-import type { App, Device, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -115,4 +115,24 @@ export const api = {
   setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
   restart: () => post("restart"),
   updateSystem: () => post("update/system"),
+  setAccess: (device_access: boolean, terminals: boolean) => post("settings/access", { device_access, terminals }),
+  t3Pair: (label: string) => call<{ code: string }>("POST", "t3/pair", { label }),
+
+  ssh: () => call<SSHState>("GET", "ssh"),
+  sshEnable: (on: boolean) => post("ssh/enable", { on }),
+  sshSync: () => post("ssh/sync"),
+
+  termStart: (cols: number, rows: number) => call<{ id: string }>("POST", "term", { cols, rows }),
+  /** The terminal's output as it comes: a stream of bytes, starting with what it showed recently. */
+  termOutput: async (id: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> => {
+    const res = await fetch(`/api/${routed(`term/${id}/out`)}`, { credentials: "same-origin", signal });
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data?.error?.message ?? `${res.status} ${res.statusText}`, res.status);
+    }
+    return res.body;
+  },
+  termInput: (id: string, data: string) => call<void>("POST", `term/${id}/in`, { data }),
+  termResize: (id: string, cols: number, rows: number) => call<void>("POST", `term/${id}/size`, { cols, rows }),
+  termClose: (id: string) => call<void>("POST", `term/${id}/close`, {}),
 };

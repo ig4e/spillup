@@ -63,7 +63,7 @@ func (c uiCmd) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	served := make(chan error, 1)
-	go func() { served <- serveDashboard(ctx, l, token) }()
+	go func() { served <- serveDashboard(ctx, l, webui.New(cliBackend{}, token).Handler()) }()
 	c.open(port, token)
 	fmt.Println("The accounts service isn't hosting it, so this serves it until Ctrl-C.")
 	return <-served
@@ -96,7 +96,7 @@ func hostDashboard(ctx context.Context, port int, logger *log.Logger) {
 			continue
 		}
 		logger.Printf("dashboard on http://localhost:%d", port)
-		if err := serveDashboard(ctx, l, token); err != nil {
+		if err := serveDashboard(ctx, l, webui.New(cliBackend{}, token).Handler()); err != nil {
 			logger.Printf("dashboard: %v", err)
 			sleepCtx(ctx, 5*time.Second)
 		}
@@ -104,8 +104,8 @@ func hostDashboard(ctx context.Context, port int, logger *log.Logger) {
 }
 
 // serveDashboard serves until ctx ends, then stops within five seconds.
-func serveDashboard(ctx context.Context, l net.Listener, token string) error {
-	srv := &http.Server{Handler: webui.New(cliBackend{}, token).Handler(), ReadHeaderTimeout: 10 * time.Second}
+func serveDashboard(ctx context.Context, l net.Listener, h http.Handler) error {
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(l) }()
 	select {

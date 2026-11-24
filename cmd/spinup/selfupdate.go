@@ -41,6 +41,15 @@ func (cliBackend) SetAutoUpdate(auto bool) error {
 	return config.Save(cfg)
 }
 
+func (cliBackend) SetAccess(devices, terminals bool) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return errNotInstalled
+	}
+	cfg.DeviceAccess, cfg.Terminals = devices, terminals
+	return config.Save(cfg)
+}
+
 // startDetachedUpdate runs `spinup update` outside the service, which the update restarts.
 func startDetachedUpdate(args ...string) error {
 	exe, err := os.Executable()

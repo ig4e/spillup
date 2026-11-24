@@ -18,6 +18,7 @@ func (s *Server) serveOverview(w http.ResponseWriter, r *http.Request) {
 		Settings: Settings{
 			Port: f.Config.Port, ProxyPort: f.Config.ProxyPort, FailoverAfterSeconds: f.Config.FailoverAfterSeconds,
 			AutoFailback: f.Config.AutoFailback, Library: f.Config.Library,
+			DeviceAccess: f.Config.DeviceAccess, Terminals: f.Config.Terminals,
 		},
 		RouterURL: fmt.Sprintf("http://localhost:%d", f.Config.Port),
 	}
@@ -27,6 +28,9 @@ func (s *Server) serveOverview(w http.ResponseWriter, r *http.Request) {
 		} else {
 			o.ServiceProblem = err.Error()
 		}
+	}
+	if st, ok := s.tailnet.get(r.Context(), s.b.Tailnet); ok && f.Config.DeviceAccess && f.Config.UIPort != 0 {
+		o.Settings.DeviceURL = fmt.Sprintf("http://%s:%d", strings.TrimSuffix(st.Self.DNSName, "."), f.Config.UIPort)
 	}
 	if o.Hold.CanHold() {
 		o.DashboardURL = o.RouterURL + "/management.html"

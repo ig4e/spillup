@@ -54,6 +54,9 @@ export interface Overview {
     failover_after_seconds: number;
     auto_failback: boolean;
     library?: string;
+    device_access?: boolean;
+    terminals?: boolean;
+    device_url?: string;
   };
   router_url: string;
   dashboard_url?: string;
@@ -163,6 +166,7 @@ export interface T3State {
   app: boolean;
   network_access?: boolean;
   awaits_restart?: boolean;
+  address?: string;
   port?: number;
   linked?: string;
   problem?: string;
@@ -258,4 +262,14 @@ export interface RemoteState {
   web_running: boolean;
   problem?: string;
   hosts: RemoteHost[];
+}
+
+export interface SSHState {
+  server: "tailscale" | "openssh";
+  on: boolean;
+  user: string;
+  address?: string;
+  key?: string;
+  hosts: string[];
+  problem?: string;
 }

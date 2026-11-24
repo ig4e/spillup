@@ -109,8 +109,8 @@ export function ActivityPage() {
         actions={<span className="text-[12px] text-muted">{machines.length} machines</span>}
       />
 
-      <div className="mb-3 overflow-hidden rounded-xl bg-surface">
-        <table className="w-full text-[13px]">
+      <div className="mb-3 overflow-hidden rounded-xl bg-surface max-lg:overflow-x-auto">
+        <table className="w-full text-[13px] max-lg:whitespace-nowrap">
           <thead>
             <tr>
               <Th>Machine</Th>
@@ -153,7 +153,7 @@ export function ActivityPage() {
       </div>
 
       <div className="mb-3 min-h-0 flex-1 overflow-auto rounded-xl bg-surface">
-        <table className="w-full text-[13px]">
+        <table className="w-full text-[13px] max-lg:whitespace-nowrap">
           <thead>
             <tr>
               <Th>Process Name {selected ? <span className="font-normal">· {selected.name}</span> : null}</Th>
@@ -182,7 +182,7 @@ export function ActivityPage() {
         </table>
       </div>
 
-      <div className="grid h-[150px] shrink-0 grid-cols-[220px_1fr_220px] grid-rows-[minmax(0,1fr)] gap-4 overflow-hidden rounded-xl bg-surface p-3.5">
+      <div className="grid h-[150px] shrink-0 grid-cols-[220px_1fr_220px] grid-rows-[minmax(0,1fr)] gap-4 overflow-hidden rounded-xl bg-surface p-3.5 max-lg:grid-cols-[200px_240px_200px] max-lg:overflow-x-auto">
         {st ? (
           <BottomPanel metric={metric} st={st} h={h} />
         ) : (

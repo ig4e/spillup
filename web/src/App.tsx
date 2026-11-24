@@ -1,14 +1,17 @@
 import { Alert, Dropdown, Label, Toast, Tooltip } from "@heroui/react";
 import {
   Activity,
+  ChevronRight,
   ChevronsUpDown,
   CloudDownload,
+  Ellipsis,
   Eye,
   Gauge,
   Search,
   KeyRound,
   LogIn,
   MonitorSmartphone,
+  SquareTerminal,
   Network,
   PanelLeft,
   Server,
@@ -20,9 +23,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
-import { Dot, IconTile, holdName, type Tint } from "./components/ui";
+import { BackAction, Dot, Group, IconTile, LargeTitle, Row, holdName, type Tint } from "./components/ui";
 import { api, setRemote } from "./lib/api";
-import { navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
+import { canGoBack, navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
 import { ActivityPage } from "./pages/Activity";
@@ -31,6 +34,7 @@ import { MachinesPage } from "./pages/Machines";
 import { OverviewPage } from "./pages/Overview";
 import { ProxyPage } from "./pages/Proxy";
 import { RemotePage } from "./pages/Remote";
+import { TerminalPage } from "./pages/Terminal";
 import { SettingsPage } from "./pages/Settings";
 import { SignInPage } from "./pages/SignIn";
 import { SkillsPage } from "./pages/Skills";
@@ -54,16 +58,21 @@ interface Page {
   page: () => React.ReactNode;
   /** Full-bleed pages use the whole window, for embedded dashboards. */
   bleed?: boolean;
+  /** Tabs get their own button in the phone's tab bar; every other page is listed under More. */
+  tab?: boolean;
 }
 
-const sections: { title: string; pages: Page[] }[] = [
+type Section = { title: string; pages: Page[] };
+
+const sections: Section[] = [
   {
     title: "Fleet",
     pages: [
-      { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage },
-      { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage },
-      { path: "/activity", label: "Activity", icon: Activity, color: "teal", page: ActivityPage, bleed: true },
+      { path: "/", label: "Overview", icon: Gauge, color: "blue", page: OverviewPage, tab: true },
+      { path: "/machines", label: "Machines", icon: Network, color: "green", page: MachinesPage, tab: true },
+      { path: "/activity", label: "Activity", icon: Activity, color: "teal", page: ActivityPage, bleed: true, tab: true },
       { path: "/desktop", label: "Remote", icon: MonitorSmartphone, color: "indigo", page: RemotePage, bleed: true },
+      { path: "/terminal", label: "Terminal", icon: SquareTerminal, color: "graphite", page: TerminalPage, bleed: true },
     ],
   },
   {
@@ -94,6 +103,20 @@ const sections: { title: string; pages: Page[] }[] = [
 
 const pages = sections.flatMap((s) => s.pages);
 
+const MORE = "/more";
+const morePage: Page = { path: MORE, label: "More", icon: Ellipsis, color: "gray", page: MorePage };
+const tabs = [...pages.filter((p) => p.tab), morePage];
+const moreSections = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => !p.tab) })).filter((s) => s.pages.length);
+
+function filterSections(list: Section[], query: string) {
+  const q = query.trim().toLowerCase();
+  return list
+    .map((section) => ({ ...section, pages: section.pages.filter((p) => !q || p.label.toLowerCase().includes(q) || section.title.toLowerCase().includes(q)) }))
+    .filter((section) => section.pages.length);
+}
+
+const backFrom = (page: Page) => (page.tab || page === morePage ? null : () => (canGoBack() ? window.history.back() : navigate(MORE)));
+
 export default function App() {
   const remote = useRemote();
   return <Fleet key={remote ?? ""} remote={remote} />;
@@ -110,29 +133,31 @@ function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
   const path = usePath();
   const [collapsed, toggle] = useCollapsed();
-  const current = pages.find((p) => p.path === path) ?? pages[0];
+  const current = pages.find((p) => p.path === path) ?? (path === MORE ? morePage : pages[0]);
   const Page = current.page;
 
   return (
     <OverviewContext.Provider value={overview}>
-      <div className="flex min-h-screen">
-        <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
-        <main className="min-w-0 flex-1">
-          <MobileBar path={current.path} />
-          {current.bleed ? (
-            <div className="flex h-screen flex-col p-4 lg:p-5">
-              {remote ? <RemoteBanner name={remote} /> : null}
-              <Page />
-            </div>
-          ) : (
-            <div className="mx-auto w-full max-w-[760px] px-5 pb-12 sm:px-10">
-              {remote ? <RemoteBanner name={remote} /> : null}
-              <ConnectionNotice remote={remote} />
-              <Page />
-            </div>
-          )}
-        </main>
-      </div>
+      <BackAction.Provider value={backFrom(current)}>
+        <div className="flex min-h-screen">
+          <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
+          <main className="min-w-0 flex-1">
+            {current.bleed ? (
+              <div className="flex h-dvh flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] lg:h-screen lg:p-5">
+                {remote ? <RemoteBanner name={remote} /> : null}
+                <Page />
+              </div>
+            ) : (
+              <div className="mx-auto w-full max-w-[760px] px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] sm:px-10 lg:pb-12">
+                {remote ? <RemoteBanner name={remote} /> : null}
+                <ConnectionNotice remote={remote} />
+                <Page />
+              </div>
+            )}
+          </main>
+        </div>
+        <TabBar active={current.tab ? current.path : MORE} />
+      </BackAction.Provider>
       <BusyBar />
       <Toast.Provider placement="top end" />
     </OverviewContext.Provider>
@@ -209,9 +234,7 @@ function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean;
 function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boolean; onToggle: () => void }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
-  const shown = sections
-    .map((section) => ({ ...section, pages: section.pages.filter((p) => !q || p.label.toLowerCase().includes(q) || section.title.toLowerCase().includes(q)) }))
-    .filter((section) => section.pages.length);
+  const shown = filterSections(sections, q);
   return (
     <aside
       className={`glass-sidebar sticky top-2 z-20 m-2 hidden h-[calc(100vh-16px)] shrink-0 flex-col rounded-[18px] pt-3 pb-3 transition-[width] duration-200 lg:flex ${
@@ -263,25 +286,58 @@ function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boole
   );
 }
 
-function MachineCard() {
+/** Which machine's dashboard is shown, and the others it can switch to. */
+function useMachineSwitch() {
   const { data } = useOverview();
   const remote = useRemote();
   const local = useQuery(api.localOverview);
   const machines = useQuery(api.localMachines, 15000);
-  const name = data?.name || "This machine";
   const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online);
-  const canSwitch = others.length > 0 || !!remote;
+  return {
+    name: data?.name || "This machine",
+    status: data ? (data.installed ? `${holdName[data.hold]}${remote ? " · viewing" : ""}` : "Not set up yet") : "…",
+    here: local.data?.name || "This machine",
+    others,
+    canSwitch: others.length > 0 || !!remote,
+  };
+}
 
+function MachineMenu({ trigger, triggerClass, here, others }: { trigger: React.ReactNode; triggerClass: string; here: string; others: { name: string }[] }) {
+  return (
+    <Dropdown>
+      <Dropdown.Trigger className={triggerClass}>{trigger}</Dropdown.Trigger>
+      <Dropdown.Popover placement="bottom start" className="min-w-56">
+        <Dropdown.Menu aria-label="Show a machine's dashboard" onAction={(key) => setRemote(key === "__self" ? null : String(key))}>
+          <Dropdown.Item id="__self" textValue="This machine">
+            <Label>{here} (this one)</Label>
+          </Dropdown.Item>
+          {others.map((m) => (
+            <Dropdown.Item key={m.name} id={m.name} textValue={m.name}>
+              <Label>{m.name}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
+  );
+}
+
+function Avatar({ name, className }: { name: string; className: string }) {
+  return (
+    <span className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[#a1a1a6] to-[#6e6e73] font-semibold text-white uppercase ${className}`}>
+      {name.charAt(0)}
+    </span>
+  );
+}
+
+function MachineCard() {
+  const { name, status, here, others, canSwitch } = useMachineSwitch();
   const card = (
     <span className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-foreground/[0.06]">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[#a1a1a6] to-[#6e6e73] text-[17px] font-semibold text-white uppercase">
-        {name.charAt(0)}
-      </span>
+      <Avatar name={name} className="size-10 text-[17px]" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-semibold">{name}</span>
-        <span className="block truncate text-xs text-muted">
-          {data ? (data.installed ? `${holdName[data.hold]}${remote ? " · viewing" : ""}` : "Not set up yet") : "…"}
-        </span>
+        <span className="block truncate text-xs text-muted">{status}</span>
       </span>
       {canSwitch ? <ChevronsUpDown className="size-4 shrink-0 text-muted" /> : null}
     </span>
@@ -293,22 +349,33 @@ function MachineCard() {
       </button>
     );
   }
+  return <MachineMenu trigger={card} triggerClass="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60" here={here} others={others} />;
+}
+
+/** The machine at the top of More, like the Apple Account card at the top of iOS Settings. */
+function MachineSwitcher() {
+  const { name, status, here, others, canSwitch } = useMachineSwitch();
+  const card = (
+    <span className="flex min-h-[76px] w-full items-center gap-3.5 px-4 py-3 text-left active:bg-surface-hover">
+      <Avatar name={name} className="size-[58px] text-[24px]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[20px] leading-tight font-semibold">{name}</span>
+        <span className="mt-0.5 block truncate text-[13px] text-muted">{canSwitch ? `${status} · Switch machine` : status}</span>
+      </span>
+      {canSwitch ? <ChevronsUpDown className="size-[18px] shrink-0 text-muted/70" /> : <ChevronRight className="size-[18px] shrink-0 text-muted/60" />}
+    </span>
+  );
+  const cls = "block w-full overflow-hidden rounded-xl bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent/60";
   return (
-    <Dropdown>
-      <Dropdown.Trigger className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60">{card}</Dropdown.Trigger>
-      <Dropdown.Popover placement="bottom start" className="min-w-56">
-        <Dropdown.Menu aria-label="Show a machine's dashboard" onAction={(key) => setRemote(key === "__self" ? null : String(key))}>
-          <Dropdown.Item id="__self" textValue="This machine">
-            <Label>{local.data?.name || "This machine"} (this one)</Label>
-          </Dropdown.Item>
-          {others.map((m) => (
-            <Dropdown.Item key={m.name} id={m.name} textValue={m.name}>
-              <Label>{m.name}</Label>
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+    <div className="mb-7">
+      {canSwitch ? (
+        <MachineMenu trigger={card} triggerClass={cls} here={here} others={others} />
+      ) : (
+        <button type="button" onClick={() => navigate("/settings")} className={cls}>
+          {card}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -324,12 +391,70 @@ function HolderStatus() {
   );
 }
 
-function MobileBar({ path }: { path: string }) {
+/** Every page not in the tab bar, as iOS Settings lists them: the machine first, then a group per section. */
+function MorePage() {
+  const [query, setQuery] = useState("");
+  const shown = filterSections(moreSections, query);
   return (
-    <div className="sticky top-0 z-20 flex gap-1 overflow-x-auto border-b border-separator bg-[var(--sidebar)] px-3 py-2 backdrop-blur-2xl lg:hidden">
-      {pages.map((p) => (
-        <SidebarLink key={p.path} page={p} active={path === p.path} />
+    <>
+      <LargeTitle title="More" />
+      <label className="mb-6 -mt-2 flex h-10 items-center gap-2 ios-fill rounded-full px-3.5 text-muted focus-within:ring-2 focus-within:ring-accent/40">
+        <Search className="size-[17px] shrink-0" strokeWidth={2.2} />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search"
+          aria-label="Search pages"
+          className="min-w-0 flex-1 bg-transparent text-[17px] text-foreground outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:hidden"
+        />
+      </label>
+      {query.trim() ? null : <MachineSwitcher />}
+      {shown.map((section) => (
+        <Group key={section.title} title={section.title}>
+          {section.pages.map((p) => (
+            <Row key={p.path} icon={<IconTile icon={p.icon} color={p.color} />} title={p.label} to={p.path} />
+          ))}
+        </Group>
       ))}
-    </div>
+      {!shown.length ? <p className="py-10 text-center text-[15px] text-muted">No Results for “{query.trim()}”</p> : null}
+    </>
+  );
+}
+
+/** iOS 26's tab bar: a floating capsule of glass, the chosen tab tinted with a lens of glass behind it. */
+function TabBar({ active }: { active: string }) {
+  const index = Math.max(0, tabs.findIndex((t) => t.path === active));
+  return (
+    <nav aria-label="Pages" className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-5 pb-[max(env(safe-area-inset-bottom),14px)] lg:hidden">
+      <div className="glass-tabbar pointer-events-auto relative flex w-full max-w-[440px] rounded-full p-1">
+        <span
+          aria-hidden
+          className="tab-lens absolute inset-y-1 left-1 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.3,1.3,0.5,1)]"
+          style={{ width: `calc((100% - 8px) / ${tabs.length})`, transform: `translateX(${index * 100}%)` }}
+        />
+        {tabs.map((t) => {
+          const on = t.path === active;
+          const Icon = t.icon;
+          return (
+            <a
+              key={t.path}
+              href={t.path}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(t.path);
+              }}
+              aria-current={on ? "page" : undefined}
+              className={`relative flex h-[54px] flex-1 flex-col items-center justify-center gap-[3px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                on ? "text-accent" : "text-foreground"
+              }`}
+            >
+              <Icon className="size-[23px]" strokeWidth={on ? 2.3 : 1.9} />
+              <span className="text-[10px] leading-none font-medium tracking-[0.01em]">{t.label}</span>
+            </a>
+          );
+        })}
+      </div>
+    </nav>
   );
 }

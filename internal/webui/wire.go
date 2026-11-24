@@ -30,6 +30,10 @@ type Settings struct {
 	FailoverAfterSeconds int    `json:"failover_after_seconds"`
 	AutoFailback         bool   `json:"auto_failback"`
 	Library              string `json:"library,omitempty"`
+	DeviceAccess         bool   `json:"device_access"`
+	Terminals            bool   `json:"terminals"`
+	// DeviceURL is where your other devices, a phone too, open this dashboard over Tailscale.
+	DeviceURL string `json:"device_url,omitempty"`
 }
 
 // Machine is one device on the tailnet, with what the accounts service knows of it.

@@ -11,7 +11,11 @@ import (
 )
 
 func bridgeCall(addr, header, key string) (int, string) {
-	req, _ := http.NewRequest(http.MethodGet, "http://"+addr+"/spinup/ui/api/overview", nil)
+	return bridgeGet(addr, "/spinup/ui/api/overview", header, key)
+}
+
+func bridgeGet(addr, path, header, key string) (int, string) {
+	req, _ := http.NewRequest(http.MethodGet, "http://"+addr+path, nil)
 	if header != "" {
 		req.Header.Set(header, key)
 	}
@@ -43,6 +47,12 @@ func TestTheMainMachineReachesEveryMachinesDashboardWithTheRightKey(t *testing.T
 	}
 	if code, _ := bridgeCall(laptop.peerAPI, "", ""); code != http.StatusUnauthorized {
 		t.Errorf("laptop dashboard without a key: %d, want 401", code)
+	}
+	if code, _ := bridgeGet(laptop.peerAPI, "/spinup/ui/api/term/x/out", api.APIKeyHeader, "k"); code != http.StatusUnauthorized {
+		t.Errorf("laptop terminal with the API key from a device that isn't yours: %d, want 401", code)
+	}
+	if code, _ := bridgeGet(hub.peerAPI, "/spinup/ui/api/term/x/out", api.KeyHeader, "m"); code == http.StatusUnauthorized {
+		t.Errorf("hub terminal with the dashboard password: %d, want it let through", code)
 	}
 	if body := get(laptop.peerAPI, "/v1/models"); strings.Contains(body, "on hub") {
 		t.Errorf("a machine that only uses the accounts routed tailnet traffic: %q", body)

@@ -201,3 +201,98 @@ body {
   background: rgb(255 255 255 / 0.2);
   box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.3);
 }
+
+/* On a phone the window is iOS's grouped background: light gray (black in dark mode) with white cells. */
+@media (width < 64rem) {
+  :root,
+  .light,
+  [data-theme="light"] {
+    --background: #f2f2f7;
+    --surface: #ffffff;
+    --surface-hover: #e5e5ea;
+    --surface-secondary: #f2f2f7;
+    --surface-tertiary: #d1d1d6;
+    --separator: rgb(60 60 67 / 0.2);
+    --glass-tint: rgb(255 255 255 / 0.62);
+    --glass-edge: rgb(255 255 255 / 0.75);
+    --glass-lens: rgb(0 0 0 / 0.055);
+    --glass-drop: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 6px 24px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.05);
+  }
+  .dark,
+  [data-theme="dark"] {
+    --background: #000000;
+    --surface: #1c1c1e;
+    --surface-hover: #2c2c2e;
+    --surface-secondary: #2c2c2e;
+    --surface-tertiary: #3a3a3c;
+    --overlay: #1c1c1e;
+    --field-background: #2c2c2e;
+    --separator: rgb(84 84 88 / 0.6);
+    --group-edge: transparent;
+    --glass-tint: rgb(58 58 62 / 0.55);
+    --glass-edge: rgb(255 255 255 / 0.13);
+    --glass-lens: rgb(255 255 255 / 0.1);
+    --glass-drop: 0 0 0 0.5px rgb(0 0 0 / 0.6), 0 8px 28px rgb(0 0 0 / 0.45);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Liquid Glass: a clear, saturated blur of what is behind, a bright hairline rim and a soft drop shadow. */
+  .glass-tabbar,
+  .glass-button {
+    background: var(--glass-tint);
+    backdrop-filter: blur(22px) saturate(190%);
+    -webkit-backdrop-filter: blur(22px) saturate(190%);
+    box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0.5px var(--glass-edge), var(--glass-drop);
+  }
+  .glass-button {
+    box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0.5px var(--glass-edge), 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 4px rgb(0 0 0 / 0.08);
+  }
+
+  .tab-lens {
+    background: var(--glass-lens);
+    box-shadow: inset 0 0 0 0.5px color-mix(in oklab, var(--glass-edge) 60%, transparent);
+  }
+
+  .nav-bar {
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+  .nav-bar[data-scrolled] {
+    background: color-mix(in oklab, var(--background) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 0.5px 0 var(--separator);
+  }
+
+  /* Under a large title the segmented control spans the width as a capsule, as in iOS 26. */
+  .nav-center .segmented {
+    display: flex;
+    width: 100%;
+    border-radius: 9999px;
+    padding: 3px;
+    background: rgb(118 118 128 / 0.12);
+  }
+  .nav-center .segment {
+    flex: 1;
+    height: 30px;
+    border-radius: 9999px;
+    font-size: 13px;
+    padding-inline: 6px;
+  }
+  .dark .nav-center .segmented {
+    background: rgb(118 118 128 / 0.24);
+  }
+  .dark .nav-center .segment--on {
+    background: #636366;
+  }
+}
+
+/* iOS's tertiary fill, behind search fields. */
+.ios-fill {
+  background: rgb(118 118 128 / 0.12);
+}
+.dark .ios-fill {
+  background: rgb(118 118 128 / 0.24);
+}

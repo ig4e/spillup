@@ -8,7 +8,9 @@ type T3State struct {
 	Installed bool `json:"installed"`
 	App       bool `json:"app"`
 	Port      int  `json:"port,omitempty"`
-	LinkingOn bool `json:"linking_on,omitempty"`
+	// Address is where your devices open this T3 Code on the tailnet.
+	Address   string `json:"address,omitempty"`
+	LinkingOn bool   `json:"linking_on,omitempty"`
 	// NetworkAccess: other machines can reach this T3; the desktop app answers only itself until it's on.
 	NetworkAccess bool `json:"network_access"`
 	// AwaitsRestart: Network access is on, but T3 Code hasn't restarted since, so it still answers only itself.

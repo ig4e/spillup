@@ -1,8 +1,8 @@
 import { Skeleton, Spinner, Switch } from "@heroui/react";
 import { Button } from "./Button";
 import { Apple, Check, ChevronLeft, ChevronRight, Copy, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { navigate } from "../lib/hooks";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { navigate, useDesktop } from "../lib/hooks";
 import type { Hold } from "../lib/types";
 
 /** Apple's system colors, for the rounded icon tiles in front of rows. */
@@ -35,22 +35,32 @@ export function IconTile({ icon: Icon, color, size = "md" }: { icon: LucideIcon;
   );
 }
 
-/** The page's toolbar, as in Tahoe's apps: back and forward, the title, a view switcher in the middle,
- * and the page's actions, on glass that stays put while the page scrolls under it. Full-width pages use
- * the same bar, flush with their content. */
-export function LargeTitle({
-  title,
-  subtitle,
-  actions,
-  center,
-  bleed,
-}: {
+interface TitleProps {
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
   center?: ReactNode;
   bleed?: boolean;
-}) {
+}
+
+/** Where the phone's back button goes from this page; null on the pages the tab bar opens. */
+export const BackAction = createContext<(() => void) | null>(null);
+
+/** The page's title: a toolbar on the desktop, an iOS navigation bar over a large title on a phone. */
+export function LargeTitle(props: TitleProps) {
+  return useDesktop() ? <Toolbar {...props} /> : <NavBar {...props} />;
+}
+
+/** The page's toolbar, as in Tahoe's apps: back and forward, the title, a view switcher in the middle,
+ * and the page's actions, on glass that stays put while the page scrolls under it. Full-width pages use
+ * the same bar, flush with their content. */
+function Toolbar({
+  title,
+  subtitle,
+  actions,
+  center,
+  bleed,
+}: TitleProps) {
   return (
     <>
       <header
@@ -75,6 +85,57 @@ export function LargeTitle({
       {subtitle ? <p className={`max-w-2xl text-[13px] text-muted ${bleed ? "mb-3 px-1" : "mb-6"}`}>{subtitle}</p> : bleed ? null : <div className="mb-4" />}
     </>
   );
+}
+
+/** iOS's navigation bar: clear over the large title, glass with a small title once the large one scrolls under it. */
+function NavBar({ title, subtitle, actions, center, bleed }: TitleProps) {
+  const back = useContext(BackAction);
+  const bar = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const scrolled = useScrolledUnder(heading, bar);
+  return (
+    <>
+      <header
+        ref={bar}
+        data-scrolled={scrolled || undefined}
+        className={`nav-bar sticky top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-[env(safe-area-inset-top)] ${bleed ? "" : "-mx-4 px-4 sm:-mx-10 sm:px-10"}`}
+      >
+        <div className="flex h-[52px] items-center">
+          {back ? (
+            <button type="button" aria-label="Back" onClick={back} className="glass-button flex size-10 items-center justify-center rounded-full text-foreground active:scale-95">
+              <ChevronLeft className="size-[22px]" strokeWidth={2.4} />
+            </button>
+          ) : null}
+        </div>
+        <div className={`min-w-0 truncate text-[17px] font-semibold transition-opacity duration-200 ${scrolled ? "opacity-100" : "opacity-0"}`}>{title}</div>
+        <div />
+      </header>
+      <div className={bleed ? "mb-3" : "mb-6"}>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h1 ref={heading} className="min-w-0 text-[34px] leading-[41px] font-bold tracking-[0.01em] break-words">
+            {title}
+          </h1>
+          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        </div>
+        {subtitle ? <p className="mt-1.5 text-[15px] leading-snug text-muted">{subtitle}</p> : null}
+        {center ? <div className="nav-center mt-4">{center}</div> : null}
+      </div>
+    </>
+  );
+}
+
+function useScrolledUnder(target: RefObject<HTMLElement | null>, cover: RefObject<HTMLElement | null>) {
+  const [under, setUnder] = useState(false);
+  useEffect(() => {
+    const el = target.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setUnder(!e.isIntersecting && e.boundingClientRect.top < (cover.current?.offsetHeight ?? 0) + 1), {
+      rootMargin: `-${cover.current?.offsetHeight ?? 0}px 0px 0px 0px`,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [target, cover]);
+  return under;
 }
 
 /** A macOS segmented control: a light track, the chosen segment raised on it. */
@@ -113,11 +174,11 @@ export function Segmented<T extends string>({
 export function Group({ title, footer, children, className = "" }: { title?: ReactNode; footer?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={`mb-7 ${className}`}>
-      {title ? <h2 className="mb-1.5 px-1 text-[13px] font-semibold text-foreground/80">{title}</h2> : null}
+      {title ? <h2 className="mb-1.5 px-4 text-[13px] font-semibold text-foreground/80 lg:px-1">{title}</h2> : null}
       <div className="group-list overflow-hidden rounded-xl bg-surface">
         {children}
       </div>
-      {footer ? <p className="mt-1.5 px-1 text-xs leading-relaxed text-muted">{footer}</p> : null}
+      {footer ? <p className="mt-1.5 px-4 text-[13px] leading-relaxed text-muted lg:px-1 lg:text-xs">{footer}</p> : null}
     </section>
   );
 }
@@ -149,10 +210,10 @@ export function Row({
     <>
       {icon}
       <div className="min-w-0 flex-1">
-        <div className={`truncate text-[14px] ${tone === "danger" ? "text-danger" : tone === "accent" ? "text-accent" : ""}`}>{title}</div>
-        {subtitle ? <div className="mt-0.5 truncate text-xs text-muted">{subtitle}</div> : null}
+        <div className={`truncate text-[16px] lg:text-[14px] ${tone === "danger" ? "text-danger" : tone === "accent" ? "text-accent" : ""}`}>{title}</div>
+        {subtitle ? <div className="mt-0.5 truncate text-[13px] text-muted lg:text-xs">{subtitle}</div> : null}
       </div>
-      {value !== undefined ? <div className="shrink-0 text-[14px] text-muted">{value}</div> : null}
+      {value !== undefined ? <div className="shrink-0 text-[16px] text-muted lg:text-[14px]">{value}</div> : null}
       {accessory}
       {busy ? <Spinner size="sm" color="current" className="shrink-0 text-muted" /> : null}
       {to && !busy ? <ChevronRight className="size-4 shrink-0 text-muted/60" /> : null}
@@ -308,7 +369,7 @@ export function Choice({
     >
       {icon}
       <div className="min-w-0 flex-1">
-        <div className="text-[14px]">{title}</div>
+        <div className="text-[16px] lg:text-[14px]">{title}</div>
         {subtitle ? <div className="mt-0.5 text-xs whitespace-normal text-muted">{subtitle}</div> : null}
       </div>
       {chosen ? <Check className="size-4 shrink-0 text-accent" strokeWidth={2.6} /> : <span className="size-4 shrink-0" />}

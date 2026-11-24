@@ -63,6 +63,10 @@ func (*fakeBackend) UpdateState(context.Context) Update                        {
 func (*fakeBackend) Apps() []App                                               { return nil }
 func (*fakeBackend) StartUpdate() error                                        { return nil }
 func (*fakeBackend) SetAutoUpdate(bool) error                                  { return nil }
+func (*fakeBackend) SSHState(context.Context) SSHState                         { return SSHState{} }
+func (*fakeBackend) SetAccess(bool, bool) error                                { return nil }
+func (*fakeBackend) SSHEnable(bool) error                                      { return nil }
+func (*fakeBackend) SSHSync(context.Context) (string, error)                   { return "", nil }
 func (*fakeBackend) Remote(string) (Remote, error)                             { return Remote{}, errors.New("no remote in tests") }
 
 func (b *fakeBackend) Panel(target string) (Panel, error) {

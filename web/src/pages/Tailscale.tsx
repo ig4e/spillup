@@ -1,10 +1,13 @@
 import { Alert } from "@heroui/react";
-import { ExternalLink, Globe, KeyRound, Network, Waypoints } from "lucide-react";
+import { ExternalLink, Globe, KeyRound, Network, RefreshCw, SquareTerminal, Waypoints } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, osName, osTile } from "../components/ui";
+import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Toggle, osName, osTile } from "../components/ui";
+import { TaskLog } from "../components/TaskProgress";
+import type { SetupProgress } from "../lib/types";
 import { api } from "../lib/api";
 import { relative } from "../lib/format";
-import { useQuery } from "../lib/hooks";
+import { useAction, useQuery, useRemote } from "../lib/hooks";
 
 export function TailscalePage() {
   const { data } = useOverview();
@@ -35,6 +38,7 @@ export function TailscalePage() {
             {self?.dns_name ? <Row icon={<IconTile icon={Network} color="teal" />} title="Name on the tailnet" accessory={<Mono copy>{self.dns_name}</Mono>} /> : null}
             <Row icon={<IconTile icon={ExternalLink} color="gray" />} title="Admin Console" tone="accent" onPress={() => window.open("https://login.tailscale.com/admin/machines", "_blank", "noopener")} />
           </Group>
+          <SSHGroup />
           {expiring.length ? (
             <Group title="Keys Expiring Soon" footer="A machine whose key expires drops off the tailnet until someone signs in on it. Disable key expiry for your own machines in the admin console.">
               {expiring.map((m) => (
@@ -58,6 +62,76 @@ export function TailscalePage() {
           </Group>
         </>
       )}
+    </>
+  );
+}
+
+/** SSH between your machines: this one's server, and `ssh <name>` for every other. */
+function SSHGroup() {
+  const ssh = useQuery(api.ssh, 30000);
+  const remote = useRemote();
+  const { pending, run } = useAction();
+  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  useEffect(() => {
+    if (!progress?.running) return;
+    const id = setInterval(async () => setProgress(await api.setupProgress()), 1000);
+    return () => clearInterval(id);
+  }, [progress?.running]);
+  const task = !!progress;
+  const st = ssh.data;
+  if (!st) return ssh.loading ? <GroupSkeleton rows={2} /> : null;
+  const server = st.server === "tailscale" ? "Tailscale SSH" : "OpenSSH Server";
+  const how =
+    st.server === "tailscale"
+      ? "Tailscale SSH signs you in with your Tailscale account: no keys or passwords."
+      : "Windows' own SSH server, let in through the firewall from your tailnet only; your machines' keys sign you in.";
+  return (
+    <>
+      <Group
+        title="SSH"
+        footer={`${how} spillup names every machine in ~/.ssh/config, so \`ssh <name>\` works from any of them, at home or away.${st.problem ? ` ${st.problem}` : ""}`}
+      >
+        <Row
+          icon={<IconTile icon={SquareTerminal} color="graphite" />}
+          title={server}
+          subtitle={st.on && st.address ? `ssh ${st.user}@${st.address}` : st.on ? "On" : "Off"}
+          accessory={
+            remote ? (
+              <span className="text-[13px] text-muted">{st.on ? "On" : "Off"}</span>
+            ) : (
+              <Toggle
+                label={server}
+                isSelected={st.on}
+                isDisabled={task}
+                onChange={async (on) => {
+                  if (await run("ssh", () => api.sshEnable(on))) setProgress({ running: true, done: false, log: [] });
+                }}
+              />
+            )
+          }
+        />
+        {st.hosts.map((h) => (
+          <Row key={h} icon={<IconTile icon={Network} color="teal" />} title={h} accessory={<Mono copy>{`ssh ${h}`}</Mono>} />
+        ))}
+        <Row
+          icon={<IconTile icon={RefreshCw} color="gray" />}
+          title={pending === "sync" ? "Asking your machines…" : "Refresh SSH Names and Keys"}
+          tone="accent"
+          busy={pending === "sync"}
+          onPress={pending ? undefined : () => run("sync", api.sshSync, ssh.reload)}
+        />
+      </Group>
+      {progress ? (
+        <TaskLog
+          progress={progress}
+          hint={st.server === "tailscale" ? "Enter your password when asked: Tailscale needs it to change its settings." : "Approve the administrator prompt on this machine."}
+          onRetry={() => setProgress(null)}
+          onDone={() => {
+            setProgress(null);
+            void ssh.reload();
+          }}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,14 +1,16 @@
 import { Button } from "../components/Button";
-import { Download, Link2, RefreshCw, Share2, ShieldCheck } from "lucide-react";
+import { Download, Link2, RefreshCw, Share2, ShieldCheck, Smartphone } from "lucide-react";
+import { useState } from "react";
+import { QR } from "../components/QR";
 import { useOverview } from "../App";
-import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, osTile } from "../components/ui";
+import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, osTile } from "../components/ui";
 import { api } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
 
 /** The machines a T3 Code is linked to, read from `t3 environment list --json`. */
 function linkedHosts(linked?: string): string[] {
   if (!linked) return [];
-  return [...linked.matchAll(/\/\/([^:/"]+):\d+/g)].map((m) => m[1]);
+  return [...linked.matchAll(/\/\/([^:/"]+):\d+/g)].map((m) => m[1].toLowerCase());
 }
 
 export function T3Page() {
@@ -83,7 +85,8 @@ export function T3Page() {
           >
             {others.length ? (
               others.map((m) => {
-                const linked = hosts.includes(m.ip ?? "") || hosts.includes(m.name);
+                const dns = m.dns_name?.replace(/\.$/, "").toLowerCase();
+                const linked = hosts.some((h) => h === m.ip || h === m.name.toLowerCase() || h === dns || h.startsWith(`${m.name.toLowerCase()}.`));
                 const t = osTile(m.os);
                 return (
                   <Row
@@ -99,6 +102,7 @@ export function T3Page() {
               <Row title={<span className="text-muted">No other machines on your tailnet yet</span>} />
             )}
           </Group>
+          {t3.data.address ? <PhoneGroup address={t3.data.address} /> : null}
           <Group footer="Starts T3's background service at boot again, on your LAN and tailnet, with linking on.">
             <Row
               icon={<IconTile icon={RefreshCw} color="gray" />}
@@ -111,5 +115,53 @@ export function T3Page() {
         </>
       )}
     </>
+  );
+}
+
+/** Pairs a phone or tablet with this T3 Code over Tailscale: a one-time link, as a QR code for its camera. */
+function PhoneGroup({ address }: { address: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const pair = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const { code } = await api.t3Pair("phone");
+      setLink(`${address}/pair#token=${encodeURIComponent(code)}`);
+    } catch (e) {
+      setProblem((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Group
+      title="Your Phone"
+      footer={
+        problem ??
+        "Install Tailscale on your phone and sign in with the same account; then T3 Code opens on it at home or away, with every machine linked here. The link works once, for ten minutes."
+      }
+    >
+      {link ? (
+        <div className="flex flex-col items-center gap-4 px-4 py-4 sm:flex-row">
+          <QR value={link} size={148} />
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <div className="text-[15px] font-semibold">Scan with Your Phone</div>
+            <div className="mt-1 text-[13px] text-muted">It opens T3 Code signed in. Then Share → Add to Home Screen.</div>
+            <div className="mt-2.5 flex justify-center sm:justify-start">
+              <Mono copy>{link}</Mono>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <Row
+        icon={<IconTile icon={Smartphone} color="blue" />}
+        title={busy ? "Making a link…" : link ? "Make Another Link" : "Pair Your Phone"}
+        tone="accent"
+        busy={busy}
+        onPress={busy ? undefined : () => void pair()}
+      />
+    </Group>
   );
 }

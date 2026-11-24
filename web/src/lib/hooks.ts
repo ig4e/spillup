@@ -87,9 +87,27 @@ window.addEventListener("popstate", notify);
 
 export function navigate(to: string) {
   if (to === window.location.pathname) return;
-  window.history.pushState(null, "", to);
+  window.history.pushState({ depth: historyDepth() + 1 }, "", to);
   window.scrollTo({ top: 0 });
   notify();
+}
+
+const historyDepth = (): number => window.history.state?.depth ?? 0;
+
+/** Whether the dashboard itself has a page to go back to, so Back never leaves it. */
+export const canGoBack = () => historyDepth() > 0;
+
+const wide = window.matchMedia("(min-width: 64rem)");
+
+/** Whether the window is wide enough for the desktop layout (Tailwind's lg). */
+export function useDesktop() {
+  return useSyncExternalStore(
+    (l) => {
+      wide.addEventListener("change", l);
+      return () => wide.removeEventListener("change", l);
+    },
+    () => wide.matches,
+  );
 }
 
 export function usePath() {

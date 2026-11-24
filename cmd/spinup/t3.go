@@ -34,6 +34,9 @@ func (cliBackend) T3State(ctx context.Context) webui.T3State {
 	if err != nil {
 		st.Problem = err.Error()
 	}
+	if ts, err := (tailnet.CLI{Bin: tailscaleBin()}).Status(ctx); err == nil && ts.Self.DNSName != "" {
+		st.Address = "http://" + net.JoinHostPort(strings.TrimSuffix(ts.Self.DNSName, "."), strconv.Itoa(st.Port))
+	}
 	return st
 }
 

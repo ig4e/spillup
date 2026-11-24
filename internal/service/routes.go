@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
@@ -97,12 +98,28 @@ func (m *Machine) tailnetHandler() http.Handler {
 // machine's dashboard and nobody else's device can; the others answer to the API key.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if m.bridgeAdmits(r) {
+		if m.bridgeAdmits(r) && (!opensShell(r.URL.Path) || m.bridgeAdmitsOwner(r)) {
 			h.ServeHTTP(w, r)
 			return
 		}
 		writeError(w, http.StatusUnauthorized, "missing or wrong key for this machine's dashboard")
 	}
+}
+
+// opensShell reports whether a dashboard call reaches a terminal, which only you may open.
+func opensShell(path string) bool {
+	return strings.HasPrefix(path, dashboardPrefix+"api/term")
+}
+
+// bridgeAdmitsOwner admits the dashboard password, or the API key from one of your own devices, even where
+// the API key alone opens the rest of the dashboard.
+func (m *Machine) bridgeAdmitsOwner(r *http.Request) bool {
+	if want := m.o.Secrets.ManagementPassword; want != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(api.KeyHeader)), []byte(want)) == 1 {
+		return true
+	}
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	_, yours := m.tail.owned(ip)
+	return yours && m.o.Secrets.APIKey != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(api.APIKeyHeader)), []byte(m.o.Secrets.APIKey)) == 1
 }
 
 func (m *Machine) bridgeAdmits(r *http.Request) bool {

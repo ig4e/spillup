@@ -1,9 +1,10 @@
-import { Clock, FolderGit2, Heart, KeyRound, Lock, Network, Palette, Server, Undo2 } from "lucide-react";
+import { Clock, FolderGit2, Heart, KeyRound, Lock, Network, Palette, Server, Smartphone, SquareTerminal, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useOverview } from "../App";
-import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, holdName, osName } from "../components/ui";
+import { QR } from "../components/QR";
+import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, Toggle, holdName, osName } from "../components/ui";
 import { api } from "../lib/api";
-import { useRemote, useTheme } from "../lib/hooks";
+import { useAction, useRemote, useTheme } from "../lib/hooks";
 import type { Keys } from "../lib/types";
 
 export function SettingsPage() {
@@ -33,6 +34,7 @@ export function SettingsPage() {
         />
       </Group>
 
+      {remote ? null : <DevicesGroup />}
       {remote ? null : <KeysGroup />}
 
       <Group
@@ -113,6 +115,56 @@ function KeysGroup() {
       ) : (
         <Row title={loading ? "Loading…" : "Show Keys"} tone="accent" onPress={reveal} />
       )}
+    </Group>
+  );
+}
+
+/** Your phone and other devices: the dashboard over Tailscale, and terminals on this machine. */
+function DevicesGroup() {
+  const { data, reload } = useOverview();
+  const { pending, run } = useAction();
+  const [devices, setDevices] = useState<boolean | null>(null);
+  const [terminals, setTerminals] = useState<boolean | null>(null);
+  const s = data?.settings;
+  const deviceOn = devices ?? s?.device_access ?? true;
+  const terminalsOn = terminals ?? s?.terminals ?? true;
+  const save = async (d: boolean, t: boolean) => {
+    setDevices(d);
+    setTerminals(t);
+    if (!(await run("access", () => api.setAccess(d, t), reload))) {
+      setDevices(null);
+      setTerminals(null);
+    }
+  };
+  return (
+    <Group
+      title="Your Devices"
+      footer="Any device signed in to your Tailscale account (your phone, a tablet, another computer) opens this dashboard at this address, at home or away. Install Tailscale on it and sign in with the same account. Other people's devices and your local network can't reach it, and keys and sign-ins stay on this machine."
+    >
+      {deviceOn && s?.device_url ? (
+        <div className="flex flex-col items-center gap-4 px-4 py-4 sm:flex-row sm:items-center">
+          <QR value={s.device_url} size={148} />
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <div className="text-[15px] font-semibold">Open on Your Phone</div>
+            <div className="mt-1 text-[13px] text-muted">Point your phone’s camera here, then Share → Add to Home Screen for an app icon.</div>
+            <div className="mt-2.5 flex justify-center sm:justify-start">
+              <Mono copy>{s.device_url}</Mono>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <Row
+        icon={<IconTile icon={Smartphone} color="blue" />}
+        title="Open from your devices"
+        subtitle="Over Tailscale only"
+        accessory={<Toggle label="Open from your devices" isDisabled={pending === "access"} isSelected={deviceOn} onChange={(on) => void save(on, terminalsOn)} />}
+      />
+      <Row
+        icon={<IconTile icon={SquareTerminal} color="graphite" />}
+        title="Terminals on this machine"
+        subtitle="From this dashboard, here or on your devices"
+        accessory={<Toggle label="Terminals on this machine" isDisabled={pending === "access"} isSelected={terminalsOn} onChange={(on) => void save(deviceOn, on)} />}
+      />
     </Group>
   );
 }
