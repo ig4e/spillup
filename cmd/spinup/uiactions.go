@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/filelock"
+	"github.com/darkyeg/spinup/internal/history"
 	"github.com/darkyeg/spinup/internal/sysproc"
 	"github.com/darkyeg/spinup/internal/tailnet"
 	"github.com/darkyeg/spinup/internal/webui"
@@ -136,10 +138,18 @@ func startTask(args []string) error {
 	if err != nil {
 		return err
 	}
+	store := history.Local()
+	job, err := store.BeginJob(args[0])
+	if err != nil {
+		log.Printf("job history: %v", err)
+		job = history.Job{}
+	}
 	setupRun.answers = make(chan string)
 	ctx, cancel := context.WithTimeout(context.Background(), taskTimeout)
 	out, wait, err := launchTask(ctx, exe, args)
 	if err != nil {
+		job.State = "failed"
+		saveJobProgress(store, job)
 		lock.Close()
 		cancel()
 		return err
@@ -151,7 +161,7 @@ func startTask(args []string) error {
 	go func() {
 		defer cancel()
 		defer lock.Close()
-		followSetup(ctx, out, wait)
+		followSetup(ctx, out, wait, store, job)
 	}()
 	return nil
 }
@@ -175,7 +185,7 @@ func (cliBackend) AnswerSetup(password string, cancel bool) error {
 	}
 }
 
-func followSetup(ctx context.Context, out io.Reader, wait func() error) {
+func followSetup(ctx context.Context, out io.Reader, wait func() error, store history.Store, job history.Job) {
 	reader := bufio.NewReaderSize(out, taskLogLineLimit)
 	for {
 		line, partial, err := reader.ReadLine()
@@ -184,13 +194,24 @@ func followSetup(ctx context.Context, out io.Reader, wait func() error) {
 			if partial {
 				text += "…"
 			}
-			recordTaskLine(text)
+			step, total := recordTaskLine(text)
+			if step > job.Step && (job.Total == 0 || job.Total == total) {
+				job.Step, job.Total = step, total
+				saveJobProgress(store, job)
+			}
 		}
 		if err != nil {
 			break
 		}
 	}
 	err := wait()
+	job.State = "completed"
+	if ctx.Err() != nil {
+		job.State = "timed out"
+	} else if err != nil {
+		job.State = "failed"
+	}
+	saveJobProgress(store, job)
 	setupRun.Lock()
 	defer setupRun.Unlock()
 	setupRun.running, setupRun.done, setupRun.prompt = false, true, ""
@@ -201,7 +222,16 @@ func followSetup(ctx context.Context, out io.Reader, wait func() error) {
 	}
 }
 
-func recordTaskLine(line string) {
+func saveJobProgress(store history.Store, job history.Job) {
+	if job.Started.IsZero() {
+		return
+	}
+	if err := store.UpdateJob(job); err != nil {
+		log.Printf("job history: %v", err)
+	}
+}
+
+func recordTaskLine(line string) (int, int) {
 	setupRun.Lock()
 	defer setupRun.Unlock()
 	setupRun.updated = time.Now()
@@ -220,6 +250,7 @@ func recordTaskLine(line string) {
 	if len(setupRun.log) > setupLogLines {
 		setupRun.log = setupRun.log[len(setupRun.log)-setupLogLines:]
 	}
+	return setupRun.step, setupRun.total
 }
 
 func (cliBackend) SetupProgress() webui.SetupProgress {

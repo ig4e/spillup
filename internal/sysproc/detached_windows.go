@@ -1,25 +1,49 @@
 package sysproc
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
-// StartDetached starts a program that must outlive spinup's service, such as an update that restarts it.
-// The boot task runs spinup in a job object that ends with it, so the program is created through WMI,
-// outside that job. Its output goes to logPath.
+// The scheduled service runs inside a job that ends with it. WMI starts the helper outside that job.
 func StartDetached(logPath string, exe string, args ...string) error {
-	line := quote(exe)
-	for _, a := range args {
-		line += " " + quote(a)
+	request := struct {
+		Exe      string
+		Args     []string
+		Log      string
+		StateDir string
+	}{exe, args, logPath, os.Getenv("SPINUP_HOME")}
+	data, err := json.Marshal(request)
+	if err != nil {
+		return err
 	}
-	command := `cmd.exe /d /c "` + line + ` >> ` + quote(logPath) + ` 2>&1"`
-	ps := "Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=" + psString(command) + "} | Out-Null"
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps)
+	child := `$j = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('` + base64.StdEncoding.EncodeToString(data) + `')) | ConvertFrom-Json
+if ($j.StateDir) { $env:SPINUP_HOME = $j.StateDir }
+$arguments = @($j.Args)
+& $j.Exe @arguments 2>&1 | Out-File -LiteralPath $j.Log -Append -Encoding utf8
+exit $LASTEXITCODE`
+	ps := `$ErrorActionPreference = 'Stop'
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('` + strings.ReplaceAll(child, "'", "''") + `'))
+$line = '"' + (Join-Path $PSHOME 'powershell.exe') + '" -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ' + $encoded
+$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=$line} -OperationTimeoutSec 12
+if ($null -eq $r -or $r.ReturnValue -ne 0 -or -not $r.ProcessId) { throw "WMI process creation failed (code $($r.ReturnValue))" }`
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps)
+	cmd.WaitDelay = 3 * time.Second
 	Hide(cmd)
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return fmt.Errorf("start detached process through WMI: %w", ctx.Err())
+	}
+	if err != nil {
+		return fmt.Errorf("start detached process through WMI: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
-
-func quote(s string) string { return `"` + strings.ReplaceAll(s, `"`, ``) + `"` }
-
-func psString(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }

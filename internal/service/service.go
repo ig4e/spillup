@@ -80,6 +80,7 @@ type Machine struct {
 	fence    fence
 	notes    outlook
 	repairs  repairs
+	quotas   quotaCache
 	activity activity
 	library  *libraryShare // nil when the library isn't shared
 	role     role

@@ -120,7 +120,8 @@ func serveDashboard(ctx context.Context, l net.Listener, h http.Handler) error {
 
 // dashboardAnswers reports whether spinup's dashboard is already up on port.
 func dashboardAnswers(port int) bool {
-	client := http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	client := *directMachineClient
+	client.Timeout = 2 * time.Second
 	resp, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
 	if err != nil {
 		return false

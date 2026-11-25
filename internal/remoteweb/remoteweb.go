@@ -252,6 +252,11 @@ func (c Client) url(path string) string {
 	return fmt.Sprintf("http://127.0.0.1:%d%s/api%s", c.Port, Prefix, path)
 }
 
+var localClient = &http.Client{
+	Transport:     &http.Transport{IdleConnTimeout: 30 * time.Second},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 func (c Client) do(ctx context.Context, method, path string, in any) (*http.Response, error) {
 	var body io.Reader
 	if in != nil {
@@ -264,7 +269,7 @@ func (c Client) do(ctx context.Context, method, path string, in any) (*http.Resp
 	}
 	req.Header.Set(UserHeader, User)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	resp, err := localClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("moonlight-web isn't answering: %w", err)
 	}
@@ -276,7 +281,26 @@ func (c Client) do(ctx context.Context, method, path string, in any) (*http.Resp
 	return resp, nil
 }
 
-// Hosts lists the hosts moonlight-web knows, with whether each is paired.
+// Host reads the current state of the paired Sunshine host.
+func (c Client) Host(ctx context.Context, id uint32) (Host, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/host?host_id=%d", id), nil)
+	if err != nil {
+		return Host{}, err
+	}
+	defer resp.Body.Close()
+	var reply struct {
+		Host Host `json:"host"`
+	}
+	err = json.NewDecoder(io.LimitReader(resp.Body, 128<<10)).Decode(&reply)
+	if err == nil && reply.Host.ID != id {
+		return Host{}, errors.New("unexpected Moonlight host")
+	}
+	return reply.Host, err
+}
+
+// Hosts reads the initial list and any fresh state streamed by Moonlight.
 func (c Client) Hosts(ctx context.Context) ([]Host, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -288,7 +312,8 @@ func (c Client) Hosts(ctx context.Context) ([]Host, error) {
 	var out struct {
 		Hosts []json.RawMessage `json:"hosts"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 4<<20))
+	if err := decoder.Decode(&out); err != nil {
 		return nil, err
 	}
 	hosts := make([]Host, 0, len(out.Hosts))
@@ -296,6 +321,26 @@ func (c Client) Hosts(ctx context.Context) ([]Host, error) {
 		var h Host
 		if json.Unmarshal(raw, &h) == nil {
 			hosts = append(hosts, h)
+		}
+	}
+	index := make(map[uint32]int, len(hosts))
+	for i, h := range hosts {
+		index[h.ID] = i
+	}
+	for {
+		var live Host
+		err := decoder.Decode(&live)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			if ctx.Err() != nil {
+				break
+			}
+			return nil, err
+		}
+		if i, ok := index[live.ID]; ok {
+			hosts[i] = live
 		}
 	}
 	return hosts, nil

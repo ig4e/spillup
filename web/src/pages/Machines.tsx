@@ -6,6 +6,7 @@ import { useConfirm } from "../components/Confirm";
 import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdName, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { Resources } from "../components/Resources";
+import { HealthTimeline } from "../components/HealthTimeline";
 import { Scan } from "../components/Scan";
 import { api, currentRemote, setRemote } from "../lib/api";
 import { relative } from "../lib/format";
@@ -57,7 +58,7 @@ export function MachinesPage() {
 
   return (
     <>
-      <LargeTitle title="Machines" subtitle="Every device on your Tailscale network." />
+      <LargeTitle title="Machines" />
 
       {machines.data?.problem ? (
         <Alert status="danger" className="mb-6">
@@ -75,17 +76,16 @@ export function MachinesPage() {
             ? "Only the main machine and standbys can choose the main machine. Open spillup on one of them to change it."
             : holders.length < 2
               ? "To choose between machines, set up another one as a standby: install spillup there and it joins by itself."
-              : "Every machine works with your accounts at the same time. The main machine holds the logins and serves everyone; a Worker + Standby takes over while it’s off, then hands them back."
+              : "Standbys take over when the main machine goes offline."
         }
       >
         <Row
           icon={<IconTile icon={Crown} color="yellow" />}
           title="Main machine"
-          subtitle="Usually the one that’s on the most"
-          accessory={
+          value={
             <Select
               aria-label="Main machine"
-              className="w-48"
+              className="w-full max-w-48 sm:w-40"
               variant="secondary"
               value={main?.name ?? null}
               onChange={(key) => {
@@ -130,6 +130,7 @@ export function MachinesPage() {
           ))}
         </Group>
       )}
+      <HealthTimeline />
       <Scan />
       {dialog}
     </>
@@ -150,13 +151,13 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
     <Row
       icon={<OsTile os={m.os} dim={!m.online} />}
       title={
-        <span className="flex items-center gap-2">
-          <span className="font-medium">{m.name}</span>
+        <span className="flex flex-wrap items-center gap-x-2">
+          <span className="min-w-0 break-all font-medium">{m.name}</span>
           {m.is_self ? <span className="text-xs text-muted">This machine</span> : null}
         </span>
       }
       subtitle={
-        <span className="flex items-center gap-1.5">
+        <span className="flex flex-wrap items-center gap-x-1.5">
           <Dot tone={m.expired ? "danger" : m.online ? "success" : "muted"} className="size-1.5" />
           {status} · {osName(m.os)} · <span className="tabular-nums">{m.ip ?? "—"}</span>
         </span>
@@ -168,7 +169,7 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
               <KeyRound className="size-3.5" /> Accounts
             </span>
           ) : null}
-          {m.hold ? <span className="ml-2">{holdName[m.hold]}</span> : null}
+          {m.hold ? <span className={m.leading ? "ml-1" : undefined}>{holdName[m.hold]}</span> : null}
         </span>
       }
       accessory={

@@ -64,3 +64,13 @@ func (s *Server) serveSetupProgress(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSON(w, p)
 }
+
+func (s *Server) serveSetupPreview(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	preview, err := s.b.PreviewSetup(r.Context(), query.Get("name"), query.Get("role"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, preview)
+}

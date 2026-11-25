@@ -36,7 +36,6 @@ export function SkillsPage() {
             />
           ) : undefined
         }
-        subtitle="One library, identical on every machine and linked into Claude Code and Codex."
         actions={
           <>
             <Button variant="secondary" size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.syncSkills, skills.reload)}>

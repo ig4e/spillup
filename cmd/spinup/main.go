@@ -19,14 +19,17 @@ var version = "dev"
 var releases = cmp.Or(os.Getenv("SPINUP_RELEASES"), "ig4e/spillup")
 
 type cli struct {
-	Setup     setupCmd     `cmd:"" group:"machine" help:"Set up this machine end to end, or repair it."`
-	Doctor    doctorCmd    `cmd:"" group:"machine" help:"Check this machine; every problem comes with its fix."`
-	Update    updateCmd    `cmd:"" group:"machine" help:"Update spinup, CLIProxyAPI, skills and Tailscale."`
-	Machines  machinesCmd  `cmd:"" group:"machine" help:"Every device on your tailnet and its addresses."`
-	Tools     toolsCmd     `cmd:"" group:"machine" help:"Install the dev tools this machine lacks."`
-	Uninstall uninstallCmd `cmd:"" group:"machine" help:"Stop the accounts service here. Logins and keys stay."`
-	Restart   restartCmd   `cmd:"" group:"machine" help:"Restart the accounts service and its dashboard on the spillup installed now."`
-	UI        uiCmd        `cmd:"" name:"ui" group:"machine" help:"Open the dashboard: machines, accounts, the hub, skills and checks."`
+	Setup            setupCmd            `cmd:"" group:"machine" help:"Set up this machine end to end, or repair it."`
+	Doctor           doctorCmd           `cmd:"" group:"machine" help:"Check this machine; every problem comes with its fix."`
+	Update           updateCmd           `cmd:"" group:"machine" help:"Update spinup, CLIProxyAPI, skills and Tailscale."`
+	Rollout          rolloutCmd          `cmd:"" group:"machine" help:"Preview or apply staged Spillup releases across your Tailnet."`
+	ClipboardSession clipboardSessionCmd `cmd:"" hidden:""`
+	RolloutInstall   rolloutInstallCmd   `cmd:"" hidden:""`
+	Machines         machinesCmd         `cmd:"" group:"machine" help:"Every device on your tailnet and its addresses."`
+	Tools            toolsCmd            `cmd:"" group:"machine" help:"Install the dev tools this machine lacks."`
+	Uninstall        uninstallCmd        `cmd:"" group:"machine" help:"Stop the accounts service here. Logins and keys stay."`
+	Restart          restartCmd          `cmd:"" group:"machine" help:"Restart the accounts service and its dashboard on the spillup installed now."`
+	UI               uiCmd               `cmd:"" name:"ui" group:"machine" help:"Open the dashboard: machines, accounts, the hub, skills and checks."`
 
 	Status   statusCmd   `cmd:"" group:"accounts" help:"Who holds the accounts, every login and every machine."`
 	Handoff  handoffCmd  `cmd:"" group:"accounts" help:"Move the accounts to another machine, safely."`

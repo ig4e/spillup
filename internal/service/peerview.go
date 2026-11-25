@@ -11,11 +11,7 @@ import (
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
-const (
-	// syncedWithin: a copy older than this doesn't count as synced.
-	syncedWithin  = 2 * time.Minute
-	discoverEvery = 10 * time.Second
-)
+const discoverEvery = 10 * time.Second
 
 // peerView is what this machine saw of the others at the last look.
 type peerView struct {
@@ -138,8 +134,7 @@ func peerState(r api.Report, epoch int64) leadership.PeerState {
 		return leadership.Leading
 	case r.Starting:
 		return leadership.Starting
-	case r.Synced != nil && r.Synced.Epoch == epoch && r.Synced.SecondsAgo >= 0 &&
-		time.Duration(r.Synced.SecondsAgo)*time.Second < syncedWithin:
+	case r.Synced.Fresh(epoch):
 		return leadership.Synced
 	}
 	return leadership.Standing

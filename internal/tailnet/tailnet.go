@@ -149,6 +149,7 @@ func (c CLI) Status(ctx context.Context) (Status, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "status", "--json")
+	cmd.WaitDelay = time.Second
 	sysproc.Hide(cmd)
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/shell"
 )
 
 type restartCmd struct{}
@@ -48,4 +50,14 @@ func serviceVersion(cfg config.Config) string {
 		return ""
 	}
 	return r.Version
+}
+
+func runServiceManager(name string, args ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	_, err := shell.Output(ctx, name, args...)
+	if ctx.Err() != nil {
+		return fmt.Errorf("restart service with %s: %w", name, ctx.Err())
+	}
+	return err
 }

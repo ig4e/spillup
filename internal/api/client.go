@@ -16,6 +16,8 @@ import (
 type Client struct {
 	HTTP        *http.Client
 	IfNoneMatch string
+	// MaxResponseBytes optionally lowers the default limit for a small response.
+	MaxResponseBytes int64
 	// Key is the management password; public calls leave it empty.
 	Key string
 	// APIKey is for library calls, which every machine may make.
@@ -82,7 +84,11 @@ func (c Client) do(ctx context.Context, method, url string, in, out any) error {
 	if out == nil {
 		return nil
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, answerLimit)).Decode(out)
+	limit := int64(answerLimit)
+	if c.MaxResponseBytes > 0 && c.MaxResponseBytes < limit {
+		limit = c.MaxResponseBytes
+	}
+	return json.NewDecoder(io.LimitReader(resp.Body, limit)).Decode(out)
 }
 
 // answerLimit bounds an answer: the largest is a library, base64-encoded.

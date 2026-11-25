@@ -30,11 +30,11 @@ func (m *Machine) withAPIKey(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Library entries can install code and change agent instructions across the fleet.
-func (m *Machine) withLibraryPeer(h http.HandlerFunc) http.HandlerFunc {
+// withOwnedPeer requires the fleet API key and an untagged device on this Tailscale account.
+func (m *Machine) withOwnedPeer(h http.HandlerFunc) http.HandlerFunc {
 	return m.withAPIKey(func(w http.ResponseWriter, r *http.Request) {
 		if _, owned := m.tail.owned(caller(r)); !owned {
-			writeError(w, http.StatusForbidden, "library sync is limited to devices on your Tailscale account")
+			writeError(w, http.StatusForbidden, "this endpoint is limited to devices on your Tailscale account")
 			return
 		}
 		h(w, r)

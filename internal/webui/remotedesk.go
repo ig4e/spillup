@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 	"strings"
 
 	"github.com/darkyeg/spinup/internal/remoteweb"
@@ -67,9 +68,25 @@ func (s *Server) serveRemoteSetup(w http.ResponseWriter, _ *http.Request) {
 	answer(w, s.b.RemoteSetup(), "Setting up remote desktop…")
 }
 
-// serveRemoteWeb serves moonlight-web from this dashboard's origin, signed in as spillup's user: the page
-// counts as a secure context on localhost, which its video decoder needs, and no login is typed.
+// serveRemoteWeb gives the native player same-origin access to the local stream transport.
 func (s *Server) serveRemoteWeb(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, remoteweb.Prefix)
+	if r.Method == http.MethodGet && (path == "/" || path == "/index.html" || path == "/stream.html") {
+		dest := "/desktop"
+		if id, err := strconv.ParseUint(r.URL.Query().Get("hostId"), 10, 32); err == nil {
+			dest = fmt.Sprintf("/desktop?hostId=%d", id)
+		}
+		http.Redirect(w, r, dest, http.StatusSeeOther)
+		return
+	}
+	if !streamRoute(r.Method, path) {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") && r.Header.Get("Origin") != "http://"+r.Host {
+		writeError(w, http.StatusForbidden, "the stream must open from this dashboard")
+		return
+	}
 	target := fmt.Sprintf("127.0.0.1:%d", s.b.RemoteWebPort())
 	proxy := &httputil.ReverseProxy{
 		Transport:     dashboardTransport,
@@ -78,6 +95,11 @@ func (s *Server) serveRemoteWeb(w http.ResponseWriter, r *http.Request) {
 			pr.Out.URL.Scheme, pr.Out.URL.Host, pr.Out.Host = "http", target, ""
 			stripDashboardHeaders(pr.Out.Header)
 			pr.Out.Header.Set(remoteweb.UserHeader, remoteweb.User)
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			resp.Header.Del("Set-Cookie")
+			resp.Header.Del("Clear-Site-Data")
+			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeError(w, http.StatusBadGateway, "moonlight-web isn't running: set remote desktop up first ("+err.Error()+")")
@@ -88,4 +110,19 @@ func (s *Server) serveRemoteWeb(w http.ResponseWriter, r *http.Request) {
 
 func isRemoteWeb(path string) bool {
 	return path == remoteweb.Prefix || strings.HasPrefix(path, remoteweb.Prefix+"/")
+}
+
+func streamRoute(method, path string) bool {
+	const webrtc = "/api/host/stream/webrtc"
+	switch path {
+	case "/api/apps", "/api/hosts", "/api/host/stream/web_socket":
+		return method == http.MethodGet
+	case webrtc:
+		return method == http.MethodOptions || method == http.MethodPost
+	}
+	if id, ok := strings.CutPrefix(path, webrtc+"/"); ok && id != "" {
+		_, err := strconv.ParseUint(id, 10, 64)
+		return err == nil && (method == http.MethodPatch || method == http.MethodDelete)
+	}
+	return false
 }

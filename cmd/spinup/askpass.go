@@ -26,7 +26,9 @@ func (c askpassCmd) Run() error {
 		return err
 	}
 	req.Header.Set("X-Spinup-Askpass", token)
-	resp, err := (&http.Client{Timeout: 10 * time.Minute, Transport: &http.Transport{Proxy: nil}}).Do(req)
+	client := *directMachineClient
+	client.Timeout = 10 * time.Minute
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

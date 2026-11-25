@@ -30,6 +30,7 @@ export interface Report {
   leader_addr?: string;
   synced?: { epoch: number; seconds_ago: number };
   proxy_running: boolean;
+  managed_proxy_port?: number;
   waiting?: string;
   in_flight?: number;
   accounts?: Account[];
@@ -63,6 +64,7 @@ export interface Overview {
 }
 
 export interface Machine {
+  yours?: boolean;
   name: string;
   dns_name?: string;
   ip?: string;
@@ -201,6 +203,23 @@ export interface Device {
   hold?: Hold;
 }
 
+export interface HealthObservation {
+  machine: string;
+  check: string;
+  state: string;
+  since: string;
+  last: string;
+}
+
+export interface JobRecord {
+  started: string;
+  updated: string;
+  task: string;
+  state: "running" | "failed" | "timed out" | "completed" | "interrupted";
+  step?: number;
+  total?: number;
+}
+
 export interface ActivityEntry {
   at: string;
   action: string;
@@ -286,5 +305,28 @@ export interface SSHState {
   address?: string;
   key?: string;
   hosts: string[];
+  problem?: string;
+}
+
+export interface SetupPreview {
+  name: string;
+  role: Hold;
+  changes: { action: string; target: string; detail: string }[];
+  deferred: string;
+}
+
+export interface QuotaSummary {
+  checked_at: string;
+  accounts: {
+    provider: string;
+    state: "ready" | "sign-in" | "limited" | "disabled" | "unavailable" | "unknown";
+    observed_at?: string;
+    usage_status?: "refused" | "rate-limited" | "unavailable";
+    windows?: { label: string; used_percent: number; resets_at?: string }[];
+  }[];
+}
+
+export interface FleetPreview {
+  output: string;
   problem?: string;
 }

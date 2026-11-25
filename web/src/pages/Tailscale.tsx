@@ -17,7 +17,7 @@ export function TailscalePage() {
 
   return (
     <>
-      <LargeTitle title="Tailscale" subtitle="The private network your machines use to reach each other, at home or away." />
+      <LargeTitle title="Tailscale" />
       {machines.data?.problem ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
@@ -33,8 +33,8 @@ export function TailscalePage() {
         <>
           <Group>
             <Row icon={<BrandTile brand="tailscale" icon={Waypoints} />} title="This machine" value={<span className="flex items-center gap-1.5"><Dot tone={self?.online ? "success" : "danger"} /> {self?.name ?? data?.name ?? "—"}</span>} />
-            <Row icon={<IconTile icon={Globe} color="blue" />} title="Address" accessory={self?.ip ? <Mono copy>{self.ip}</Mono> : <span className="text-muted">—</span>} />
-            {self?.dns_name ? <Row icon={<IconTile icon={Network} color="teal" />} title="Name on the tailnet" accessory={<Mono copy>{self.dns_name}</Mono>} /> : null}
+            <Row icon={<IconTile icon={Globe} color="blue" />} title="Address" value={self?.ip ? <Mono copy>{self.ip}</Mono> : <span className="text-muted">—</span>} />
+            {self?.dns_name ? <Row icon={<IconTile icon={Network} color="teal" />} title="Name on the tailnet" value={<Mono copy>{self.dns_name}</Mono>} /> : null}
             <Row icon={<IconTile icon={ExternalLink} color="gray" />} title="Admin Console" tone="accent" onPress={() => window.open("https://login.tailscale.com/admin/machines", "_blank", "noopener")} />
           </Group>
           <SSHGroup />
@@ -104,7 +104,7 @@ function SSHGroup() {
           }
         />
         {st.hosts.map((h) => (
-          <Row key={h} icon={<IconTile icon={Network} color="teal" />} title={h} accessory={<Mono copy>{`ssh ${h}`}</Mono>} />
+          <Row key={h} icon={<IconTile icon={Network} color="teal" />} title={h} value={<Mono copy>{`ssh ${h}`}</Mono>} />
         ))}
         <Row
           icon={<IconTile icon={RefreshCw} color="gray" />}

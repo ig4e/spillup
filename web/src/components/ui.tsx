@@ -98,7 +98,7 @@ function NavBar({ title, subtitle, actions, center, bleed }: TitleProps) {
         data-scrolled={scrolled || undefined}
         className={`nav-bar sticky top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-[env(safe-area-inset-top)] ${bleed ? "" : "-mx-4 px-4 sm:-mx-10 sm:px-10"}`}
       >
-        <div className="flex h-[52px] items-center">
+        <div className={`flex items-center ${back ? "h-12" : "h-5"}`}>
           {back ? (
             <button type="button" aria-label="Back" onClick={back} className="glass-button flex size-10 items-center justify-center rounded-full text-foreground active:scale-95">
               <ChevronLeft className="size-[22px]" strokeWidth={2.4} />
@@ -207,12 +207,14 @@ export function Row({
   const body = (
     <>
       {icon}
-      <div className="min-w-0 flex-1">
-        <div className={`truncate text-[16px] lg:text-[14px] ${tone === "danger" ? "text-danger" : tone === "accent" ? "text-accent" : ""}`}>{title}</div>
-        {subtitle ? <div className="mt-0.5 truncate text-[13px] text-muted lg:text-xs">{subtitle}</div> : null}
+      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <div className={`break-words text-[16px] leading-snug lg:text-[14px] ${tone === "danger" ? "text-danger" : tone === "accent" ? "text-accent" : ""}`}>{title}</div>
+          {subtitle ? <div className="mt-0.5 break-words text-[13px] leading-snug text-muted lg:text-xs">{subtitle}</div> : null}
+        </div>
+        {value !== undefined ? <div className="mt-0.5 min-w-0 break-words text-[13px] text-muted sm:mt-0 sm:max-w-[55%] sm:text-right sm:text-[14px]">{value}</div> : null}
       </div>
-      {value !== undefined ? <div className="shrink-0 text-[16px] text-muted lg:text-[14px]">{value}</div> : null}
-      {accessory}
+      {accessory ? <div className="flex min-w-0 max-w-[58%] items-center justify-end">{accessory}</div> : null}
       {busy ? <Spinner size="sm" color="current" className="shrink-0 text-muted" /> : null}
       {to && !busy ? <ChevronRight className="size-4 shrink-0 text-muted/60" /> : null}
     </>
@@ -274,10 +276,10 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
   );
 }
 
-export function Mono({ children, copy }: { children: string; copy?: boolean }) {
+export function Mono({ children, copy, compact = false }: { children: string; copy?: boolean; compact?: boolean }) {
   return (
     <span className="inline-flex max-w-full items-center gap-0.5 align-middle">
-      <span className="truncate rounded-md bg-surface-secondary px-1.5 py-0.5 font-mono text-[12px]">{children}</span>
+      <span className={`min-w-0 rounded-md bg-surface-secondary px-1.5 py-0.5 text-left font-mono text-[12px] ${compact ? "truncate" : "break-all whitespace-normal sm:truncate"}`}>{children}</span>
       {copy ? <CopyButton value={children} /> : null}
     </span>
   );

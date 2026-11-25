@@ -6,7 +6,7 @@ import { bytes } from "../components/Resources";
 import { Group, LargeTitle, Row, Segmented, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
-import { relative } from "../lib/format";
+import { capitalize, relative } from "../lib/format";
 import { useQuery } from "../lib/hooks";
 import type { Machine, Process, Sample, Stats } from "../lib/types";
 
@@ -67,7 +67,7 @@ function Graph({ series, max }: { series: { values: number[]; color: string }[];
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 text-[12px]">
+    <div className="flex min-w-0 items-baseline justify-between gap-1 text-[12px]">
       <span className="flex items-center gap-1.5 text-muted">
         {color ? <span className="size-2 rounded-sm" style={{ background: color }} /> : null}
         {label}
@@ -139,8 +139,8 @@ export function ActivityPage() {
 
       {showActions ? <RecentActions /> : (
       <>
-      <div className="mb-3 overflow-hidden rounded-xl bg-surface max-lg:overflow-x-auto">
-        <table className="w-full text-[13px] max-lg:whitespace-nowrap">
+      <div className="mb-3 shrink-0 overflow-auto rounded-xl bg-surface max-sm:max-h-[26dvh]">
+        <table data-metric={metric} className="activity-machines w-full text-[13px]">
           <thead>
             <tr>
               <Th>Machine</Th>
@@ -167,8 +167,8 @@ export function ActivityPage() {
                   <td className="px-3 py-1.5">
                     <span className="flex items-center gap-2">
                       <OsTile os={m.os} size="sm" />
-                      <span className="font-medium">{m.name}</span>
-                      <span className="text-xs text-muted">{osName(m.os)}</span>
+                      <span className="min-w-0 break-all font-medium">{m.name}</span>
+                      <span className="text-xs text-muted max-sm:hidden">{osName(m.os)}</span>
                     </span>
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{s ? pct(s.now.cpu) : "—"}</td>
@@ -185,7 +185,7 @@ export function ActivityPage() {
       </div>
 
       <div className="mb-3 min-h-0 flex-1 overflow-auto rounded-xl bg-surface">
-        <table className="w-full text-[13px] max-lg:whitespace-nowrap">
+        <table className="activity-programs w-full text-[13px]">
           <thead>
             <tr>
               <Th>Process Name {selected ? <span className="font-normal">· {selected.name}</span> : null}</Th>
@@ -203,7 +203,7 @@ export function ActivityPage() {
                 onDoubleClick={() => setEnding(p)}
                 className={`cursor-default select-none ${p.pid === chosen ? "bg-accent text-white [&_td]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
               >
-                <td className="max-w-0 truncate px-3 py-1">{p.name}</td>
+                <td className="max-w-0 truncate px-3 py-1" title={p.name}>{p.name}<span className="block text-[10px] text-muted sm:hidden">PID {p.pid}</span></td>
                 <td className="w-24 px-3 py-1 text-right tabular-nums">{pct(p.cpu)}</td>
                 <td className="w-28 px-3 py-1 text-right tabular-nums">{bytes(p.mem)}</td>
                 <td className="w-20 px-3 py-1 text-right text-muted tabular-nums">{p.pid}</td>
@@ -220,7 +220,7 @@ export function ActivityPage() {
         </table>
       </div>
 
-      <div className="grid h-[150px] shrink-0 grid-cols-[220px_1fr_220px] grid-rows-[minmax(0,1fr)] gap-4 overflow-hidden rounded-xl bg-surface p-3.5 max-lg:grid-cols-[200px_240px_200px] max-lg:overflow-x-auto">
+      <div className="activity-details grid h-[150px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-4 rounded-xl bg-surface p-3.5">
         {st ? (
           <BottomPanel metric={metric} st={st} h={h} />
         ) : (
@@ -243,6 +243,8 @@ export function ActivityPage() {
 
 function RecentActions() {
   const activity = useQuery(api.recentActivity, 5000);
+  const jobs = useQuery(api.jobHistory, 5000);
+  const jobNames: Record<string, string> = { setup: "Machine setup", update: "System update", remote: "Remote desktop setup", ssh: "SSH setup" };
   const labels: Record<string, string> = {
     "accounts/handoff": "Move accounts",
     "accounts/mode": "Change account storage",
@@ -258,7 +260,18 @@ function RecentActions() {
   };
   return (
     <div className="min-h-0 overflow-auto">
-      <Group title="Dashboard Actions" footer="Shows the last 100 requests on this machine since Spillup started.">
+      <Group title="Jobs" footer="The last 50 dashboard jobs on this machine, including the last recorded step.">
+        {jobs.error ? <Row title="Couldn't read jobs" subtitle={jobs.error.message} /> : null}
+        {jobs.loading ? <Row title="Reading jobs…" /> : null}
+        {jobs.data?.length === 0 ? <Row title="No dashboard jobs yet" /> : null}
+        {jobs.data?.map(job => (
+          <Row key={job.started} title={jobNames[job.task] ?? job.task} value={capitalize(job.state)}
+            subtitle={<><time dateTime={job.started} title={new Date(job.started).toLocaleString()}>Started {relative(job.started)}</time>
+              {job.total ? ` · Step ${job.step} of ${job.total}` : ""}
+              {job.updated !== job.started ? ` · Updated ${relative(job.updated)}` : ""}</>} />
+        ))}
+      </Group>
+      <Group title="Dashboard Actions" footer="The last 100 requests on this machine. Request bodies and credentials are excluded.">
         {activity.error ? <Row title="Couldn't read actions" subtitle={activity.error.message} /> : null}
         {activity.loading ? <Row title="Reading actions…" /> : null}
         {activity.data?.length === 0 ? <Row title="No recent actions" /> : null}

@@ -1,34 +1,35 @@
 package webui
 
 import (
+	"log"
 	"net/http"
-	"slices"
-	"sync"
 	"time"
+
+	"github.com/darkyeg/spinup/internal/history"
 )
 
-type activityEntry struct {
-	At        time.Time `json:"at"`
-	Action    string    `json:"action"`
-	Origin    string    `json:"origin"`
-	Status    int       `json:"status"`
-	ElapsedMS int64     `json:"elapsed_ms"`
-}
-
-var dashboardActivity struct {
-	sync.Mutex
-	entries []activityEntry
-}
-
 func (s *Server) serveActivity(w http.ResponseWriter, _ *http.Request) {
-	dashboardActivity.Lock()
-	entries := slices.Clone(dashboardActivity.entries)
-	dashboardActivity.Unlock()
-	slices.Reverse(entries)
-	if entries == nil {
-		entries = []activityEntry{}
+	items, err := history.Local().Actions()
+	historyResponse(w, items, err)
+}
+
+func (s *Server) serveJobs(w http.ResponseWriter, _ *http.Request) {
+	items, err := history.Local().Jobs()
+	historyResponse(w, items, err)
+}
+
+func (s *Server) serveHealthTimeline(w http.ResponseWriter, _ *http.Request) {
+	items, err := history.Local().Health()
+	historyResponse(w, items, err)
+}
+
+func historyResponse(w http.ResponseWriter, items any, err error) {
+	if err != nil {
+		log.Printf("dashboard history: %v", err)
+		writeError(w, http.StatusInternalServerError, "Couldn't read this machine's saved history.")
+		return
 	}
-	writeJSON(w, entries)
+	writeJSON(w, items)
 }
 
 type activityResponse struct {
@@ -58,14 +59,13 @@ func trackAction(from reach, route string, next http.HandlerFunc) http.HandlerFu
 		start := time.Now()
 		out := &activityResponse{ResponseWriter: w}
 		next(out, r)
-		entry := activityEntry{At: start, Action: route, Origin: origin, Status: out.status, ElapsedMS: time.Since(start).Milliseconds()}
-		dashboardActivity.Lock()
-		defer dashboardActivity.Unlock()
-		const limit = 100
-		if len(dashboardActivity.entries) == limit {
-			copy(dashboardActivity.entries, dashboardActivity.entries[1:])
-			dashboardActivity.entries = dashboardActivity.entries[:limit-1]
+		status := out.status
+		if status == 0 {
+			status = http.StatusOK
 		}
-		dashboardActivity.entries = append(dashboardActivity.entries, entry)
+		entry := history.Action{At: start, Action: route, Origin: origin, Status: status, ElapsedMS: time.Since(start).Milliseconds()}
+		if err := history.Local().RecordAction(entry); err != nil {
+			log.Printf("dashboard action history: %v", err)
+		}
 	}
 }

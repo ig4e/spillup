@@ -16,7 +16,9 @@ Ask what it **holds**:
 
 Done when: you know the name and the hold. If the user didn't say and `spinup status` (or `spinup machines`) shows a hub already, it is not the hub.
 
-Use `spinup setup <name> --plan` to preview the selected role and setup steps. Choose `--hub` or `--standby` for a different role in the preview.
+Run `spinup setup <name> --plan` to see the selected role, ordered steps and local changes before setup. The preview lists the requested Tailnet hostname, changed service settings, the Spillup binary to stage, missing tools, agent files, legacy library imports and T3 settings. Pass `--hub` or `--standby` to preview that role. The local dashboard offers the same preview during onboarding and under Settings.
+
+The preview reads the current files. Credentials stay private. Setup checks native packages, skills, remote desktop, peer links and boot services when it runs, so the final changes can also depend on which machines are online.
 
 ## 2. Install spinup
 

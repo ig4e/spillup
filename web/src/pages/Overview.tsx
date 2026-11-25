@@ -1,4 +1,5 @@
 import { Alert } from "@heroui/react";
+import { SetupPreview } from "../components/SetupPreview";
 import { Button } from "../components/Button";
 import { Crown, KeyRound, Network, RefreshCw, Sparkles, Users } from "lucide-react";
 import { useState } from "react";
@@ -35,7 +36,7 @@ export function OverviewPage() {
 
   return (
     <>
-      <LargeTitle title="Overview" subtitle="Everything your machines share." />
+      <LargeTitle title="Overview" />
 
       {data.service_problem ? (
         <Alert status="danger" className="mb-6">
@@ -59,12 +60,12 @@ export function OverviewPage() {
       <div className="mb-7 flex flex-col items-center rounded-2xl bg-surface px-6 py-9 text-center shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
         <IconTile icon={KeyRound} color={leader ? "green" : "orange"} size="lg" />
         <div className="mt-4 text-[15px] text-muted">Your accounts are on</div>
-        <div className="mt-0.5 text-[34px] leading-tight font-bold tracking-[-0.025em]">{leader || "no machine yet"}</div>
+        <div className="mt-0.5 max-w-full break-words text-[34px] leading-tight font-bold tracking-[-0.025em]">{leader || "no machine yet"}</div>
         <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted">
           <Dot tone={leader ? "success" : "warning"} />
           {leader ? (s?.in_flight ? `Serving ${s.in_flight} request${s.in_flight === 1 ? "" : "s"}` : "Ready") : "Waiting for the main machine"}
         </div>
-        <div className="mt-4 text-[13px] text-muted">
+        <div className="mt-4 max-w-full text-[13px] text-muted">
           {data.router_url ? <>Tailnet proxy at <Mono copy>{data.router_url}</Mono></> : "Tailnet proxy address unavailable"}
         </div>
       </div>
@@ -181,6 +182,7 @@ function NotSetUp() {
               <Choice key={r.id} icon={<IconTile icon={r.icon} color={r.color} />} title={r.title} subtitle={r.subtitle} chosen={role === r.id} onChoose={() => setRole(r.id)} />
             ))}
           </Group>
+          {valid ? <SetupPreview key={`${name}/${role}`} name={name} role={role} /> : null}
           {problem ? <p className="mb-4 px-1 text-sm text-danger">{problem}</p> : null}
           <Button isDisabled={!valid} onPress={start}>
             Set Up This Machine

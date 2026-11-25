@@ -63,11 +63,11 @@ function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote:
   const memPct = st && st.specs.mem_total ? (now!.mem_used / st.specs.mem_total) * 100 : 0;
   const diskPct = st?.specs.disk_total && now?.disk_used ? (now.disk_used / st.specs.disk_total) * 100 : 0;
   return (
-    <div className="flex flex-col gap-3.5 rounded-xl bg-surface p-4">
+    <div className="flex min-w-0 flex-col gap-3.5 rounded-xl bg-surface p-4">
       <div className="flex items-center gap-3">
         <OsTile os={machine.os} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[14px] font-semibold">
+          <div className="flex flex-wrap items-center gap-x-2 break-all text-[14px] font-semibold">
             {machine.name}
             {machine.is_self ? <span className="text-xs font-normal text-muted">This machine</span> : null}
           </div>
@@ -83,21 +83,21 @@ function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote:
       </div>
       {now && st ? (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <Meter label="CPU" icon={Cpu} value={now.cpu} detail={now.load1 ? `load ${now.load1.toFixed(2)}` : `${st.specs.cores} cores`} color="var(--accent)" />
             <Meter label="Memory" icon={MemoryStick} value={memPct} detail={`${bytes(now.mem_used)} of ${bytes(st.specs.mem_total, 0)}`} color="#af52de" />
             <Meter label="Disk" icon={HardDrive} value={diskPct} detail={st.specs.disk_total ? `${bytes(now.disk_used ?? 0, 0)} of ${bytes(st.specs.disk_total, 0)}` : "—"} color="#ff9500" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <div>
-              <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-x-1 text-[11px] text-muted">
                 <span>CPU</span>
                 <span className="tabular-nums">{Math.round(now.cpu)}%</span>
               </div>
               <Sparkline values={h.map((x) => x.cpu)} max={100} color="var(--accent)" />
             </div>
             <div>
-              <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-x-1 text-[11px] text-muted">
                 <span className="flex items-center gap-1.5">
                   <Dot tone="success" className="size-1.5" /> ↓ {rate(now.rx_rate)}
                 </span>
@@ -132,7 +132,7 @@ export function Resources({ machines }: { machines: Machine[] }) {
   return (
     <section className="mb-7">
       <h2 className="mb-1.5 px-1 text-[13px] font-semibold text-foreground/80">Resources</h2>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {shown.map((m) => (
           <MachineResources key={m.name} machine={m} viaRemote={m.is_self ? null : m.name} />
         ))}

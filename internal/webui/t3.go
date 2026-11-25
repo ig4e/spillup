@@ -20,6 +20,24 @@ type T3State struct {
 	Problem       string `json:"problem,omitempty"`
 }
 
+type desktopLink struct {
+	Link string `json:"link"`
+}
+
+func (s *Server) serveT3Desktop(w http.ResponseWriter, r *http.Request) {
+	var req mainRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	link, err := s.b.T3DesktopLink(r.Context(), req.Machine)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, desktopLink{Link: link})
+}
+
 type pairRequest struct {
 	Label string `json:"label"`
 }
@@ -112,4 +130,25 @@ func (s *Server) serveRestartService(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) serveUpdateSystem(w http.ResponseWriter, _ *http.Request) {
 	answer(w, s.b.UpdateSystem(), "Updating the system…")
+}
+
+type RolloutRequest struct {
+	Version string `json:"version"`
+}
+
+func (s *Server) serveRollout(w http.ResponseWriter, r *http.Request) {
+	var req RolloutRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	answer(w, s.b.StartRollout(r.Context(), req.Version), "Staging the verified Spillup release.")
+}
+
+func (s *Server) serveRolloutPlan(w http.ResponseWriter, r *http.Request) {
+	plan, err := s.b.RolloutPlan(r.Context())
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, plan)
 }

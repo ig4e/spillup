@@ -1,10 +1,11 @@
 import { Alert, Spinner } from "@heroui/react";
 import { Button } from "../components/Button";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
-import { useState } from "react";
-import { Group, GroupSkeleton, LargeTitle, Row } from "../components/ui";
+import { useState, type ReactNode } from "react";
+import { Group, GroupSkeleton, LargeTitle, Row, Segmented } from "../components/ui";
 import { api } from "../lib/api";
-import { useAction, useQuery } from "../lib/hooks";
+import { navigate, useAction, usePath, useQuery } from "../lib/hooks";
+import { UpdatesSection } from "./Updates";
 import type { Level } from "../lib/types";
 
 const mark: Record<Level, React.ReactNode> = {
@@ -16,7 +17,22 @@ const mark: Record<Level, React.ReactNode> = {
 // fixable is what the dashboard can run with one click; other fixes are things to do by hand.
 const fixable = new Set(["spinup skills sync", "spinup update", "spinup tools", "spinup agents", "spinup packages sync", "spinup t3 setup", "spinup t3 link", "spinup restart"]);
 
+type DoctorTab = "checks" | "updates";
+const tabs: { id: DoctorTab; label: string }[] = [{ id: "checks", label: "Checks" }, { id: "updates", label: "Updates" }];
+
+function DoctorTitle({ tab, actions }: { tab: DoctorTab; actions?: ReactNode }) {
+  return <LargeTitle title="Doctor" actions={actions} center={
+    <Segmented label="Doctor view" value={tab} options={tabs}
+      onChange={(view) => navigate(view === "updates" ? "/updates" : "/doctor")} />
+  } />;
+}
+
 export function DoctorPage() {
+  const updates = usePath() === "/updates";
+  return updates ? <><DoctorTitle tab="updates" /><UpdatesSection /></> : <Checks />;
+}
+
+function Checks() {
   const doctor = useQuery(api.doctor);
   const { pending, run } = useAction();
   const [rechecking, setRechecking] = useState(false);
@@ -27,9 +43,8 @@ export function DoctorPage() {
 
   return (
     <>
-      <LargeTitle
-        title="Doctor"
-        subtitle="Checks this machine, Tailscale, the accounts and your skills. Every problem comes with its fix."
+      <DoctorTitle
+        tab="checks"
         actions={
           <Button
             variant="secondary"
@@ -72,7 +87,7 @@ export function DoctorPage() {
               {data.failures ? `${data.failures} Problem${data.failures === 1 ? "" : "s"} Found` : warnings ? "Working, with Notes" : "Everything Looks Good"}
             </div>
             <div className="mt-1 text-[14px] text-muted">
-              {data.failures ? "Run the fix under each one, then check again." : "Nothing needs your attention."}
+              {data.failures ? "Run the fix under each one, then check again." : warnings ? "Review the flagged checks below." : "Nothing needs your attention."}
             </div>
           </div>
           {data.sections.map((section) => (

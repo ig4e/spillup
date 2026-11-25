@@ -276,7 +276,10 @@ body {
   }
   .nav-center .segment {
     flex: 1;
-    height: 30px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: 34px;
     border-radius: 9999px;
     font-size: 13px;
     padding-inline: 6px;
@@ -301,4 +304,35 @@ body {
 .toolbar-span {
   width: 100cqw;
   margin-inline: calc(50% - 50cqw);
+}
+
+@media (max-width: 639px) {
+  .activity-machines :is(th, td):not(:first-child),
+  .activity-programs :is(th, td):nth-child(4) {
+    display: none;
+  }
+  .activity-machines[data-metric="cpu"] :is(th, td):nth-child(2),
+  .activity-machines[data-metric="memory"] :is(th, td):nth-child(3),
+  .activity-machines[data-metric="disk"] :is(th, td):nth-child(4),
+  .activity-machines[data-metric="network"] :is(th, td):is(:nth-child(5), :nth-child(6)) {
+    display: table-cell;
+  }
+  .activity-programs :is(th, td):not(:first-child) {
+    width: 24%;
+    padding-inline: 5px;
+    white-space: nowrap;
+  }
+  .activity-details {
+    height: auto;
+    grid-template: auto auto / repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+  }
+  .activity-details > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    height: 52px;
+  }
+  .activity-details > :only-child {
+    grid-column: 1 / -1;
+  }
 }

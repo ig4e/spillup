@@ -47,6 +47,7 @@ type Machine struct {
 	KeyExpiry *time.Time `json:"key_expiry,omitempty"`
 	Expired   bool       `json:"expired,omitempty"`
 	IsSelf    bool       `json:"is_self,omitempty"`
+	Yours     bool       `json:"yours,omitempty"`
 	// Hold is known only for machines that can hold the accounts; the rest just use them.
 	Hold    config.Hold `json:"hold,omitempty"`
 	State   string      `json:"state,omitempty"`
@@ -170,4 +171,22 @@ type ownRequest struct {
 
 type signInRequest struct {
 	Provider string `json:"provider"`
+}
+
+type SetupPreview struct {
+	Name     string        `json:"name"`
+	Role     config.Hold   `json:"role"`
+	Changes  []SetupChange `json:"changes"`
+	Deferred string        `json:"deferred"`
+}
+
+type SetupChange struct {
+	Action string `json:"action"`
+	Target string `json:"target"`
+	Detail string `json:"detail"`
+}
+
+type FleetPreview struct {
+	Output  string `json:"output"`
+	Problem string `json:"problem,omitempty"`
 }

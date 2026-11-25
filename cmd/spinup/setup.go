@@ -13,7 +13,7 @@ import (
 )
 
 type setupCmd struct {
-	Plan     bool   `help:"Preview setup and the selected role without making changes."`
+	Plan     bool   `help:"Preview the role, steps and local configuration changes."`
 	Name     string `arg:"" optional:"" help:"This machine's name on your tailnet; other machines reach it by it (asked when omitted)."`
 	Hub      bool   `xor:"hold" help:"This machine normally holds the accounts. One hub per tailnet."`
 	Standby  bool   `xor:"hold" help:"This machine takes the accounts while the hub is off."`
@@ -36,18 +36,20 @@ type setupStep struct {
 
 func (c setupCmd) Run() error {
 	ctx := context.Background()
-	if c.Plan && strings.TrimSpace(c.Name) == "" {
-		c.Name = currentMachineName(ctx)
-	}
 	repo := repoData()
-	name, err := c.machineName(ctx)
-	if err != nil {
-		return err
+	req := serviceRequest{hold: c.hold(), password: c.Password, apiKey: c.APIKey, repo: repo}
+	name := strings.ToLower(strings.TrimSpace(c.Name))
+	if !c.Plan {
+		var err error
+		name, err = c.machineName(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	steps := []setupStep{
 		{"Tailscale", true, func(ctx context.Context) error { return tailnet.Setup(ctx, name) }},
 		{"Accounts service", true, func(ctx context.Context) error {
-			return installService(ctx, serviceRequest{hold: c.hold(), password: c.Password, apiKey: c.APIKey, repo: repo})
+			return installService(ctx, req)
 		}},
 		{"Dev tools", false, func(ctx context.Context) error { return installTools(ctx, repo) }},
 		{"Skills", false, func(ctx context.Context) error { return syncSkills(ctx, repo) }},
@@ -57,11 +59,11 @@ func (c setupCmd) Run() error {
 		{"T3 Code", false, setUpT3},
 	}
 	if c.Plan {
-		cfg, err := serviceConfig(serviceRequest{hold: c.hold(), repo: repo})
+		plan, err := previewSetup(ctx, name, req)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Setup preview for %s (%s)\n", name, holdPhrase(cfg.Hold))
+		fmt.Printf("Setup preview for %s (%s)\n", plan.Name, holdPhrase(plan.Role))
 		for i, step := range steps {
 			requirement := "report errors and continue"
 			if step.needed {
@@ -70,6 +72,14 @@ func (c setupCmd) Run() error {
 			fmt.Printf("  %d. %s (%s)\n", i+1, step.title, requirement)
 		}
 		fmt.Printf("  %d. Check setup\n", len(steps)+1)
+		fmt.Println("\nLocal configuration changes")
+		if len(plan.Changes) == 0 {
+			fmt.Println("  Checked settings match this machine.")
+		}
+		for _, change := range plan.Changes {
+			fmt.Printf("  %s %s — %s\n", change.Action, change.Target, change.Detail)
+		}
+		fmt.Println(plan.Deferred)
 		return nil
 	}
 	var failed []string
@@ -112,8 +122,11 @@ func (c setupCmd) hold() config.Hold {
 }
 
 func (c setupCmd) machineName(ctx context.Context) (string, error) {
-	current := currentMachineName(ctx)
 	name := strings.ToLower(strings.TrimSpace(c.Name))
+	var current string
+	if name == "" {
+		current = currentMachineName(ctx)
+	}
 	if name == "" && interactive() {
 		fmt.Println("This machine's name is its address on your tailnet: other machines reach it as <name>\n" +
 			"(http://<name>:8317, ssh <name>). Lowercase letters, digits and dashes.")
@@ -135,6 +148,10 @@ func currentMachineName(ctx context.Context) string {
 	if st, err := (tailnet.CLI{}).Status(ctx); err == nil && st.Self.Name != "" {
 		return st.Self.Name
 	}
+	return osMachineName()
+}
+
+func osMachineName() string {
 	hostname, _ := os.Hostname()
 	return strings.Trim(notNameChars.ReplaceAllString(strings.ToLower(hostname), "-"), "-")
 }

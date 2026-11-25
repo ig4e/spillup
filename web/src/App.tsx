@@ -3,7 +3,6 @@ import {
   Activity,
   ChevronRight,
   ChevronsUpDown,
-  CloudDownload,
   Ellipsis,
   Eye,
   Gauge,
@@ -41,7 +40,6 @@ import { SignInPage } from "./pages/SignIn";
 import { SkillsPage } from "./pages/Skills";
 import { T3Page } from "./pages/T3";
 import { TailscalePage } from "./pages/Tailscale";
-import { UpdatesPage } from "./pages/Updates";
 
 const OverviewContext = createContext<Query<Overview> | null>(null);
 
@@ -99,8 +97,7 @@ const sections: Section[] = [
   {
     title: "System",
     pages: [
-      { path: "/doctor", label: "Doctor", icon: Stethoscope, color: "red", page: DoctorPage },
-      { path: "/updates", label: "Updates", icon: CloudDownload, color: "blue", page: UpdatesPage },
+      { path: "/doctor", label: "Doctor & Updates", icon: Stethoscope, color: "red", page: DoctorPage },
       { path: "/settings", label: "Settings", icon: Settings, color: "gray", page: SettingsPage },
     ],
   },
@@ -114,7 +111,7 @@ const tabs = [...pages.filter((p) => p.tab), morePage];
 const moreSections = sections.map((s) => ({ ...s, pages: s.pages.filter((p) => !p.tab) })).filter((s) => s.pages.length);
 
 /** The paths a machine that isn't set up yet shows: setting it up, and what helps with that. */
-const beforeSetup = new Set(["/", "/tailscale", "/doctor", "/updates", "/settings"]);
+const beforeSetup = new Set(["/", "/tailscale", "/doctor", "/settings"]);
 
 function pageShows(page: Page, o: Overview | null | undefined) {
   if (!o) return true;
@@ -153,7 +150,8 @@ function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
   const path = usePath();
   const [collapsed, toggle] = useCollapsed();
-  const found = pages.find((p) => p.path === path) ?? (path === MORE ? morePage : pages[0]);
+  const pagePath = path === "/updates" ? "/doctor" : path;
+  const found = pages.find((p) => p.path === pagePath) ?? (path === MORE ? morePage : pages[0]);
   const current = pageShows(found, overview.data) ? found : pages[0];
   const Page = current.page;
 

@@ -10,12 +10,14 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/history"
 	"github.com/darkyeg/spinup/internal/t3code"
 	"github.com/darkyeg/spinup/internal/tailnet"
 	"github.com/darkyeg/spinup/internal/webui"
@@ -94,7 +96,9 @@ func t3TailnetURL(st tailnet.Status, node tailnet.Node, port int) string {
 
 // syncT3Links makes an immediate pass in both directions after setup or on request.
 func syncT3Links(ctx context.Context) (string, error) {
-	return reconcileT3Links(ctx, false)
+	_, quotaErr := fixT3QuotaKeys(ctx)
+	summary, linkErr := reconcileT3Links(ctx, false)
+	return summary, errors.Join(quotaErr, linkErr)
 }
 
 // reconcileT3Links pairs discovered T3 environments. Each daemon owns its outgoing links.
@@ -113,6 +117,16 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 		return "", errors.New("Tailscale has no local Tailnet address")
 	}
 	local := cliBackend{}.T3State(ctx)
+	var observed []history.Signal
+	record := func(machine, check, state string) {
+		observed = append(observed, history.Signal{Machine: machine, Check: check, State: state})
+	}
+	defer func() {
+		if err := history.Local().Observe(time.Now().UTC(), observed); err != nil {
+			log.Printf("T3 history: %v", err)
+		}
+	}()
+	record(ts.Self.Name, "T3 linking", t3Readiness(local))
 	if outgoingOnly && (!local.Installed || !local.LinkingOn) {
 		return "", nil
 	}
@@ -128,7 +142,12 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 		probe, done := context.WithTimeout(ctx, 12*time.Second)
 		err := bridgeCall(probe, p.Name, http.MethodGet, "t3", nil, &st)
 		done()
-		if err == nil && st.Installed {
+		if err != nil {
+			record(p.Name, "T3 linking", "Status unavailable")
+			continue
+		}
+		record(p.Name, "T3 linking", t3Readiness(st))
+		if st.Installed {
 			machines = append(machines, t3Machine{Node: p, address: t3TailnetURL(ts, p, st.Port), state: st})
 		}
 	}
@@ -158,12 +177,24 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 			if err := ctx.Err(); err != nil {
 				return "", fmt.Errorf("T3 linking after %d new links: %w", linked, err)
 			}
-			if from.IP == to.IP || t3code.LinksTo(from.state.Linked, to.state.EnvironmentID, to.IP, to.IPv6, to.Name, to.DNSName) {
+			if from.IP == to.IP {
+				continue
+			}
+			if t3code.LinksTo(from.state.Linked, to.state.EnvironmentID, to.IP, to.IPv6, to.Name, to.DNSName) {
+				if from.self {
+					record(to.Name, "T3 link from here", "Paired")
+				}
 				continue
 			}
 			if err := linkT3(ctx, from, to); err != nil {
+				if from.self {
+					record(to.Name, "T3 link from here", "Pairing failed")
+				}
 				failed = append(failed, fmt.Sprintf("%s → %s: %v", from.Name, to.Name, err))
 				continue
+			}
+			if from.self {
+				record(to.Name, "T3 link from here", "Paired")
 			}
 			linked++
 		}
@@ -173,6 +204,25 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 		return summary, errors.New(summary + " Not linked: " + strings.Join(failed, "; "))
 	}
 	return summary, nil
+}
+
+func t3Readiness(st webui.T3State) string {
+	switch {
+	case !st.Installed:
+		return "CLI absent"
+	case !st.LinkingOn:
+		return "Linking off"
+	case !st.NetworkAccess:
+		return "Network access off"
+	case st.AwaitsRestart:
+		return "Restart needed"
+	case st.Problem != "":
+		return "Environment list unavailable"
+	case st.Address == "":
+		return "Tailnet address unavailable"
+	default:
+		return "Ready"
+	}
 }
 
 // linkT3 has from's T3 link to to's with a pairing code minted on to.
@@ -292,7 +342,7 @@ func setUpT3(ctx context.Context) error {
 	if err := t3.Up(ctx); err != nil {
 		return err
 	}
-	if summary, err := syncT3Links(ctx); err != nil {
+	if summary, err := reconcileT3Links(ctx, false); err != nil {
 		step("T3 Code linking will be retried automatically: %v", err)
 	} else {
 		step("%s", summary)
@@ -303,7 +353,7 @@ func setUpT3(ctx context.Context) error {
 // fixT3QuotaKeys gives T3 Code's usage-limit sources that read the local router or the shared hub its management
 // key, in place of the API key they're often given, which CLIProxyAPI refuses for quotas.
 func fixT3QuotaKeys(ctx context.Context) (int, error) {
-	t3, err := t3code.Find()
+	home, err := t3code.Home()
 	if err != nil {
 		return 0, nil
 	}
@@ -315,7 +365,7 @@ func fixT3QuotaKeys(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, nil
 	}
-	return t3.FixQuotaKeys(cfg.Port, s.ManagementPassword, quotaHosts(ctx, cfg)...)
+	return (t3code.T3{Home: home}).FixQuotaKeys(quotaEndpoints(ctx, cfg, s), s.ManagementPassword)
 }
 
 // staleT3QuotaSources are those fixT3QuotaKeys would fix.
@@ -328,30 +378,55 @@ func staleT3QuotaSources(ctx context.Context, t3 t3code.T3) int {
 	if err != nil {
 		return 0
 	}
-	return len(t3.StaleQuotaSources(cfg.Port, s.ManagementPassword, quotaHosts(ctx, cfg)...))
+	n, _ := t3.StaleQuotaSources(quotaEndpoints(ctx, cfg, s), s.ManagementPassword)
+	return n
 }
 
-func quotaHosts(ctx context.Context, cfg config.Config) []string {
-	st, err := (tailnet.CLI{Bin: cfg.Tailscale}).Status(ctx)
-	if err != nil || !st.Running {
+func quotaEndpoints(ctx context.Context, cfg config.Config, s config.Secrets) []t3code.QuotaEndpoint {
+	if !cfg.Hold.CanHold() || s.ManagementPassword == "" {
 		return nil
 	}
-	hosts := []string{st.Self.IP, st.Self.DNSName}
-	if st.MagicDNS {
-		hosts = append(hosts, st.Self.Name)
+	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	client := api.Client{HTTP: directMachineClient}
+	base := localService(cfg, "").base
+	var r api.Report
+	if err := client.Get(ctx, base+api.PathState, &r); err != nil || r.Name == "" {
+		return nil
 	}
-	rep, err := localService(cfg, "").report()
-	if err != nil || rep.Leading {
-		return hosts
+	// Ask for a challenge response before trusting the status or assigning any key. The probe sends no secret.
+	leader, proof, err := client.AskLeader(ctx, base, r.Name, s)
+	if err != nil || proof != api.KnowsPassword || !leader.Hold.CanHold() {
+		return nil
 	}
-	peer, ok := st.Peer(rep.Leader)
-	if ok && st.SameOwner(peer) && !peer.Expired {
-		hosts = append(hosts, peer.IP, peer.DNSName)
-		if st.MagicDNS {
-			hosts = append(hosts, peer.Name)
+	gateway := t3code.QuotaEndpoint{Port: cfg.Port, Hosts: []string{"127.0.0.1"}}
+	// localhost may select an IPv6 listener; Spillup and its managed proxy bind IPv4 loopback.
+	ips, err := net.DefaultResolver.LookupHost(ctx, "localhost")
+	if err == nil && len(ips) > 0 && slices.Contains(ips, "127.0.0.1") && !slices.ContainsFunc(ips, func(ip string) bool { return ip != "127.0.0.1" }) {
+		gateway.Hosts = append(gateway.Hosts, "localhost")
+	}
+	endpoints := []t3code.QuotaEndpoint{}
+	if leader.Leading && r.Leading && r.ProxyRunning && cfg.ProxyPort > 0 && r.ManagedProxyPort == cfg.ProxyPort && cfg.ProxyPort != cfg.Port && cfg.ProxyPort != cfg.OwnProxyPort {
+		endpoints = append(endpoints, t3code.QuotaEndpoint{Port: cfg.ProxyPort, Hosts: slices.Clone(gateway.Hosts)})
+	}
+	st, err := (tailnet.CLI{Bin: cfg.Tailscale}).Status(ctx)
+	if err == nil && st.Running && st.Self.Name == r.Name {
+		add := func(n tailnet.Node) {
+			gateway.Hosts = append(gateway.Hosts, n.IP, n.IPv6)
+			if st.MagicDNS {
+				gateway.Hosts = append(gateway.Hosts, n.DNSName, n.Name)
+			}
+		}
+		add(st.Self)
+		if peer, ok := st.Peer(r.Leader); !r.Leading && ok && st.SameOwner(peer) && peer.Online && !peer.Expired && peer.IP != "" {
+			base := "http://" + net.JoinHostPort(peer.IP, strconv.Itoa(cfg.Port))
+			l, proof, err := client.AskLeader(ctx, base, peer.Name, s)
+			if err == nil && proof == api.KnowsPassword && l.Leading {
+				add(peer)
+			}
 		}
 	}
-	return hosts
+	return append(endpoints, gateway)
 }
 
 // selfTailnetIP is this machine's Tailscale address, or "" while Tailscale isn't up.

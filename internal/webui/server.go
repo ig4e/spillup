@@ -25,6 +25,7 @@ import (
 
 // Backend is what the dashboard reads and changes; the command line implements it with the units its own commands use.
 type Backend interface {
+	SharedQuotas(context.Context) (api.QuotaSummary, error)
 	Facts() Facts
 	Report(ctx context.Context) (api.Report, error)
 	Tailnet(ctx context.Context) (tailnet.Status, error)
@@ -49,6 +50,7 @@ type Backend interface {
 	Remote(machine string) (Remote, error)
 	// T3State, T3Pair and T3Link drive T3 Code here; SyncT3 links every machine's T3 to every other's.
 	T3State(ctx context.Context) T3State
+	T3DesktopLink(ctx context.Context, machine string) (string, error)
 	T3Pair(ctx context.Context, label string) (string, error)
 	T3Link(ctx context.Context, url, code string) error
 	SyncT3(ctx context.Context) (string, error)
@@ -60,6 +62,7 @@ type Backend interface {
 
 	// RunFix runs a doctor fix that is a spinup command; StartSetup and SetupProgress set this machine up.
 	RunFix(ctx context.Context, fix string) (string, error)
+	PreviewSetup(ctx context.Context, name, role string) (SetupPreview, error)
 	StartSetup(name, role string) error
 	SetupProgress() SetupProgress
 	AnswerSetup(password string, cancel bool) error
@@ -67,6 +70,8 @@ type Backend interface {
 	// UpdateState, StartUpdate and SetAutoUpdate keep spillup itself up to date.
 	UpdateState(ctx context.Context) Update
 	StartUpdate() error
+	StartRollout(context.Context, string) error
+	RolloutPlan(context.Context) (FleetPreview, error)
 	SetAutoUpdate(auto bool) error
 	// SetAccess lets your devices open this dashboard over Tailscale, and the dashboard open terminals here.
 	SetAccess(devices, terminals bool) error
@@ -76,6 +81,8 @@ type Backend interface {
 
 	// Remote desktop: this machine's Sunshine, Moonlight and moonlight-web, PINs for Sunshine, pairing the
 	// other machines, setting it up, and where moonlight-web answers.
+	RemoteClipboard(context.Context, uint32) (ClipboardText, error)
+	HostClipboard(context.Context, string) (ClipboardText, error)
 	RemoteState(ctx context.Context) RemoteState
 	SunshinePIN(ctx context.Context, pin, name, fromIP string) error
 	RemoteSync(ctx context.Context) (string, error)
@@ -135,7 +142,7 @@ const (
 )
 
 // localOnly routes never answer over the tailnet: they reveal keys, or need a browser on this machine.
-var localOnly = map[string]bool{"keys": true, "own/signin": true, "setup": true, "setup/answer": true, "remote/setup": true, "update/system": true, "ssh/enable": true, "settings/access": true}
+var localOnly = map[string]bool{"t3/desktop": true, "keys": true, "own/signin": true, "setup": true, "setup/preview": true, "setup/answer": true, "remote/setup": true, "update/fleet": true, "update/system": true, "ssh/enable": true, "settings/access": true}
 
 func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	admit := s.needsSession
@@ -189,6 +196,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 
 	read("t3", s.serveT3)
 	change("t3/pair", s.serveT3Pair)
+	change("t3/desktop", s.serveT3Desktop)
 	change("t3/link", s.serveT3Link)
 	change("t3/sync", s.serveT3Sync)
 	change("t3/setup", s.serveT3Setup)
@@ -197,17 +205,26 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("fix", s.serveFix)
 	change("setup", s.serveSetup)
 	read("setup", s.serveSetupProgress)
+	read("setup/preview", s.serveSetupPreview)
 	route(http.MethodPost, "setup/answer", s.serveSetupAnswer)
 
+	if from == bridged {
+		route(http.MethodPost, "host/clipboard", s.serveHostClipboard)
+	} else {
+		route(http.MethodPost, "remote/clipboard", s.serveRemoteClipboard)
+	}
 	read("remote", s.serveRemoteState)
 	change("sunshine/pin", s.serveSunshinePin)
 	change("remote/sync", s.serveRemoteSync)
 	change("remote/setup", s.serveRemoteSetup)
 	change("processes/end", s.serveEndProcess)
 	read("activity", s.serveActivity)
+	read("activity/jobs", s.serveJobs)
+	read("machines/history", s.serveHealthTimeline)
 	read("stats", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.stats.Stats()) })
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)
+	read("accounts/quotas", s.serveSharedQuotas)
 
 	route(http.MethodPost, "term", trackAction(from, "term", s.serveTerminalStart))
 	route(http.MethodGet, "term/{id}/out", s.serveTerminalOutput)
@@ -220,7 +237,9 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("ssh/sync", s.serveSSHSync)
 
 	read("update", s.serveUpdateState)
+	read("update/fleet", s.serveRolloutPlan)
 	change("update", s.serveUpdate)
+	change("update/rollout", s.serveRollout)
 	change("update/auto", s.serveAutoUpdate)
 	change("settings/access", s.serveAccess)
 	change("update/system", s.serveUpdateSystem)

@@ -5,7 +5,7 @@ import { QR } from "../components/QR";
 import { useOverview } from "../App";
 import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row } from "../components/ui";
 import { BrandTile, OsTile } from "../components/brand";
-import { api } from "../lib/api";
+import { api, currentRemote } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
 
 /** The machines a T3 Code is linked to, read from `t3 environment list --json`. */
@@ -22,11 +22,18 @@ export function T3Page() {
   const hosts = linkedHosts(t3.data?.linked);
   const others = (machines.data?.machines ?? []).filter((m) => !m.is_self);
 
+  const localDesktop = !currentRemote() && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  const desktopPeers = others.filter(m => m.online && !m.expired && m.yours && (m.hold || hosts.includes(m.ip ?? "") || hosts.includes(m.dns_name?.replace(/\.$/, "").toLowerCase() ?? "")));
+  const connectDesktop = async (name: string) => {
+    const { link } = await api.t3Desktop(name);
+    if (!link.startsWith("t3code://pair?")) throw new Error("The machine returned an invalid T3 app link.");
+    window.location.assign(link);
+    return { message: `Confirm ${name} in T3 Code to add it to your machine picker.` };
+  };
   return (
     <>
       <LargeTitle
         title="T3 Code"
-        subtitle="Agents on any machine can hand work to any other: spillup keeps every machine's T3 Code linked."
         actions={
           data?.can_manage ? (
             <Button size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.t3Sync, t3.reload)}>
@@ -35,6 +42,14 @@ export function T3Page() {
           ) : null
         }
       />
+      {localDesktop && desktopPeers.length > 0 ? (
+        <Group title="Desktop connections" footer="Add a machine to this desktop’s project picker. Confirm its address in T3 Code, then choose Add Project or select the machine before sending a projectless thread.">
+          {desktopPeers.map(machine => (
+            <Row key={machine.name} icon={<OsTile os={machine.os} />} title={machine.name} value="Connect in T3 Code"
+              busy={pending === `desktop-${machine.name}`} onPress={pending ? undefined : () => void run(`desktop-${machine.name}`, () => connectDesktop(machine.name))} />
+          ))}
+        </Group>
+      ) : null}
       {!t3.data ? (
         <GroupSkeleton rows={3} />
       ) : !t3.data.installed ? (
@@ -78,10 +93,10 @@ export function T3Page() {
             <Row icon={<IconTile icon={ShieldCheck} color="green" />} title="Access for linked machines" value="Full access" />
           </Group>
           <Group
-            title="Linked Machines"
+            title="Agent Links"
             footer={
               t3.data.problem ??
-              "The machine holding the accounts links new machines within five minutes. Change a link's access in T3 → Settings → Sharing & access."
+              "These links let agents delegate work between machines. Spillup checks them every five minutes."
             }
           >
             {others.length ? (
@@ -150,7 +165,7 @@ function PhoneGroup({ address }: { address: string }) {
             <div className="text-[15px] font-semibold">Scan with Your Phone</div>
             <div className="mt-1 text-[13px] text-muted">It opens T3 Code signed in. Then Share → Add to Home Screen.</div>
             <div className="mt-2.5 flex justify-center sm:justify-start">
-              <Mono copy>{link}</Mono>
+              <Mono copy compact>{link}</Mono>
             </div>
           </div>
         </div>

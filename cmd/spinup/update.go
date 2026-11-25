@@ -47,16 +47,26 @@ func (c updateCmd) Run() error {
 		return err
 	}
 	defer lock.Close()
+	if c.Auto {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		if err := autoUpdateReady(cfg); err != nil {
+			return err
+		}
+	}
 	removeReplacedBinary()
+	var failed []string
 	newer, err := updateSelf(ctx)
 	switch {
 	case err != nil:
 		step("Couldn't update spinup: %v", err)
+		failed = append(failed, "spinup")
 	case newer != "":
 		lock.Close()
 		return runUpdated(ctx, newer, c.args()...)
 	}
-	var failed []string
 	parts := []struct {
 		name string
 		run  func(context.Context) error
@@ -132,14 +142,28 @@ func releaseAsset() string {
 
 // replaceRunningBinary renames the running binary aside, which Windows allows, and puts the new one in its place.
 func replaceRunningBinary(exe string, data []byte) error {
-	if err := os.WriteFile(exe+".new", data, 0o755); err != nil {
+	stage, err := os.CreateTemp(filepath.Dir(exe), ".spinup-update-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(stage.Name())
+	if _, err = stage.Write(data); err == nil {
+		err = stage.Chmod(0755)
+	}
+	if err == nil {
+		err = stage.Sync()
+	}
+	if closeErr := stage.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
 		return err
 	}
 	_ = os.Remove(exe + ".old")
 	if err := os.Rename(exe, exe+".old"); err != nil {
 		return err
 	}
-	if err := os.Rename(exe+".new", exe); err != nil {
+	if err := os.Rename(stage.Name(), exe); err != nil {
 		return errors.Join(err, os.Rename(exe+".old", exe))
 	}
 	return nil
@@ -223,6 +247,10 @@ func refreshLauncherCopy() {
 	if err != nil || !sameFile(self, installedBinary()) {
 		return
 	}
+	refreshLauncherFrom(self)
+}
+
+func refreshLauncherFrom(self string) {
 	name := "spinup"
 	if runtime.GOOS == "windows" {
 		name += ".exe"

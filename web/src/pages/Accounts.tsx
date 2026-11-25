@@ -1,7 +1,8 @@
-import { AppWindow, Boxes, Crown, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
+import { AppWindow, Boxes, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
 import { Choice, Dot, Group, IconTile, LargeTitle, Mono, Row } from "../components/ui";
+import { SharedQuotas } from "../components/SharedQuotas";
 import { BrandTile } from "../components/brand";
 import { api } from "../lib/api";
 import { describeLogin, relative } from "../lib/format";
@@ -53,7 +54,7 @@ export function AccountsPage() {
 
   return (
     <>
-      <LargeTitle title="Accounts" subtitle="Your subscriptions: one machine holds them, every machine uses them." />
+      <LargeTitle title="Accounts" />
 
       <Group>
         <Row
@@ -66,8 +67,10 @@ export function AccountsPage() {
             </span>
           }
         />
-        <Row icon={<IconTile icon={Server} color="blue" />} title="Tailnet proxy address" accessory={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
+        <Row icon={<IconTile icon={Server} color="blue" />} title="Tailnet proxy address" value={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
       </Group>
+
+      {data?.installed ? <SharedQuotas /> : null}
 
       <Group
         title="Where Your Logins Live"
@@ -94,8 +97,8 @@ export function AccountsPage() {
           }
         />
         <Choice
-          icon={<IconTile icon={Crown} color="yellow" />}
-          title="Main Machine Only"
+          icon={<IconTile icon={Server} color="teal" />}
+          title="Keep logins on the main machine"
           subtitle="No login file ever leaves the main machine. Every other machine uses it over Tailscale."
           chosen={!!s?.hub_only}
           disabled={!data?.can_manage}
@@ -120,7 +123,7 @@ export function AccountsPage() {
 
       <Group title="Use Them in Your Apps">
         {hintsFor(apps.data, data).map((h) => (
-          <Row key={h.app} icon={<BrandTile brand={h.brand} icon={AppWindow} color="gray" />} title={h.app} subtitle={<span className="whitespace-normal">{h.text}</span>} accessory={h.code ? <Mono copy>{h.code}</Mono> : undefined} />
+          <Row key={h.app} icon={<BrandTile brand={h.brand} icon={AppWindow} color="gray" />} title={h.app} subtitle={<><span className="whitespace-normal">{h.text}</span>{h.code ? <span className="mt-1 block"><Mono copy>{h.code}</Mono></span> : null}</>} />
         ))}
       </Group>
 

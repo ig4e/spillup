@@ -86,8 +86,9 @@ type pending struct {
 }
 
 var client = &http.Client{
-	Timeout:   10 * time.Second,
-	Transport: &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, // Sunshine's own self-signed certificate, on 127.0.0.1
+	Timeout:       10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	Transport:     &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, // Sunshine's own self-signed certificate, on 127.0.0.1
 }
 
 // ErrNoPairing means no client is waiting to pair with this host.

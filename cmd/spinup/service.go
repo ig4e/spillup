@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/host"
+	"github.com/darkyeg/spinup/internal/library"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/release"
 	"github.com/darkyeg/spinup/internal/source"
@@ -37,6 +37,7 @@ func installService(ctx context.Context, req serviceRequest) error {
 	if err != nil {
 		return err
 	}
+	yourLibrary(req.repo)
 	ts, err := tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
 	if err := tailscaleProblem(ts, err); err != nil {
 		return err
@@ -87,8 +88,12 @@ func serviceConfig(req serviceRequest) (config.Config, error) {
 	if err != nil && !errors.Is(err, config.ErrNotInstalled) {
 		return cfg, err
 	}
-	if req.hold != "" || errors.Is(err, config.ErrNotInstalled) {
-		cfg.Hold = cmp.Or(req.hold, config.HoldNever)
+	return desiredServiceConfig(cfg, req), nil
+}
+
+func desiredServiceConfig(cfg config.Config, req serviceRequest) config.Config {
+	if req.hold != "" {
+		cfg.Hold = req.hold
 	}
 	if cfg.Tailscale == "" {
 		cfg.Tailscale = tailnet.Find()
@@ -96,8 +101,8 @@ func serviceConfig(req serviceRequest) (config.Config, error) {
 	if dir, err := req.repo.Checkout(); err == nil {
 		cfg.Repo = dir
 	}
-	cfg.Library, cfg.Home = yourLibrary(req.repo).Dir(), host.Home()
-	return cfg, nil
+	cfg.Library, cfg.Home = library.Here().Dir(), host.Home()
+	return cfg
 }
 
 func startAtBoot(cfg config.Config, settingsChanged bool) error {

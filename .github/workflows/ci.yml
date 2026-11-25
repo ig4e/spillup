@@ -43,7 +43,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: build the dashboard
-        run: npm --prefix web ci && npm --prefix web run build
+        run: npm --prefix web ci && npm --prefix web test && npm --prefix web run build
       - name: build every release target
         env:
           CGO_ENABLED: "0"

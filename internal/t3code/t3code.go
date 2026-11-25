@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/darkyeg/spinup/internal/atomicfile"
 	"github.com/darkyeg/spinup/internal/filelock"
 	"github.com/darkyeg/spinup/internal/sysproc"
 )
@@ -280,27 +279,7 @@ func (t T3) Port() int {
 // EnableLinking turns on T3's Linked environments in its settings.json, which a running server picks up;
 // every other setting is kept as it is.
 func (t T3) EnableLinking() (changed bool, err error) {
-	path := filepath.Join(t.Home, "userdata", "settings.json")
-	settings := map[string]json.RawMessage{}
-	data, err := os.ReadFile(path)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-	case err != nil:
-		return false, err
-	default:
-		if err := json.Unmarshal(data, &settings); err != nil {
-			return false, fmt.Errorf("%s: %w", path, err)
-		}
-	}
-	if string(settings["linkedEnvironmentsEnabled"]) == "true" {
-		return false, nil
-	}
-	settings["linkedEnvironmentsEnabled"] = json.RawMessage("true")
-	out, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return false, err
-	}
-	return true, atomicfile.Write(path, append(out, '\n'), 0o600)
+	return t.linkSetting().apply()
 }
 
 // ServiceAtBoot reports whether T3's background service is installed to start at boot.
@@ -380,22 +359,5 @@ func answers(addr string) bool {
 // EnableNetworkAccess turns on the desktop app's Network access, which it reads when it starts, keeping
 // every other setting; it reports whether it changed anything, in which case T3 Code needs a restart.
 func (t T3) EnableNetworkAccess() (changed bool, err error) {
-	path := t.desktopSettings()
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	settings := map[string]json.RawMessage{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return false, fmt.Errorf("%s: %w", path, err)
-	}
-	if string(settings["serverExposureMode"]) == `"network-accessible"` {
-		return false, nil
-	}
-	settings["serverExposureMode"] = json.RawMessage(`"network-accessible"`)
-	out, _ := json.MarshalIndent(settings, "", "  ")
-	return true, atomicfile.Write(path, append(out, '\n'), 0o600)
+	return t.networkSetting().apply()
 }

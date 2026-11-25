@@ -165,8 +165,16 @@ Auth files land in `auth-dir` from config.yaml, by default `~/.cli-proxy-api`.
 - **Limits view.** T3 cannot show limits for a Claude instance that uses `ANTHROPIC_AUTH_TOKEN`.
   Add the proxy under **Settings > Providers > Usage providers > Add hub** (URL + management key)
   to see pooled quotas. [verified] `docs/user/usage.md`
+- A hub or standby checks existing T3 quota sources during setup, on `spinup t3 link`, and every five minutes. It verifies the Spillup router before assigning the shared management key. On the active holder it also recognizes the direct IPv4 loopback origin at the managed CLIProxyAPI port. A key change reloads T3 settings. Workers can read the shared quota summary in Spillup.
+- **Spillup dashboard.** Open **Accounts → Shared Quota & Upstream Health** on a worker, hub, or standby. The holder lists anonymous login states and reads Claude and Codex usage windows. Fresh provider observations are reused. If a window is missing or older than five minutes, the holder queries the provider's fixed usage endpoint through CLIProxyAPI. Each window shows when it was observed. Other providers show login health only. Workers need their fleet API key and same-owner Tailscale identity. The management key, account identifiers, and raw provider responses stay on the holder. [Upstream quota sources](https://github.com/router-for-me/Cli-Proxy-API-Management-Center/blob/main/src/utils/quota/constants.ts)
 - **Welcome wizard terminal** uses the selected instance's home and environment.
   [verified] `docs/user/welcome-wizard.md`
+
+### Start work on another machine from T3 Desktop
+
+Open Spillup on the computer where you run T3 Desktop. In **T3 Code → Desktop connections**, click the machine you want to work on, or run `spinup t3 connect <machine>` in that computer’s desktop session. T3 asks **Add the backend at …?** Confirm the Tailnet address. T3 Desktop saves the connection and reconnects on startup. Spillup uses a fresh one-time pairing code for this action.
+
+In T3, press **Ctrl+K** (macOS **Cmd+K**), choose **Add Project**, then choose the remote machine and its folder. For a thread without a project, start a new draft, choose **No project**, and select the remote machine from the machine menu before sending. Automatic agent links continue to support delegation between running agents. [T3 remote access](https://github.com/pingdotgg/t3code/blob/v0.1.11/docs/user/remote-access.md) · [T3 threads](https://github.com/pingdotgg/t3code/blob/v0.1.11/docs/user/thread-sidebar.md)
 
 ## 5. Check that traffic really goes through the proxy
 

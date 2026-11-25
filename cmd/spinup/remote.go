@@ -111,8 +111,12 @@ var remoteSyncing sync.Mutex
 // syncRemote adds every other machine that runs Sunshine to this machine's moonlight-web and pairs it: the
 // host's spillup confirms the PIN with its own Sunshine, so nobody types one.
 func syncRemote(ctx context.Context) (string, error) {
-	remoteSyncing.Lock()
+	if !remoteSyncing.TryLock() {
+		return "", errors.New("remote pairing is already running")
+	}
 	defer remoteSyncing.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
 	cfg, err := config.Load()
 	if err != nil {
 		return "", errNotInstalled
@@ -133,7 +137,10 @@ func syncRemote(ctx context.Context) (string, error) {
 	hosts := loadRemoteHosts()
 	added, failed := 0, []string{}
 	for _, p := range ts.Peers {
-		if !p.Online {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		if !p.Online || p.Expired || !ts.SameOwner(p) {
 			continue
 		}
 		var st webui.RemoteState

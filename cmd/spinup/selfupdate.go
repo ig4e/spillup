@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/leadership"
 	"github.com/darkyeg/spinup/internal/release"
 	"github.com/darkyeg/spinup/internal/sysproc"
 	"github.com/darkyeg/spinup/internal/webui"
@@ -75,6 +77,10 @@ func keepUpdated(ctx context.Context, logger *log.Logger) {
 		if err != nil || !release.Newer(rel.Version, version) || rel.Version == tried {
 			continue
 		}
+		if err := autoUpdateReady(cfg); err != nil {
+			logger.Printf("deferring automatic update: %v", err)
+			continue
+		}
 		tried = rel.Version
 		logger.Printf("updating spillup %s → %s", version, rel.Version)
 		if err := startDetachedUpdate("--auto"); err != nil {
@@ -91,4 +97,29 @@ func (cliBackend) RestartService() error {
 		return err
 	}
 	return sysproc.StartDetached(filepath.Join(config.StateDir(), "restart.log"), exe, "restart")
+}
+
+func autoUpdateReady(cfg config.Config) error {
+	r, err := localService(cfg, "").report()
+	if err != nil {
+		return err
+	}
+	return autoUpdateHealth(r)
+}
+
+func autoUpdateHealth(r api.Report) error {
+	if r.Starting || r.InFlight > 0 {
+		return errors.New("the account holder is starting or serving requests")
+	}
+	if !r.Leading {
+		return nil
+	}
+	if !r.HubOnly && r.ProxyRunning {
+		for _, p := range r.Peers {
+			if p.Hold.CanHold() && p.State == leadership.Synced && p.Epoch == r.Epoch {
+				return nil
+			}
+		}
+	}
+	return errors.New("the active account holder needs a synced standby or a manual maintenance update")
 }

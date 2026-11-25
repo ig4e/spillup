@@ -1,6 +1,7 @@
 import { Clock, FolderGit2, Heart, KeyRound, Lock, Network, Palette, Server, Smartphone, SquareTerminal, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useOverview } from "../App";
+import { SetupPreview } from "../components/SetupPreview";
 import { QR } from "../components/QR";
 import { BrandTile } from "../components/brand";
 import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, Toggle, holdName, osName } from "../components/ui";
@@ -47,10 +48,12 @@ export function SettingsPage() {
         }
       >
         <Row icon={<IconTile icon={Server} color="green" />} title="Role" value={data ? holdName[data.hold] : "—"} to="/machines" />
-        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" accessory={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
+        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" value={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
         <Row icon={<IconTile icon={Clock} color="orange" />} title="Fail over after" value={data ? `${Math.round(data.settings.failover_after_seconds / 60)} minutes offline` : "—"} />
         <Row icon={<IconTile icon={Undo2} color="indigo" />} title="Hand back to the main machine" value={data?.settings.auto_failback ? "Automatically" : "Manually"} />
       </Group>
+
+      {remote || !data?.installed ? null : <SetupPreview />}
 
       <Group title="About">
         <Row icon={<img src="/icon.svg" alt="" className="size-7 rounded-[7px]" />} title="spillup" value={data ? `${data.version} · ${osName(data.os)}` : "—"} />

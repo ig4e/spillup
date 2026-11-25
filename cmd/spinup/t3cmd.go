@@ -7,9 +7,10 @@ import (
 )
 
 type t3Cmd struct {
-	Status t3StatusCmd `cmd:"" default:"1" help:"T3 Code on this machine and the machines it's linked to."`
-	Setup  t3SetupCmd  `cmd:"" help:"Run T3 Code's background service at boot, on your LAN and tailnet, with linked environments on."`
-	Link   t3LinkCmd   `cmd:"" help:"Link all configured T3 Code machines now."`
+	Connect t3ConnectCmd `cmd:"" help:"Add an online machine to this T3 desktop app for projects and threads."`
+	Status  t3StatusCmd  `cmd:"" default:"1" help:"T3 Code on this machine and the machines it's linked to."`
+	Setup   t3SetupCmd   `cmd:"" help:"Run T3 Code's background service at boot, on your LAN and tailnet, with linked environments on."`
+	Link    t3LinkCmd    `cmd:"" help:"Link all configured T3 Code machines now."`
 }
 
 func (t3Cmd) Help() string {

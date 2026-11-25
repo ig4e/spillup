@@ -54,3 +54,16 @@ func TestPairReadsThePinThenTheResult(t *testing.T) {
 		t.Errorf("paired: %v", err)
 	}
 }
+
+func TestHostsUseTheLivePairingAndServerState(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"hosts":[{"host_id":1,"name":"desktop","server_state":null}]}`)
+		fmt.Fprintln(w, `{"host_id":1,"name":"desktop","server_state":"Busy","paired":"Paired"}`)
+	}))
+	defer srv.Close()
+	port := srv.Listener.Addr().(*net.TCPAddr).Port
+	got, err := (Client{Port: port}).Hosts(t.Context())
+	if err != nil || len(got) != 1 || got[0].State != "Busy" || got[0].Paired != "Paired" {
+		t.Fatalf("streamed hosts: %+v %v", got, err)
+	}
+}

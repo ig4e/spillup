@@ -68,7 +68,7 @@ func machinesFrom(ts tailnet.Status, rep *api.Report) []Machine {
 	for _, n := range ts.Machines() {
 		m := Machine{
 			Name: n.Name, DNSName: n.DNSName, IP: n.IP, OS: n.OS, Online: n.Online, Expired: n.Expired, IsSelf: n.IsSelf,
-			LastSeen: timeOrNil(n.LastSeen), KeyExpiry: timeOrNil(n.KeyExpiry),
+			Yours: ts.SameOwner(n), LastSeen: timeOrNil(n.LastSeen), KeyExpiry: timeOrNil(n.KeyExpiry),
 		}
 		if n.Name == ts.Self.Name {
 			m.IsSelf = true

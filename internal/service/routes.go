@@ -43,7 +43,7 @@ func (m *Machine) routes(a audience) http.Handler {
 	if m.library != nil {
 		libraryAccess := m.withAPIKey
 		if a == onTailnet {
-			libraryAccess = m.withLibraryPeer
+			libraryAccess = m.withOwnedPeer
 		}
 		mux.HandleFunc("GET "+api.PathLibraryState, libraryAccess(m.serveLibraryState))
 		mux.HandleFunc("GET "+api.PathLibrary, libraryAccess(m.serveLibrary))
@@ -59,6 +59,7 @@ func (m *Machine) routes(a audience) http.Handler {
 	}
 	switch a {
 	case onLocalhost:
+		mux.HandleFunc("GET "+api.PathQuotas, m.withAPIKey(m.serveQuotaView))
 		mux.HandleFunc("GET "+api.PathState, m.serveState)
 		// Only the user at this machine may force it to lead or stop it.
 		mux.HandleFunc("POST "+api.PathTakeover, m.keyed(m.holding(m.serveTakeover)))
@@ -67,6 +68,7 @@ func (m *Machine) routes(a audience) http.Handler {
 		mux.HandleFunc("POST "+api.PathMain, m.keyed(m.holding(m.serveMain)))
 		mux.HandleFunc("POST "+api.PathOwn, m.withAPIKey(m.serveOwn))
 	case onTailnet:
+		mux.HandleFunc("GET "+api.PathQuotas, m.withOwnedPeer(m.serveHolderQuotas))
 		mux.HandleFunc("GET "+api.PathState, m.keyed(m.serveState))
 		mux.HandleFunc("POST "+api.PathJoin, m.holding(m.serveJoin))
 	}
@@ -90,6 +92,7 @@ func (m *Machine) tailnetHandler() http.Handler {
 		return m.routes(onTailnet)
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+api.PathLeader, m.serveLeader)
 	mux.Handle(dashboardPrefix, m.bridged(m.o.Dashboard))
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "this machine only uses the accounts")
@@ -102,6 +105,10 @@ func (m *Machine) tailnetHandler() http.Handler {
 // machine's dashboard and nobody else's device can. An API key alone can read a worker's overview.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == dashboardPrefix+"api/host/clipboard" {
+			m.withOwnedPeer(h.ServeHTTP)(w, r)
+			return
+		}
 		workerOverview := m.o.Secrets.ManagementPassword == "" &&
 			r.Method == http.MethodGet && r.URL.Path == dashboardPrefix+"api/overview"
 		if m.bridgeAdmitsOwner(r) || workerOverview && m.matchesAPIKey(r) {

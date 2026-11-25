@@ -71,7 +71,7 @@ func (m Management) call(ctx context.Context, method, path string, out any) erro
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+m.Key)
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	resp, err := managementReader.Do(req)
 	if err != nil {
 		return fmt.Errorf("this machine's own CLIProxyAPI isn't answering: %w", err)
 	}

@@ -119,3 +119,39 @@ func TestNetworkAccessTurnsOnTheDesktopAppsSetting(t *testing.T) {
 		t.Errorf("after enabling: %s", data)
 	}
 }
+
+func TestSetupSettingsPreviewMatchesApply(t *testing.T) {
+	t3 := T3{Home: t.TempDir()}
+	dir := filepath.Join(t3.Home, "userdata")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(t3.desktopSettings(), []byte(`{"theme":"custom"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := t3.SettingsDrift()
+	if err != nil || len(changes) != 2 {
+		t.Fatalf("preview = %v, %v", changes, err)
+	}
+	if _, err := os.Stat(t3.settingsPath()); !os.IsNotExist(err) {
+		t.Fatal("preview wrote settings")
+	}
+	if changed, err := t3.EnableLinking(); !changed || err != nil {
+		t.Fatalf("linking = %v, %v", changed, err)
+	}
+	if changed, err := t3.EnableNetworkAccess(); !changed || err != nil {
+		t.Fatalf("network = %v, %v", changed, err)
+	}
+	if changes, err := t3.SettingsDrift(); len(changes) != 0 || err != nil {
+		t.Fatalf("second preview = %v, %v", changes, err)
+	}
+	if err := os.WriteFile(t3.settingsPath(), []byte("null"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := t3.SettingsDrift(); err == nil {
+		t.Fatal("preview accepted a non-object settings file")
+	}
+	if _, err := t3.EnableLinking(); err == nil {
+		t.Fatal("setup accepted a non-object settings file")
+	}
+}

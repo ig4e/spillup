@@ -46,20 +46,36 @@ func (l Library) Files() fs.FS { return os.DirFS(l.dir) }
 // Path is where name lives in the library.
 func (l Library) Path(name string) string { return filepath.Join(l.dir, filepath.FromSlash(name)) }
 
-// Adopt copies the private repo of earlier spinup versions (old) into the library, once: only into a
-// library with nothing of yours yet. It returns what it copied; old stays as it was.
-func (l Library) Adopt(old string) (adopted []string, err error) {
+// Adoptable lists the legacy entries that setup would copy into an empty library.
+func (l Library) Adoptable(old string) ([]string, error) {
 	for _, name := range yourParts {
 		if _, err := os.Stat(l.Path(name)); err == nil {
 			return nil, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
 		}
 	}
+	var names []string
 	for _, name := range yourParts {
+		if _, err := os.Stat(filepath.Join(old, name)); err == nil {
+			names = append(names, name)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return names, nil
+}
+
+// Adopt copies the private repo of earlier spinup versions (old) into the library, once: only into a
+// library with nothing of yours yet. It returns what it copied; old stays as it was.
+func (l Library) Adopt(old string) (adopted []string, err error) {
+	names, err := l.Adoptable(old)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range names {
 		from := filepath.Join(old, name)
 		info, err := os.Stat(from)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
 		if err != nil {
 			return adopted, err
 		}

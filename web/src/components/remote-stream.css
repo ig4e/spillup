@@ -1,0 +1,22 @@
+.remote-player { background:#101114; color:#f4f4f5; display:flex; flex:1; flex-direction:column; width:100%; min-width:0; min-height:0; overflow:hidden; border-radius:12px; position:relative; isolation:isolate }
+.remote-expanded,.remote-player:fullscreen { position:fixed; inset:0; z-index:80; height:100dvh; border-radius:0 }
+.remote-tools { display:flex; align-items:center; flex-wrap:wrap; gap:3px; padding:5px; background:#222429 }
+.remote-name { flex:1 1 auto; min-width:36px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-inline:7px; font-weight:600 }
+.remote-name span { color:#c0c2c8; font-size:.86em; font-weight:400 }
+.remote-player button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:36px; min-height:36px; padding:4px 9px; border-radius:7px; font-size:.83rem; cursor:pointer }
+.remote-player button:hover,.remote-player button:focus-visible { background:#3b3d44 }
+.remote-player button:disabled { opacity:.45; cursor:default }
+.remote-player svg { width:17px; height:17px }
+.remote-display { position:relative; flex:1; min-height:min(220px,45dvh); background:black; touch-action:none; user-select:none; outline-offset:-2px; overflow:hidden }
+.remote-display video,.remote-display canvas { width:100%; height:100%; position:absolute; inset:0; object-fit:contain; pointer-events:none }
+.remote-display [hidden] { display:none }
+.remote-message { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:16px; gap:12px; text-align:center; font-size:.9rem; color:#e0e0e3; overflow:auto }
+.remote-message button,.remote-text button { background:#373943 }
+.remote-text { background:#222429; padding:10px; display:grid; gap:6px; min-height:0; overflow:auto }
+.remote-text textarea { background:#13151a; color:white; border:1px solid #646773; padding:8px; width:100%; height:clamp(44px,14dvh,112px); font-size:16px; resize:vertical }
+.remote-text>div { display:flex; justify-content:flex-end; gap:8px }
+.remote-notice { padding:3px 8px; font-size:.85rem; display:flex; align-items:center; justify-content:space-between; gap:6px; overflow-wrap:anywhere }
+@media(max-width:640px) { .remote-player { border-radius:8px } .remote-name{ flex:1 1 100% } .remote-tools button { min-width:40px; min-height:40px } .remote-tools{justify-content:space-evenly} .remote-display{min-height:min(170px,38dvh)} }
+@media(max-height:450px) { .remote-name{flex:1 1 80px} .remote-display{min-height:42px} .remote-text { max-height:42dvh } }
+.remote-text .remote-shortcuts { justify-content:flex-start; gap:4px; flex-wrap:wrap }
+.remote-shortcuts button { min-height:30px }

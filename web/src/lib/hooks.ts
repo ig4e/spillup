@@ -132,7 +132,10 @@ window.addEventListener("popstate", notify);
 
 export function navigate(to: string) {
   if (to === window.location.pathname) return;
-  window.history.pushState({ depth: historyDepth() + 1 }, "", to);
+  const target = new URL(to, window.location.origin);
+  const machine = currentRemote();
+  if (machine) target.searchParams.set("machine", machine);
+  window.history.pushState({ depth: historyDepth() + 1 }, "", target.pathname + target.search + target.hash);
   window.scrollTo({ top: 0 });
   notify();
 }

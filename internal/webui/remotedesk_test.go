@@ -37,6 +37,20 @@ func TestMoonlightWebIsServedSignedInAndOnlyToTheDashboardsBrowser(t *testing.T)
 	if got := w.Body.String(); got != `/remote/api/hosts user=spillup cookie=""` {
 		t.Errorf("reached moonlight-web as %q", got)
 	}
+	foreign := do(t, h, http.MethodGet, "/remote/api/host/stream/web_socket", func(r *http.Request) {
+		signedIn(r)
+		r.Header.Set("Upgrade", "websocket")
+		r.Header.Set("Origin", "https://other.example")
+	})
+	if foreign.Code != http.StatusForbidden {
+		t.Fatal("cross-site stream upgrade accepted", foreign.Code)
+	}
+	if legacy := do(t, h, http.MethodGet, "/remote/stream.html?hostId=7&appId=1", signedIn); legacy.Code != 303 || legacy.Header().Get("Location") != "/desktop?hostId=7" {
+		t.Fatal("legacy stream did not open Spillup")
+	}
+	if admin := do(t, h, http.MethodGet, "/remote/api/users", signedIn); admin.Code != 404 {
+		t.Fatal("raw upstream admin exposed")
+	}
 	if fo := w.Header().Get("X-Frame-Options"); fo != "SAMEORIGIN" {
 		t.Errorf("X-Frame-Options %q, want SAMEORIGIN so the Remote page can show it", fo)
 	}
@@ -60,5 +74,23 @@ func TestSunshinePinTakesOnlyFourDigits(t *testing.T) {
 		if w.Code != want {
 			t.Errorf("%s: %d, want %d", body, w.Code, want)
 		}
+	}
+}
+
+func TestClipboardRoutesAreDirectionalAndNeverCached(t *testing.T) {
+	b := &fakeBackend{}
+	local := New(b, testToken).Handler()
+	if w := do(t, local, "POST", "/api/remote/clipboard", nil); w.Code == 200 {
+		t.Fatal("anonymous clipboard")
+	}
+	if w := do(t, local, "POST", "/api/host/clipboard", signedIn); w.Code != 404 {
+		t.Fatal(w.Code)
+	}
+	if w := do(t, local, "POST", "/api/remote/clipboard", signedIn); w.Code != 200 || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal(w.Code)
+	}
+	bridge := New(b, "").BridgeHandler()
+	if w := do(t, bridge, "POST", BridgePrefix+"/api/remote/clipboard", signedIn); w.Code != 404 {
+		t.Fatal("clipboard relay reachable over bridge", w.Code)
 	}
 }

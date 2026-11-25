@@ -1,4 +1,5 @@
-import type { ActivityEntry, App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { FleetPreview, HealthObservation, JobRecord, QuotaSummary } from "./types";
+import type { SetupPreview, ActivityEntry, App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -8,6 +9,9 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+const hostname = window.location.hostname;
+export const localDashboard = hostname === "localhost" || hostname === "[::1]" || /^127\./.test(hostname);
 
 const mocked = import.meta.env.VITE_MOCK === "1";
 
@@ -78,6 +82,7 @@ export const api = {
   skills: () => call<Skills>("GET", "skills"),
   keys: () => call<Keys>("GET", "keys"),
 
+  sharedQuotas: () => call<QuotaSummary>("GET", "accounts/quotas"),
   handoff: (to: string) => post("accounts/handoff", { to }),
   takeover: () => post("accounts/takeover"),
   restartProxy: () => post("accounts/restart"),
@@ -105,11 +110,14 @@ export const api = {
     if (!res.ok) throw new ApiError((await res.text()) || res.statusText, res.status);
     return ((await res.json()) as { apps: { app_id: number; title: string }[] }).apps;
   },
+  remoteClipboard: (hostId: number) => call<{ text: string }>("POST", "remote/clipboard", { host_id: hostId }, true),
   remoteSync: () => call<{ message: string }>("POST", "remote/sync", {}, true),
   remoteSetup: () => call<{ message: string }>("POST", "remote/setup", {}, true),
   /** Confirms the PIN Moonlight shows on machine's Sunshine (null: this machine). */
   sunshinePin: (machine: string | null, pin: string) =>
     call<{ message: string }>("POST", machine ? `remote/${encodeURIComponent(machine)}/sunshine/pin` : "sunshine/pin", { pin }, true),
+  jobHistory: () => call<JobRecord[]>("GET", "activity/jobs"),
+  healthHistory: () => call<HealthObservation[]>("GET", "machines/history"),
   recentActivity: () => call<ActivityEntry[]>("GET", "activity"),
   /** A machine's specs and load: this one, or another by name, whichever dashboard is shown. */
   statsOf: (machine: string | null) => call<Stats>("GET", machine ? `remote/${encodeURIComponent(machine)}/stats` : "stats", undefined, true),
@@ -118,15 +126,18 @@ export const api = {
     call<Done>("POST", machine ? `remote/${encodeURIComponent(machine)}/processes/end` : "processes/end", { pid, force }, true),
   proxyLogins: () => call<LoginStatus>("GET", "proxy/logins"),
   t3: () => call<T3State>("GET", "t3"),
+  t3Desktop: (machine: string) => call<{link: string}>("POST", "t3/desktop", { machine }, true),
   t3Sync: () => post("t3/sync"),
   t3Setup: () => post("t3/setup"),
   scan: () => call<Device[]>("GET", "machines/scan"),
   setHubOnly: (hub_only: boolean) => post("accounts/mode", { hub_only }),
   fix: (fix: string) => post("fix", { fix }),
   setup: (name: string, role: string) => post("setup", { name, role }),
+  setupPreview: (name: string, role: string) => call<SetupPreview>("GET", "setup/preview?" + new URLSearchParams({ name, role }), undefined, true),
   setupProgress: () => call<SetupProgress>("GET", "setup", undefined, true),
   answerSetup: (password: string, cancel = false) => post("setup/answer", { password, cancel }),
   update: () => call<UpdateState>("GET", "update"),
+  rolloutPlan: () => call<FleetPreview>("GET", "update/fleet", undefined, true),
   startUpdate: () => post("update"),
   setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
   restart: () => post("restart"),

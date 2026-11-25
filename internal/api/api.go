@@ -112,20 +112,22 @@ type Main struct {
 
 // Report is a machine's state, for the other machines and for `spinup status`.
 type Report struct {
-	Name         string            `json:"name"`
-	Hold         config.Hold       `json:"hold"`
-	Version      string            `json:"version"`
-	Leading      bool              `json:"leading"`
-	Starting     bool              `json:"starting,omitempty"`
-	Epoch        int64             `json:"epoch"`
-	Leader       string            `json:"leader"`
-	LeaderAddr   string            `json:"leader_addr,omitempty"`
-	Synced       *Sync             `json:"synced,omitempty"`
-	ProxyRunning bool              `json:"proxy_running"`
-	Waiting      string            `json:"waiting,omitempty"`
-	InFlight     int               `json:"in_flight,omitempty"`
-	Accounts     []logins.Summary  `json:"accounts,omitempty"`
-	Peers        []leadership.Peer `json:"peers,omitempty"`
+	Rollout          bool              `json:"rollout,omitempty"`
+	Name             string            `json:"name"`
+	Hold             config.Hold       `json:"hold"`
+	Version          string            `json:"version"`
+	Leading          bool              `json:"leading"`
+	Starting         bool              `json:"starting,omitempty"`
+	Epoch            int64             `json:"epoch"`
+	Leader           string            `json:"leader"`
+	LeaderAddr       string            `json:"leader_addr,omitempty"`
+	Synced           *Sync             `json:"synced,omitempty"`
+	ManagedProxyPort int               `json:"managed_proxy_port,omitempty"`
+	ProxyRunning     bool              `json:"proxy_running"`
+	Waiting          string            `json:"waiting,omitempty"`
+	InFlight         int               `json:"in_flight,omitempty"`
+	Accounts         []logins.Summary  `json:"accounts,omitempty"`
+	Peers            []leadership.Peer `json:"peers,omitempty"`
 	// Own are the model families this machine serves with its own logins; OwnRunning is their proxy.
 	Own        []string `json:"own,omitempty"`
 	HubOnly    bool     `json:"hub_only,omitempty"`
@@ -139,6 +141,11 @@ type Report struct {
 type Sync struct {
 	Epoch      int64 `json:"epoch"`
 	SecondsAgo int   `json:"seconds_ago"`
+}
+
+// Fresh reports whether this machine holds a recent complete copy of the requested epoch.
+func (s *Sync) Fresh(epoch int64) bool {
+	return s != nil && s.Epoch == epoch && s.SecondsAgo >= 0 && s.SecondsAgo < 120
 }
 
 // Error is the body of every failed request.

@@ -131,6 +131,12 @@ export async function mock(method: string, fullPath: string, body: any): Promise
     const hold = fleet.holds[name] ?? "never";
     return { ...o, name, hold, can_manage: hold !== "never", os: "windows", service: { ...o.service!, name, hold, leading: fleet.leader === name } };
   }
+  if (method === "GET" && path.startsWith("setup/preview?")) {
+    const query = new URLSearchParams(path.split("?")[1]);
+    return { name: query.get("name") || fleet.self, role: query.get("role") === "use" ? "never" : query.get("role") || "standby",
+      changes: [{ action: "Update", target: "~/.codex/AGENTS.md", detail: "Install the managed agent configuration" }],
+      deferred: "Setup checks live credentials, skills, native packages, remote desktop, T3 peer links and boot services when it runs." };
+  }
   if (method === "GET" && path.startsWith("own/signin?")) return { status: "ok" };
   if (method === "GET" && fullPath.endsWith("stats")) return mockStats(viewing ?? "laptop");
   if (method === "GET") {
@@ -168,6 +174,15 @@ export async function mock(method: string, fullPath: string, body: any): Promise
           { id: "opencode", name: "OpenCode", installed: true },
           { id: "ccp", name: "ccp", installed: true },
         ];
+      case "accounts/quotas":
+        return {
+          checked_at: new Date().toISOString(),
+          accounts: [
+            { provider: "claude", state: "ready", observed_at: new Date().toISOString(), windows: [{ label: "5h", used_percent: 21 }] },
+            { provider: "codex", state: "ready", observed_at: new Date().toISOString(), windows: [{ label: "7d", used_percent: 64 }] },
+            { provider: "antigravity", state: "limited" },
+          ],
+        };
       case "proxy/logins":
         return {
           logins: [
@@ -190,12 +205,18 @@ export async function mock(method: string, fullPath: string, body: any): Promise
           { name: "phone", ip: "100.99.1.33", os: "iOS", online: true, yours: true, spillup: false },
           { name: "nas", ip: "100.80.4.2", os: "linux", online: true, yours: true, spillup: true, hold: "never" },
         ];
+      case "machines/history":
+        return [{ machine: "desktop", check: "Tailscale", state: "Online", since: ago(300), last: ago(0) }];
+      case "activity/jobs":
+        return [{ task: "setup", state: "completed", started: ago(300), updated: ago(60), step: 9, total: 9 }];
       case "activity":
-      return [];
-    case "setup":
+        return [];
+      case "setup":
         return { running: false, done: false, log: [] };
       case "t3":
         return { installed: true, app: true, port: 3773, address: "http://desktop.tail1234.ts.net:3773", linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
+      case "update/fleet":
+        return { output: "Fleet rollout to v0.4.1\n[1/2] laptop (v0.4.0)  ready to update\n[2/2] desktop (v0.4.0)  active account holder deferred" };
       case "update":
         return { current: "v0.3.6", latest: "v0.3.7", auto: true, system_managed: true, system: ["tailscale", "linux", "mesa"] };
       case "ssh":
@@ -206,9 +227,12 @@ export async function mock(method: string, fullPath: string, body: any): Promise
   }
   if (path.startsWith("own/signin?")) return { status: "ok" };
   switch (path) {
+    case "t3/desktop":
+      throw new Error("Open the live dashboard to connect your desktop app.");
     case "own":
       own.providers = body.providers;
       return { message: body.providers.length ? `This machine now signs in to ${body.providers.join(", ")} by itself.` : "Every provider uses the shared accounts again." };
+    case "remote/clipboard": return {text:"Sample text"};
     case "remote/sync":
       await wait(1200);
       return { message: "1 machine(s) newly paired for remote desktop." };

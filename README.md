@@ -47,7 +47,7 @@ spinup setup my-desktop --hub
 | 🖥️ **One dashboard for the fleet** | Always on at `http://localhost:8320`. From the main machine, open any other machine's dashboard too. |
 | 🩺 **A straight answer when something breaks** | `spinup doctor` (or the Doctor page) checks everything and gives the fix for each problem. |
 | 🖥️ **Remote desktop to every machine** | Sunshine on each machine, Moonlight as the app, and a browser client right in the dashboard: reach and control any machine from any other, paired over Tailscale with no PINs to type. |
-| ⬆️ **Keeps itself current** | spillup updates itself (switch it off under Updates), handing the accounts on first so nothing is cut off. |
+| ⬆️ **Keeps itself current** | spillup updates itself (switch it off under Doctor & Updates), deferring unattended restarts of the sole account holder. |
 
 Under the hood: [Tailscale](https://tailscale.com) connects your machines privately, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) shares the accounts, and one Go binary with no dependencies runs it all, 24/7, from boot.
 
@@ -128,7 +128,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**T3 Code** — which machines this machine's T3 is linked to, and *Link All Machines Now*. The main machine keeps every T3 linked to every other with full access.
+**T3 Code** shows automatic links for agent delegation. Under **Desktop connections**, open a machine in T3 and confirm the pairing. You can then select that machine in **Add Project**.
 
 </td>
 <td><img src="docs/screenshots/t3.png" alt="T3 Code: every machine linked"></td>
@@ -144,7 +144,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**Doctor** — tools, Tailscale paths, the accounts, skills and updates, each problem with its fix.
+**Doctor & Updates** puts checks and fixes in the **Checks** tab. The **Updates** tab shows installed versions and lets you preview a fleet rollout.
 
 </td>
 <td><img src="docs/screenshots/doctor.png" alt="Doctor: every check with its fix"></td>
@@ -159,15 +159,17 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 </tr>
 </table>
 
-Everything is a button: Doctor fixes run with one click, T3 Code sets itself up from its page, **Machines** scans your tailnet for devices that still need spillup, and a machine that isn't set up yet gets a setup form. There's also **CLIProxyAPI** — its own Management Center, window-sized and already signed in (for another machine, that machine's own) — plus **Tailscale**, **Updates** and **Settings**. The sidebar folds down to icons.
+**Remote** opens a paired Sunshine desktop or app in Spillup’s browser player. Use the toolbar to paste text, copy the host clipboard, toggle sound, go full screen, or disconnect. Clipboard transfer is plain text, up to 64 KiB per action. Copy requires device access on the host and a signed-in desktop session. On browsers that restrict clipboard access, the player offers a text field.
+
+**Machines** shows changes in Tailscale reachability, Spillup, account sync and T3 linking. **Activity** keeps the latest 100 dashboard actions and 50 setup or update jobs across restarts. **Accounts** shows provider health and observed usage windows on workers as well as holders. **Settings** previews local setup changes. **Doctor & Updates** runs machine checks, manages updates and previews the fleet rollout.
 
 <details>
 <summary><b>How the dashboard stays safe</b></summary>
 
-- It answers only on `localhost`, and only to a browser signed in through `spinup ui`. Other websites can't call it: requests are checked for this dashboard's address, origin and a JSON body.
-- Keys never reach the browser. The CLIProxyAPI page and other machines' dashboards are reached through spillup, which adds the keys itself.
-- Another machine's dashboard is reachable only over Tailscale. A main machine or standby answers only to the dashboard password, so a machine that just uses the accounts can never control one. Revealing keys, signing in and CLIProxyAPI's dashboard never work remotely.
-- Change the port with `ui_port` in `config.json`; `0` turns the dashboard off.
+- The local dashboard uses the session from `spinup ui`. With device access enabled, the Tailnet dashboard also admits devices on the same Tailscale account.
+- Shared quota summaries contain provider health, usage percentages and observation times. The holder keeps the management credential and upstream responses on its own machine.
+- Clipboard reads require an explicit copy action in the player, a paired Sunshine host with an active application, device access, and a same-owner peer with the fleet API key. Clipboard contents are excluded from history.
+- Set `ui_port` to `0` to turn off the dashboard.
 
 </details>
 
@@ -195,6 +197,7 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup setup <name> [--hub\|--standby]` | Set up or repair the whole machine |
 | `spinup ui` | Open the always-on dashboard, signed in |
 | `spinup doctor` | Check everything; each problem comes with its fix |
+| `spinup rollout` | Preview a staged release. Run `spinup rollout --apply` on the hub to update followers one at a time and verify each running service. |
 | `spinup update` | Update spillup, CLIProxyAPI, skills and Tailscale |
 | `spinup status` | Who holds the accounts, every login, every machine |
 | `spinup handoff <machine>` | Move the accounts to another machine, safely |
@@ -205,7 +208,8 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
 | `spinup tools` | Install the dev tools a machine lacks |
 | `spinup keys` | The API key here; the dashboard password on a hub or standby |
-| `spinup t3 [setup\|link]` | T3 Code at boot, and linked between every machine |
+| `spinup t3 [setup\|link]` | Start T3 Code at boot and link agents across machines |
+| `spinup t3 connect <machine>` | Open a machine in T3 Desktop to work on its projects |
 | `spinup remote [setup\|pair]` | Remote desktop: Sunshine, Moonlight and the browser client, paired between every machine |
 
 `spinup <command> --help` explains each one.

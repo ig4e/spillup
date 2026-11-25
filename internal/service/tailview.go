@@ -40,9 +40,14 @@ func (t *tailView) owned(ip string) (tailnet.Node, bool) {
 	return peer, ok && !peer.Expired && t.status.SameOwner(peer)
 }
 
-func (t *tailView) ownsPeer(name string) bool {
+func (t *tailView) ownedPeer(name string) (tailnet.Node, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	peer, ok := t.status.Peer(name)
-	return ok && !peer.Expired && t.status.SameOwner(peer)
+	return peer, ok && !peer.Expired && t.status.SameOwner(peer)
+}
+
+func (t *tailView) ownsPeer(name string) bool {
+	_, ok := t.ownedPeer(name)
+	return ok
 }

@@ -43,6 +43,30 @@ func (cliBackend) Report(context.Context) (api.Report, error) {
 	return localService(cfg, "").report()
 }
 
+func (cliBackend) SharedQuotas(ctx context.Context) (api.QuotaSummary, error) {
+	var summary api.QuotaSummary
+	cfg, err := config.Load()
+	if err != nil {
+		return summary, errNotInstalled
+	}
+	secrets, err := config.LoadSecrets(cfg)
+	if err != nil {
+		return summary, errors.New("the fleet API key is unavailable on this machine")
+	}
+	l := localService(cfg, "")
+	l.client.APIKey = secrets.APIKey
+	ctx, cancel := context.WithTimeout(ctx, 21*time.Second)
+	defer cancel()
+	err = l.client.Get(ctx, l.base+api.PathQuotas, &summary)
+	if api.WasRefused(err) {
+		return summary, err
+	}
+	if err != nil {
+		return summary, errors.New("this machine's Spillup service did not return a quota summary")
+	}
+	return summary, nil
+}
+
 func (cliBackend) Tailnet(ctx context.Context) (tailnet.Status, error) {
 	cfg, _ := config.Load()
 	return tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
