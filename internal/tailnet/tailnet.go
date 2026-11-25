@@ -146,22 +146,55 @@ func (c CLI) bin() (string, error) {
 	return "", errNoTailscale
 }
 
-// Status implements Source.
+// statusWithin bounds one `tailscale status` run; a leader's fence budget counts on it.
+const statusWithin = 10 * time.Second
+
+// Status implements Source. A quick failure is retried once: a busy CLI or local API is not a lost tailnet.
 func (c CLI) Status(ctx context.Context) (Status, error) {
 	bin, err := c.bin()
 	if err != nil {
 		return Status{}, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	st, err := c.statusOnce(ctx, bin)
+	var slow errStatusTimedOut
+	if err == nil || errors.As(err, &slow) || ctx.Err() != nil {
+		return st, err
+	}
+	return c.statusOnce(ctx, bin)
+}
+
+func (c CLI) statusOnce(ctx context.Context, bin string) (Status, error) {
+	ctx, cancel := context.WithTimeout(ctx, statusWithin)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "status", "--json")
 	cmd.WaitDelay = time.Second
 	sysproc.Hide(cmd)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {
-		return Status{}, err
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return Status{}, errStatusTimedOut{}
+		}
+		return Status{}, statusFailed(err, stderr.String())
 	}
 	return parse(out)
+}
+
+// errStatusTimedOut means the CLI didn't answer within statusWithin.
+type errStatusTimedOut struct{}
+
+func (errStatusTimedOut) Error() string {
+	return "tailscale status didn't answer within " + statusWithin.String()
+}
+
+// statusFailed names the CLI's own complaint, so a log says why instead of only "exit status 1".
+func statusFailed(err error, stderr string) error {
+	first, _, _ := strings.Cut(strings.TrimSpace(stderr), "\n")
+	if first = strings.TrimSpace(first); first == "" {
+		return err
+	}
+	return errors.New(err.Error() + ": " + first)
 }
 
 // parse decodes `tailscale status --json`.
