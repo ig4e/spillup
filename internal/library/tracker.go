@@ -60,6 +60,10 @@ func (t *Tracker) Observe(hash string, modified, now time.Time) (Stamp, error) {
 	case hash != t.mem.Last.Hash && !t.remembers:
 		return t.date(hash, earlier(modified, now))
 	case hash != t.mem.Last.Hash:
+		// A local edit must follow a snapshot just accepted from a slightly faster clock.
+		if !now.After(t.mem.Last.ChangedAt) && !t.mem.Last.FromTheFuture(now) {
+			now = t.mem.Last.ChangedAt.Add(time.Nanosecond)
+		}
 		return t.date(hash, now)
 	}
 	return t.mem.Last, nil

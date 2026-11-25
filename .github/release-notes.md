@@ -2,17 +2,13 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.2
+### In v0.4.3
 
-- Phone pages use one stable header and a floating glass tab bar. Navigation respects screen cutouts, light and dark appearance, and reduced transparency.
-- Revisiting a page immediately shows the selected machine's last reading while Spillup checks for changes. Views share requests, and common navigation links can preload their data.
-- Machine rows, quota readings and resource graphs stay visible during temporary refresh failures. Activity keeps process actions tied to the machine that supplied the process list.
-- **T3 Code → Phones & tablets** shows which online host holds each phone's pairing. Spillup reads T3's existing mobile sessions, so already-paired phones appear without scanning another code.
-- Machines, Activity and the dashboard switcher show verified Spillup hosts. Terminal targets also have to enable terminal access. Tailscale still lists the devices on the network.
-
-- Overview graphs CPU, memory and network traffic from the selected machine, alongside its account holder, proxy and managed peers.
-- Skills and MCP servers have per-item sharing. Start locally, keep a private working copy, or publish it. Enable MCPs in Claude Code and Codex per machine. One-time secret transfers require both a named recipient and that recipient’s approval.
-- TanStack Query backs navigation, refreshes and optimistic skill-mode and update settings. Failed writes roll back to the confirmed value.
+- **Phones look like iOS 26 again.** Large titles hand off to a centered title as you scroll, with a soft blurred edge behind it. Back and page actions float as glass buttons, and the glass tab bar's lens springs between tabs. The grouped lists use the iOS gray and black backgrounds.
+- **Doctor → Preview support snapshot** produces a JSON download with diagnostic check IDs, recent HTTP outcomes, job states and machine health. You can inspect the complete export before saving it.
+- **Remote → Stream quality** shows the active connection’s video bitrate, received and rendered FPS and dropped frames. WebRTC can also report peer round-trip time. Open network diagnostics in a separate tab while the stream keeps running.
+- **Skills & MCP → Revision history** previews and restores locally recorded versions of shared `AGENTS.md` and authored `SKILL.md` files. The restored file syncs as a new edit. The CLI includes `spinup library history`, `diff` and `restore`.
+- **Activity → Recent Actions** filters history by machine, component and outcome. Background jobs link back to their initiating request, including requests accepted before their job failed. A failed entry opens Doctor on the selected machine.
 
 ### Install
 

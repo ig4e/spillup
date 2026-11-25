@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"context"
+	"crypto/rand"
 	"log"
 	"net/http"
 	"time"
@@ -53,17 +55,25 @@ func (w *activityResponse) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
+type actionKey struct{}
+
+func actionID(r *http.Request) string {
+	id, _ := r.Context().Value(actionKey{}).(string)
+	return id
+}
+
 func trackAction(from reach, route string, next http.HandlerFunc) http.HandlerFunc {
 	origin := [...]string{"local dashboard", "another machine", "Tailnet dashboard"}[from]
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		out := &activityResponse{ResponseWriter: w}
-		next(out, r)
+		id := rand.Text()
+		next(out, r.WithContext(context.WithValue(r.Context(), actionKey{}, id)))
 		status := out.status
 		if status == 0 {
 			status = http.StatusOK
 		}
-		entry := history.Action{At: start, Action: route, Origin: origin, Status: status, ElapsedMS: time.Since(start).Milliseconds()}
+		entry := history.Action{ID: id, At: start, Action: route, Origin: origin, Status: status, ElapsedMS: time.Since(start).Milliseconds()}
 		if err := history.Local().RecordAction(entry); err != nil {
 			log.Printf("dashboard action history: %v", err)
 		}

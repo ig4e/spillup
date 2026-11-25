@@ -144,7 +144,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**Doctor & Updates** puts checks and fixes in the **Checks** tab. The **Updates** tab shows installed versions and lets you preview a fleet rollout.
+**Doctor & Updates** puts checks and fixes in the **Checks** tab. Choose **Preview support snapshot** to inspect and download diagnostic codes and recent outcomes. The **Updates** tab shows installed versions and lets you preview a fleet rollout.
 
 </td>
 <td><img src="docs/screenshots/doctor.png" alt="Doctor: every check with its fix"></td>
@@ -161,13 +161,14 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 
 **Remote** opens a paired Sunshine desktop or app in Spillup’s browser player. Use the toolbar to paste text, copy the host clipboard, toggle sound, go full screen, or disconnect. Clipboard transfer is plain text, up to 64 KiB per action. Copy requires device access on the host and a signed-in desktop session. On browsers that restrict clipboard access, the player offers a text field.
 
-**Machines** shows changes in Tailscale reachability, Spillup, account sync and T3 linking. **Activity** keeps the latest 100 dashboard actions and 50 setup or update jobs across restarts. **Accounts** shows provider health and observed usage windows on workers as well as holders. **Settings** previews local setup changes. **Doctor & Updates** runs machine checks, manages updates and previews the fleet rollout.
+**Machines** shows changes in Tailscale reachability, Spillup, account sync and T3 linking. **Activity → Recent Actions** keeps up to 100 dashboard actions and 50 jobs per machine. Filter by component or outcome, expand a failed job to see its initiating request, and open Doctor on that machine. **Accounts** shows provider health and observed usage windows on workers as well as holders. **Settings** previews local setup changes. **Doctor & Updates** runs machine checks, manages updates and previews the fleet rollout.
 
 <details>
 <summary><b>How the dashboard stays safe</b></summary>
 
 - The local dashboard uses the session from `spinup ui`. With device access enabled, the Tailnet dashboard also admits devices on the same Tailscale account.
 - Shared quota summaries contain provider health, usage percentages and observation times. The holder keeps the management credential and upstream responses on its own machine.
+- Open **Stream quality** in the player toolbar to see video bitrate, received and rendered frame rates and dropped frames. WebRTC can also report round-trip time. On the WebSocket fallback, the panel counts frames the decoder skipped.
 - Clipboard reads require an explicit copy action in the player, a paired Sunshine host with an active application, device access, and a same-owner peer with the fleet API key. Clipboard contents are excluded from history.
 - Set `ui_port` to `0` to turn off the dashboard.
 
@@ -204,6 +205,7 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup machines` | Every device on your network and its address |
 | `spinup skills` | Your skills for Claude Code and Codex |
 | `spinup mcp` | Local and shared MCP definitions, per-agent approvals and named secret transfers |
+| `spinup library` | Preview or restore a shared instruction document from this machine’s history |
 | `spinup packages` | Complete plugins, pinned revisions, native installation and rollback |
 | `spinup agents` | Shared and personal instructions; keeps your model choices and settings |
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |

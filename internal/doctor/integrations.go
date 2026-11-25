@@ -20,36 +20,36 @@ func T3(f T3Facts) Section {
 		if f.App {
 			why = "T3 Code's app is here, but not the command line spillup runs it with"
 		}
-		return Section{"T3 Code", []Check{fail(why, "spinup t3 setup")}}
+		return Section{"T3 Code", []Check{fail("t3.install", why, "spinup t3 setup")}}
 	}
-	s.Checks = append(s.Checks, ok("installed"))
+	s.Checks = append(s.Checks, ok("t3.install", "installed"))
 	if f.ServiceAtBoot {
-		s.Checks = append(s.Checks, ok("its background service starts at boot"))
+		s.Checks = append(s.Checks, ok("t3.startup", "its background service starts at boot"))
 	} else {
-		s.Checks = append(s.Checks, fail("its background service isn't set to start at boot", "spinup t3 setup"))
+		s.Checks = append(s.Checks, fail("t3.startup", "its background service isn't set to start at boot", "spinup t3 setup"))
 	}
 	if !f.NetworkAccess {
-		s.Checks = append(s.Checks, fail("the T3 Code app answers only this machine, so other machines can't link to it",
+		s.Checks = append(s.Checks, fail("t3.network", "the T3 Code app answers only this machine, so other machines can't link to it",
 			"spinup t3 setup, then restart T3 Code"))
 	} else if f.AwaitsRestart {
-		s.Checks = append(s.Checks, fail("Network access is on, but T3 Code hasn't restarted since, so other machines can't reach it yet",
+		s.Checks = append(s.Checks, fail("t3.restart", "Network access is on, but T3 Code hasn't restarted since, so other machines can't reach it yet",
 			"quit and reopen T3 Code"))
 	}
 	if f.StaleQuotaKeys > 0 {
-		s.Checks = append(s.Checks, fail("its usage limits read CLIProxyAPI with the API key, which can't read quotas (401)", "spinup t3 setup"))
+		s.Checks = append(s.Checks, fail("t3.quota-key", "its usage limits read CLIProxyAPI with the API key, which can't read quotas (401)", "spinup t3 setup"))
 	}
 	if f.LinkingOn {
-		s.Checks = append(s.Checks, ok("linked environments are on"))
+		s.Checks = append(s.Checks, ok("t3.linking", "linked environments are on"))
 	} else {
-		s.Checks = append(s.Checks, fail("linked environments are off, so agents can't hand work to other machines", "spinup t3 setup"))
+		s.Checks = append(s.Checks, fail("t3.linking", "linked environments are off, so agents can't hand work to other machines", "spinup t3 setup"))
 	}
 	switch {
 	case f.Problem != "":
-		s.Checks = append(s.Checks, warn("couldn't read its links: "+f.Problem, "spinup t3 setup"))
+		s.Checks = append(s.Checks, warn("t3.environments", "couldn't read its links: "+f.Problem, "spinup t3 setup"))
 	case f.Linked == 0:
-		s.Checks = append(s.Checks, warn("not linked to any other machine yet", "spinup t3 link"))
+		s.Checks = append(s.Checks, warn("t3.environments", "not linked to any other machine yet", "spinup t3 link"))
 	default:
-		s.Checks = append(s.Checks, ok("linked to "+plural(f.Linked, "1 machine", fmt.Sprintf("%d machines", f.Linked))))
+		s.Checks = append(s.Checks, ok("t3.environments", "linked to "+plural(f.Linked, "1 machine", fmt.Sprintf("%d machines", f.Linked))))
 	}
 	return s
 }
@@ -71,29 +71,29 @@ type ProxyFacts struct {
 func Proxy(f ProxyFacts) Section {
 	s := Section{Title: "CLIProxyAPI"}
 	if f.ForeignOnPort {
-		s.Checks = append(s.Checks, fail(fmt.Sprintf("another program answers on port %d, where spillup's router belongs — likely an old CLIProxyAPI", f.Port),
+		s.Checks = append(s.Checks, fail("proxy.port", fmt.Sprintf("another program answers on port %d, where spillup's router belongs — likely an old CLIProxyAPI", f.Port),
 			"stop that program, then spinup setup"))
 	}
 	if f.Leading {
 		switch {
 		case !f.Running:
-			s.Checks = append(s.Checks, fail("this machine holds the accounts, but its CLIProxyAPI isn't running", "spinup restart"))
+			s.Checks = append(s.Checks, fail("proxy.service", "this machine holds the accounts, but its CLIProxyAPI isn't running", "spinup restart"))
 		case f.KeyProblem != "":
-			s.Checks = append(s.Checks, fail("CLIProxyAPI refused spillup's key: "+f.KeyProblem, "spinup setup"))
+			s.Checks = append(s.Checks, fail("proxy.key", "CLIProxyAPI refused spillup's key: "+f.KeyProblem, "spinup setup"))
 		default:
-			s.Checks = append(s.Checks, ok("the shared accounts' CLIProxyAPI runs here and accepts spillup's key"))
+			s.Checks = append(s.Checks, ok("proxy.key", "the shared accounts' CLIProxyAPI runs here and accepts spillup's key"))
 		}
 	}
 	if len(f.OwnProviders) > 0 {
 		names := strings.Join(f.OwnProviders, ", ")
 		if f.OwnRunning {
-			s.Checks = append(s.Checks, ok("this machine's own sign-ins run ("+names+")"))
+			s.Checks = append(s.Checks, ok("proxy.own", "this machine's own sign-ins run ("+names+")"))
 		} else {
-			s.Checks = append(s.Checks, fail("this machine signs in to "+names+" by itself, but that CLIProxyAPI isn't running", "spinup restart"))
+			s.Checks = append(s.Checks, fail("proxy.own", "this machine signs in to "+names+" by itself, but that CLIProxyAPI isn't running", "spinup restart"))
 		}
 	}
 	if len(s.Checks) == 0 {
-		s.Checks = append(s.Checks, ok("nothing runs here: this machine uses the holder's CLIProxyAPI"))
+		s.Checks = append(s.Checks, ok("proxy.service", "nothing runs here: this machine uses the holder's CLIProxyAPI"))
 	}
 	return s
 }

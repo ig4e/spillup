@@ -89,7 +89,7 @@ export interface Machines {
 export type Level = "ok" | "warn" | "fail";
 
 export interface Doctor {
-  sections: { title: string; checks: { level: Level; label: string; fix?: string }[] }[];
+  sections: { title: string; checks: { id?: string; level: Level; label: string; fix?: string }[] }[];
   failures: number;
 }
 
@@ -224,6 +224,7 @@ export interface HealthObservation {
 }
 
 export interface JobRecord {
+  action_id?: string;
   started: string;
   updated: string;
   task: string;
@@ -233,6 +234,7 @@ export interface JobRecord {
 }
 
 export interface ActivityEntry {
+  id?: string;
   at: string;
   action: string;
   origin: string;

@@ -100,7 +100,7 @@ const (
 var progressLine = regexp.MustCompile(`^\[(\d+)/(\d+)\] (.+)$`)
 
 // StartSetup sets this machine up from the dashboard, as `spinup setup <name> [--hub|--standby]` does.
-func (cliBackend) StartSetup(name, role string) error {
+func (cliBackend) StartSetup(name, role, actionID string) error {
 	if !tailnet.ValidName(name) {
 		return fmt.Errorf("%q can't be a machine name: use lowercase letters, digits and dashes", name)
 	}
@@ -114,12 +114,12 @@ func (cliBackend) StartSetup(name, role string) error {
 	default:
 		return fmt.Errorf("no role called %q", role)
 	}
-	return startTask(args)
+	return startTask(args, actionID)
 }
 
 // startTask runs a spinup command for the dashboard, one at a time, and keeps what it prints; sudo's
 // questions and Windows' admin prompts reach you while it runs.
-func startTask(args []string) error {
+func startTask(args []string, actionID string) error {
 	setupRun.Lock()
 	defer setupRun.Unlock()
 	if setupRun.running {
@@ -139,7 +139,7 @@ func startTask(args []string) error {
 		return err
 	}
 	store := history.Local()
-	job, err := store.BeginJob(args[0])
+	job, err := store.BeginJob(args[0], actionID)
 	if err != nil {
 		log.Printf("job history: %v", err)
 		job = history.Job{}

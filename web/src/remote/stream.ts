@@ -1,8 +1,11 @@
+import { rtcReading, type StreamReading } from "./quality";
 import { DesktopInput, rumble } from "./input";
 
 const endpoint = "/remote/api/host/stream/webrtc";
 export interface Connection {
   input: DesktopInput;
+  transport: "WebRTC" | "WebSocket";
+  readQuality: () => Promise<StreamReading>;
   close: () => void;
 }
 export interface StreamOptions {
@@ -13,7 +16,6 @@ export interface StreamOptions {
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
   status: (stage: string) => void;
-  ready: (transport: "WebRTC" | "WebSocket") => void;
   failed: (error: string) => void;
   signal: AbortSignal;
   audio: AudioContext | null;
@@ -131,8 +133,13 @@ export async function connectRTC(o: StreamOptions): Promise<Connection> {
     void flush();
     await negotiated;
     setup.throwIfAborted();
-    o.ready("WebRTC");
-    return { input, close };
+    return {
+      input, close, transport: "WebRTC",
+      readQuality: async () => {
+        const report = await peer.getStats?.();
+        return rtcReading(report, o.video.getVideoPlaybackQuality?.(), media.getVideoTracks()[0]?.id);
+      },
+    };
   } catch (error) {
     close();
     throw error;

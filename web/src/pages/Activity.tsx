@@ -6,7 +6,7 @@ import { bytes, useMachineStats } from "../components/Resources";
 import { Group, LargeTitle, Row, Segmented, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
-import { capitalize, relative } from "../lib/format";
+import { ActivityHistory } from "../components/ActivityHistory";
 import { useQuery, useRemote } from "../lib/hooks";
 import type { Machine, Process, Sample, Stats } from "../lib/types";
 
@@ -82,7 +82,7 @@ export function ActivityPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LargeTitle bleed title="Activity" actions={<Button size="sm" variant="secondary" onPress={() => setShowActions(false)}>Processes</Button>} />
-      <RecentActions />
+      <ActivityHistory picked={picked} setPicked={setPicked} />
     </div>
   );
 }
@@ -257,53 +257,6 @@ function MachineRow({ m, on, onPick }: { m: Machine; on: boolean; onPick: () => 
       <td className="px-3 py-1.5 text-right tabular-nums">{s ? rate(s.now.tx_rate) : "—"}</td>
       <td className="px-3 py-1.5 text-right tabular-nums">{s ? uptime(s.now.uptime) : "—"}</td>
     </tr>
-  );
-}
-
-function RecentActions() {
-  const activity = useQuery(api.recentActivity, 5000);
-  const jobs = useQuery(api.jobHistory, 5000);
-  const jobNames: Record<string, string> = { setup: "Machine setup", update: "System update", remote: "Remote desktop setup", ssh: "SSH setup" };
-  const labels: Record<string, string> = {
-    "accounts/handoff": "Move accounts",
-    "accounts/mode": "Change account storage",
-    "accounts/takeover": "Take over accounts",
-    "accounts/restart": "Restart proxy",
-    "machines/main": "Change hub",
-    "processes/end": "End process",
-    "settings/access": "Change dashboard access",
-    "t3/link": "Link T3 environment",
-    "t3/pair": "Create T3 pairing",
-    "t3/sync": "Sync T3 machines",
-    term: "Open terminal",
-  };
-  return (
-    <div className="min-h-0 overflow-auto">
-      <Group title="Jobs" footer="The last 50 dashboard jobs on this machine, including the last recorded step.">
-        {jobs.error ? <Row title="Couldn't read jobs" subtitle={jobs.error.message} /> : null}
-        {jobs.loading ? <Row title="Reading jobs…" /> : null}
-        {jobs.data?.length === 0 ? <Row title="No dashboard jobs yet" /> : null}
-        {jobs.data?.map(job => (
-          <Row key={job.started} title={jobNames[job.task] ?? job.task} value={capitalize(job.state)}
-            subtitle={<><time dateTime={job.started} title={new Date(job.started).toLocaleString()}>Started {relative(job.started)}</time>
-              {job.total ? ` · Step ${job.step} of ${job.total}` : ""}
-              {job.updated !== job.started ? ` · Updated ${relative(job.updated)}` : ""}</>} />
-        ))}
-      </Group>
-      <Group title="Dashboard Actions" footer="The last 100 requests on this machine. Request bodies and credentials are excluded.">
-        {activity.error ? <Row title="Couldn't read actions" subtitle={activity.error.message} /> : null}
-        {activity.loading ? <Row title="Reading actions…" /> : null}
-        {activity.data?.length === 0 ? <Row title="No recent actions" /> : null}
-        {activity.data?.map((entry) => (
-          <Row
-            key={`${entry.at}/${entry.action}/${entry.origin}`}
-            title={labels[entry.action] ?? entry.action.replaceAll("/", " · ")}
-            subtitle={`${entry.origin} · ${relative(entry.at)} · ${entry.elapsed_ms} ms`}
-            value={entry.status >= 200 && entry.status < 300 ? "Accepted" : `HTTP ${entry.status}`}
-          />
-        ))}
-      </Group>
-    </div>
   );
 }
 

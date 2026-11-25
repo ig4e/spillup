@@ -1,9 +1,11 @@
-import { ClipboardCopy, ClipboardPaste, Expand, Keyboard, RotateCcw, Volume2, VolumeX, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ClipboardCopy, ClipboardPaste, Expand, Gauge, Keyboard, RotateCcw, Volume2, VolumeX, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { bindDesktopInput } from "../remote/events";
 import { connectRTC, type Connection, type StreamOptions } from "../remote/stream";
 import { connectSocket } from "../remote/socket";
+import { pageHref } from "./ui";
+import { streamRates, type StreamReading } from "../remote/quality";
 import "./remote-stream.css";
 
 interface Props { hostId: number; appId: number; machine: string; title: string; onEnd: () => void }
@@ -14,17 +16,19 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const audio = useRef<AudioContext | null>(null);
-  const connection = useRef<Connection | null>(null);
+  const [connection, setConnection] = useState<Connection | null>(null);
   const textInput = useRef<HTMLTextAreaElement>(null);
   const [attempt, retry] = useState(0);
   const [stage, setStage] = useState("Connecting…");
-  const [transport, setTransport] = useState<"WebRTC" | "WebSocket" | null>(null);
+  const transport = connection?.transport;
   const [error, setError] = useState("");
   const [textMode, setTextMode] = useState<"type" | "copy" | null>(null);
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [muted, setMuted] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [showQuality, setShowQuality] = useState(false);
+  const qualityId = useId();
   const [reading, setReading] = useState(false);
   const live = Boolean(transport && !error);
 
@@ -35,18 +39,17 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
     audio.current = context;
     setMuted(true);
     if (context) void context.suspend().catch(() => {});
-    setError(""); setNotice(""); setTransport(null); setStage("Connecting…");
+    setError(""); setNotice(""); setConnection(null); setShowQuality(false); setStage("Connecting…");
     const failed = (reason: string) => {
       if (!canceled.signal.aborted) {
         setError(reason);
-        connection.current?.close();
-        connection.current = null;
+        canceled.abort();
+        setConnection(null);
       }
     };
     const options: StreamOptions = {
       hostId, appId, width: 1920, height: 1080, video: player, canvas: canvas.current!,
       signal: canceled.signal, audio: context, status: setStage, failed,
-      ready: (kind) => { if (!canceled.signal.aborted) setTransport(kind); },
     };
     async function connect() {
       let result: Connection;
@@ -60,7 +63,7 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
         }
         if (canceled.signal.aborted) result.close();
         else {
-          connection.current = result;
+          setConnection(result);
           surface.current?.focus({ preventScroll: true });
         }
       } catch (e) { failed((e as Error).message); }
@@ -68,8 +71,6 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
     void connect();
     return () => {
       canceled.abort();
-      connection.current?.close();
-      connection.current = null;
       audio.current = null;
       if (context && context.state !== "closed") void context.close().catch(() => {});
     };
@@ -82,18 +83,18 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
   useEffect(() => {
     const area = surface.current;
     if (!area || !live) return;
-    const input = connection.current?.input;
+    const input = connection?.input;
     if (!input) return;
     return bindDesktopInput(area, input, () => {
       const showingVideo = !video.current?.hidden;
       return showingVideo ? [video.current?.videoWidth || 1920, video.current?.videoHeight || 1080] : [canvas.current?.width || 1920, canvas.current?.height || 1080];
     }, () => setExpanded(false), setNotice);
-  }, [live, attempt]);
+  }, [live, connection]);
 
   const send = (text: string) => {
-    if (!connection.current) { setNotice("The host disconnected."); return; }
+    if (!connection) { setNotice("The host disconnected."); return; }
     try {
-      connection.current.input.text(text);
+      connection.input.text(text);
       setTextMode(null); setDraft(""); setNotice("Text sent.");
       surface.current?.focus();
     } catch (e) { setNotice((e as Error).message); }
@@ -122,7 +123,7 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
     try { await root.current!.requestFullscreen(); } catch { setExpanded(true); }
   };
   const shortcut = (chord: number[]) => {
-    const input = connection.current?.input;
+    const input = connection?.input;
     if (!input) return;
     try {
       input.release();
@@ -143,13 +144,15 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
     <div ref={root} className={`remote-player${expanded ? " remote-expanded" : ""}`}>
       <div className="remote-tools">
         <div className="remote-name" title={`${machine} · ${title}`}>{machine}<span> / {title}</span></div>
-        <button onClick={() => void paste()} disabled={!live} title="Paste text to host"><ClipboardPaste /><span>Paste</span></button>
-        <button onClick={() => void copy()} disabled={!live || reading} title="Copy text from host clipboard"><ClipboardCopy /><span>Copy</span></button>
+        <button onClick={() => void paste()} disabled={!live} aria-label="Paste text to host" title="Paste text to host"><ClipboardPaste /><span>Paste</span></button>
+        <button onClick={() => void copy()} disabled={!live || reading} aria-label="Copy text from host clipboard" title="Copy text from host clipboard"><ClipboardCopy /><span>Copy</span></button>
         <button onClick={typeText} disabled={!live} aria-label="Type text" title="Type text"><Keyboard /></button>
         <button onClick={() => void toggleAudio()} aria-label={muted ? "Enable sound" : "Mute sound"} title={muted ? "Enable sound" : "Mute sound"}>{muted ? <VolumeX /> : <Volume2 />}</button>
+        <button onClick={() => setShowQuality(open => !open)} disabled={!live} aria-expanded={live && showQuality} aria-controls={qualityId} aria-label="Stream quality" title="Stream quality"><Gauge /></button>
         <button onClick={() => void fullscreen()} aria-label="Toggle full screen" title="Full screen"><Expand /></button>
         <button onClick={onEnd} aria-label="Disconnect" title="Disconnect"><X /></button>
       </div>
+      {live && showQuality && connection && <StreamQuality id={qualityId} connection={connection} />}
       <div className="remote-display" tabIndex={0} ref={surface} aria-label={`Remote desktop on ${machine}`}>
         <video ref={video} playsInline autoPlay muted={muted} hidden={transport === "WebSocket"} />
         <canvas ref={canvas} hidden={transport !== "WebSocket"} />
@@ -170,4 +173,48 @@ export function RemoteStream({ hostId, appId, machine, title, onEnd }: Props) {
       {notice && <div role="status" className="remote-notice">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X /></button></div>}
     </div>
   );
+}
+
+function StreamQuality({ connection, id }: { connection: Connection; id: string }) {
+  const [sample, setSample] = useState<{ reading: StreamReading; rates: ReturnType<typeof streamRates> }>();
+  const [delayed, setDelayed] = useState(false);
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let previous: StreamReading | undefined;
+    async function poll() {
+      timer = setTimeout(() => setDelayed(true), 3500);
+      try {
+        const reading = await connection.readQuality();
+        if (stopped) return;
+        setSample({ reading, rates: streamRates(reading, previous) });
+        setDelayed(false);
+        previous = reading;
+      } catch {
+        if (!stopped) setDelayed(true);
+      } finally {
+        clearTimeout(timer);
+        if (!stopped) timer = setTimeout(poll, 1000);
+      }
+    }
+    void poll();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [connection]);
+  const reading = sample?.reading;
+  const value = (n?: number, unit = "", digits = 0) => n === undefined ? "—" : n.toFixed(digits) + unit;
+  return <section className="remote-quality" id={id} aria-label="Stream quality">
+    <div className="remote-quality-heading">
+      <h2>Stream quality</h2>
+      <a href={pageHref("/doctor#doctor-network")} target="_blank" rel="noopener" aria-label="Network checks in Doctor (opens in a new tab)">Network checks ↗</a>
+    </div>
+    <dl>
+      <div><dt>Transport</dt><dd>{[connection.transport, reading?.protocol, reading?.relay && "TURN"].filter(Boolean).join(" · ")}</dd></div>
+      <div><dt>Video bitrate</dt><dd>{value(sample?.rates.mbps, " Mbps", 2)}</dd></div>
+      <div><dt>Received</dt><dd>{value(sample?.rates.receivedFps, " fps", 1)}</dd></div>
+      <div><dt>Rendered</dt><dd>{value(sample?.rates.renderedFps, " fps", 1)}</dd></div>
+      <div><dt>{connection.transport === "WebSocket" ? "Skipped before decode" : "Dropped frames"}</dt><dd>{value(reading?.dropped)}</dd></div>
+      <div><dt>Peer RTT</dt><dd>{value(reading?.rttMs, " ms")}</dd></div>
+    </dl>
+    {delayed && <p role="status">{sample ? "Showing the last reading." : "Stream measurements are unavailable."}</p>}
+  </section>;
 }

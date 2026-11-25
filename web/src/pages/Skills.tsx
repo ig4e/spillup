@@ -1,5 +1,6 @@
 import { Alert, Checkbox, Description, Input, Label, Modal, Switch, TextField } from "@heroui/react";
 import { Button } from "../components/Button";
+import { DocumentHistory } from "../components/DocumentHistory";
 import { MCPServers } from "../components/MCPServers";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -112,6 +113,7 @@ export function SkillsPage() {
             )}</Group> : null}
             <OnlyHereList skills={data.only_here} manage={manage} local={local} reload={skills.reload} />
           </> : null}
+          {tab === "shared" && local ? <DocumentHistory onRestored={skills.reload} /> : null}
           {tab === "removed" ? <RemovedList skills={data.removed} reload={skills.reload} /> : null}
         </>
       ) : null}

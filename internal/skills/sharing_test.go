@@ -303,3 +303,37 @@ func TestPrivateSkillModeRechecksWorkingPathsBeforeWriting(t *testing.T) {
 		t.Fatal("shared policy was changed")
 	}
 }
+
+func TestRestoreSharedDocumentPreservesPrivateFork(t *testing.T) {
+	f := newFixture(t, `{}`)
+	m, ctx := f.manager, t.Context()
+	if _, err := m.Create(ctx, "notes", "shared baseline"); err != nil {
+		t.Fatal(err)
+	}
+	records, err := f.lib.Revisions(ctx)
+	if err != nil || len(records) != 1 {
+		t.Fatal(records, err)
+	}
+	original := records[0]
+	if _, err := m.Sharing(ctx, "notes", "private"); err != nil {
+		t.Fatal(err)
+	}
+	private := filepath.Join(f.paths.store, "notes", skillFile)
+	write(t, private, "private working copy")
+	shared := f.lib.Path(original.Path)
+	write(t, shared, "next shared version")
+	preview, err := f.lib.PreviewRevision(ctx, original.Path, original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = m.RestoreAuthored(ctx, "notes", original.ID, preview.Before); err != nil {
+		t.Fatal(err)
+	}
+	if got := content(t, private); got != "private working copy" {
+		t.Fatal("changed private copy")
+	}
+	if got := content(t, shared); !strings.Contains(got, "shared baseline") {
+		t.Fatal("failed to restore shared file")
+	}
+	assertNoPrivateBytes(t, f.lib, "private working copy")
+}

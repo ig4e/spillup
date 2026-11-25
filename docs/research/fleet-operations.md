@@ -14,7 +14,7 @@ Use `spinup rollout` to preview the latest stable release. `spinup rollout --app
 
 ## Ranked feature proposals
 
-The first three address problems a fleet owner can encounter during normal work. The remaining four build on the existing updater, T3 desktop pairing and Activity history. Effort is a relative engineering estimate.
+Spillup 0.4.3 implements proposals 1, 2, 3 and 6. Document history covers shared AGENTS.md and authored SKILL.md. Automated maintenance windows, saved rollout retries and recent T3 projects remain proposals. The existing rollout command rechecks installed versions on each run. Effort below is the original relative engineering estimate.
 
 | Priority | Feature and first delivery | Why it matters | Effort | Reference |
 | --- | --- | --- | --- | --- |

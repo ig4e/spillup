@@ -64,8 +64,8 @@ func (s *Server) serveRemoteSync(w http.ResponseWriter, r *http.Request) {
 	answer(w, err, summary)
 }
 
-func (s *Server) serveRemoteSetup(w http.ResponseWriter, _ *http.Request) {
-	answer(w, s.b.RemoteSetup(), "Setting up remote desktop…")
+func (s *Server) serveRemoteSetup(w http.ResponseWriter, r *http.Request) {
+	answer(w, s.b.RemoteSetup(actionID(r)), "Setting up remote desktop…")
 }
 
 // serveRemoteWeb gives the native player same-origin access to the local stream transport.

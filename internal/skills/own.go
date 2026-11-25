@@ -261,3 +261,45 @@ func (m Manager) Status() (Status, error) {
 		Store:     m.paths.store,
 	}, nil
 }
+
+// RestoreAuthored restores one shared instruction file while serialized with local skill edits.
+func (m Manager) RestoreAuthored(ctx context.Context, name, id, before string) error {
+	if err := checkNames([]string{name}); err != nil {
+		return err
+	}
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	private, err := m.privateSkills()
+	if err != nil {
+		return err
+	}
+	if err := m.lib.RestoreRevision(ctx, library.SkillsDir+"/"+name+"/"+skillFile, id, before); err != nil {
+		return err
+	}
+	if private.has(name) {
+		return nil
+	}
+	if err := m.applyAuthored(ctx, name); err != nil {
+		return fmt.Errorf("revision restored; run spinup skills sync to apply it locally: %w", err)
+	}
+	return nil
+}
+
+func (m Manager) applyAuthored(ctx context.Context, name string) error {
+	dir, err := os.OpenRoot(m.ownPath(name))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	if err := m.paths.publish(ctx, ownSkill{name, dir.FS()}); err != nil {
+		return err
+	}
+	list, err := m.manifest()
+	if err != nil {
+		return err
+	}
+	return m.paths.applyModes([]string{name}, list.manual)
+}

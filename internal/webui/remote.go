@@ -40,7 +40,7 @@ func stripDashboardHeaders(h http.Header) {
 // serveRemote passes a call to another machine's dashboard, with this machine's keys and none of the
 // browser's cookies, so the main machine's dashboard can show any machine.
 func (s *Server) serveRemote(w http.ResponseWriter, r *http.Request) {
-	if privateMCPRoute(r.PathValue("path")) {
+	if route := r.PathValue("path"); privateMCPRoute(route) || route == "library/revisions" || strings.HasPrefix(route, "library/revisions/") {
 		http.NotFound(w, r)
 		return
 	}

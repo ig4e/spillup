@@ -21,6 +21,7 @@ export async function connectSocket(o: StreamOptions): Promise<Connection> {
   let live = false;
   let closed = false;
   let keyNeeded = true;
+  const video = { bytes: 0, received: 0, rendered: 0, dropped: 0 };
   let resolve!: () => void;
   let reject!: (error: Error) => void;
   const finished = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
@@ -40,6 +41,7 @@ export async function connectSocket(o: StreamOptions): Promise<Connection> {
           o.canvas.height = frame.displayHeight;
         }
         paint.drawImage(frame, 0, 0);
+        video.rendered++;
         if (!live) { live = true; resolve(); }
       } finally { frame.close(); }
     },
@@ -102,12 +104,17 @@ export async function connectSocket(o: StreamOptions): Promise<Connection> {
       const raw = new Uint8Array(event.data);
       if (raw[0] === 0) { rumble(raw.subarray(1)); return; }
       if (raw[0] === 1 && raw.length > 6 && decoder.state === "configured") {
+        video.received++;
+        video.bytes += raw.length - 6;
         const key = raw[1] === 1;
         if (decoder.decodeQueueSize > 8 && !keyNeeded) {
           keyNeeded = true;
           socket.send(Uint8Array.of(0, 2, 3, 2, 0, 0, 0)); // Request a fresh key frame.
         }
-        if (keyNeeded && !key) return;
+        if (keyNeeded && !key) {
+          video.dropped++;
+          return;
+        }
         keyNeeded = false;
         decoder.decode(new EncodedVideoChunk({ type: key ? "key" : "delta", timestamp: new DataView(raw.buffer).getUint32(2), data: raw.subarray(6) }));
       } else if (raw[0] === 2 && audio?.state === "configured") {
@@ -118,6 +125,5 @@ export async function connectSocket(o: StreamOptions): Promise<Connection> {
   };
   await finished;
   clearTimeout(deadline);
-  o.ready("WebSocket");
-  return { input, close };
+  return { input, close, transport: "WebSocket", readQuality: async () => ({ ...video, sampledAt: performance.now() }) };
 }

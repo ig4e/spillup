@@ -56,6 +56,14 @@ New or imported skills can start private. For example, `spinup skills new notes 
 
 MCP servers have a separate setting for sharing their definitions. Update all participating machines before publishing the first MCP definition. [MCP servers](MCP.md)
 
+## Restore a shared instruction
+
+On the local dashboard, open **Skills & MCP → Revision history**, choose a document and recorded version, then review its changes. **Restore this version** publishes that file as a new library edit. If another edit arrives after your preview, refresh the diff before restoring.
+
+From the CLI, `spinup library history` lists the available paths and revision IDs. `spinup library diff <path> <revision>` previews a change and prints the current content ID. Supply that ID to `spinup library restore <path> <revision> --expect <current-id>`.
+
+Each machine records versions it observes of shared `AGENTS.md` and `skills/<name>/SKILL.md`. The archive stays on the machine and retains up to 12 distinct versions per document, subject to 200 entries and 4 MiB of document content overall. Each eligible document can be up to 128 KiB. Private skill working copies, downloaded skills and MCP configurations are outside its scope. History begins when a machine runs the history-aware release.
+
 ## Coming from the private repo
 
 Earlier versions kept these files in a private git repo cloned into `local/`. The first time spinup runs from a checkout that has one, it copies `skills.json`, `skills/` and `AGENTS.md` into the library (never over what is already there). After that `local/` is not used and can go.

@@ -41,8 +41,8 @@ func (cliBackend) SSHState(ctx context.Context) webui.SSHState {
 }
 
 // SSHEnable turns this machine's SSH server on or off as a dashboard task, which asks for your password or admin.
-func (cliBackend) SSHEnable(on bool) error {
-	return startTask([]string{"ssh", map[bool]string{true: "on", false: "off"}[on]})
+func (cliBackend) SSHEnable(on bool, actionID string) error {
+	return startTask([]string{"ssh", map[bool]string{true: "on", false: "off"}[on]}, actionID)
 }
 
 func (cliBackend) SSHSync(ctx context.Context) (string, error) { return syncSSH(ctx) }

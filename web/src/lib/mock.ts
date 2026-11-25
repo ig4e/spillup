@@ -99,27 +99,27 @@ function machines(): Machines {
 const doctor: Doctor = {
   failures: 1,
   sections: [
-    { title: "Tools", checks: [{ level: "ok", label: "all 14 tools installed" }] },
+    { title: "Tools", checks: [{ id: "tools.install", level: "ok", label: "all 14 tools installed" }] },
     {
       title: "Network",
       checks: [
-        { level: "ok", label: "Tailscale is up as laptop (100.101.12.4)" },
-        { level: "ok", label: "desktop: direct connection" },
-        { level: "warn", label: "macbook: offline for 5 hours", fix: "turn it on, or ignore it if it's away" },
+        { id: "network.connection", level: "ok", label: "Tailscale is up as laptop (100.101.12.4)" },
+        { id: "network.path", level: "ok", label: "desktop: direct connection" },
+        { id: "network.path", level: "warn", label: "macbook: offline for 5 hours", fix: "turn it on, or ignore it if it's away" },
       ],
     },
     {
       title: "Accounts",
       checks: [
-        { level: "ok", label: "the service runs here as standby, synced 2s ago" },
-        { level: "ok", label: "4 logins reach localhost:8317 through desktop" },
+        { id: "accounts.holder", level: "ok", label: "the service runs here as standby, synced 2s ago" },
+        { id: "accounts.logins", level: "ok", label: "4 logins reach localhost:8317 through desktop" },
       ],
     },
     {
       title: "Agents",
-      checks: [{ level: "fail", label: "release-notes isn't installed here", fix: "spinup skills sync" }],
+      checks: [{ id: "agents.skills", level: "fail", label: "release-notes isn't installed here", fix: "spinup skills sync" }],
     },
-    { title: "Update", checks: [{ level: "ok", label: "spinup v0.2.0-nightly.31 is the newest" }] },
+    { title: "spinup", checks: [{ id: "spinup.version", level: "ok", label: "spinup v0.2.0-nightly.31 is the newest" }] },
   ],
 };
 
@@ -154,6 +154,7 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       case "doctor":
         await wait(900);
         return doctor;
+      case "library/revisions": return [];
       case "skills": {
         const view = structuredClone(skills);
         view.sharing_available = !viewing;

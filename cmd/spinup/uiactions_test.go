@@ -15,10 +15,10 @@ func TestTheDashboardRunsOnlySpinupsOwnFixes(t *testing.T) {
 }
 
 func TestSetupFromTheDashboardChecksTheNameAndRole(t *testing.T) {
-	if err := (cliBackend{}).StartSetup("My PC", "hub"); err == nil {
+	if err := (cliBackend{}).StartSetup("My PC", "hub", ""); err == nil {
 		t.Error("a name with spaces and capitals was accepted")
 	}
-	if err := (cliBackend{}).StartSetup("desk", "boss"); err == nil {
+	if err := (cliBackend{}).StartSetup("desk", "boss", ""); err == nil {
 		t.Error("an unknown role was accepted")
 	}
 }

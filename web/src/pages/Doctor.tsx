@@ -1,11 +1,13 @@
 import { Alert, Spinner } from "@heroui/react";
 import { Button } from "../components/Button";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Group, GroupSkeleton, LargeTitle, Row, Segmented } from "../components/ui";
 import { api } from "../lib/api";
 import { navigate, useAction, usePath, useQuery } from "../lib/hooks";
 import { UpdatesSection } from "./Updates";
+import { SupportSnapshot } from "../components/SupportSnapshot";
+import { doctorAnchor } from "../lib/support-snapshot";
 import type { Level } from "../lib/types";
 
 const mark: Record<Level, React.ReactNode> = {
@@ -48,6 +50,13 @@ function Checks() {
   const doctor = useQuery(api.doctor);
   const { pending, run } = useAction();
   const data = doctor.data;
+  const lastAnchor = useRef("");
+  useEffect(() => {
+    const anchor = window.location.hash.slice(1);
+    if (!data || !anchor || anchor === lastAnchor.current || !data.sections.some(s => doctorAnchor(s.title) === anchor)) return;
+    document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+    lastAnchor.current = anchor;
+  }, [data]);
   const warnings = data?.sections.flatMap((s) => s.checks).filter((c) => c.level === "warn").length ?? 0;
   const verdict: Level = data?.failures ? "fail" : warnings ? "warn" : "ok";
 
@@ -83,7 +92,7 @@ function Checks() {
             </div>
           </div>
           {data.sections.map((section) => (
-            <Group key={section.title} title={section.title}>
+            <Group key={section.title} id={doctorAnchor(section.title)} className="scroll-mt-16" title={section.title}>
               {section.checks.map((c, i) => (
                 <Row
                   key={i}
@@ -103,6 +112,7 @@ function Checks() {
           ))}
         </>
       ) : null}
+      {(data || doctor.error) && <SupportSnapshot doctor={data} stale={!!doctor.refreshError} />}
     </>
   );
 }

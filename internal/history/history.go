@@ -87,6 +87,7 @@ func edit[T any](path string, limit int, change func([]T) ([]T, bool)) error {
 }
 
 type Action struct {
+	ID        string    `json:"id,omitempty"`
 	At        time.Time `json:"at"`
 	Action    string    `json:"action"`
 	Origin    string    `json:"origin"`

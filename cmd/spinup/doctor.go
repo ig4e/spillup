@@ -98,7 +98,7 @@ func printSections(sections []doctor.Section) {
 func toolsSection(repo source.Source) doctor.Section {
 	all, err := tools.Load(repo)
 	if err != nil {
-		return doctor.Section{Title: "Tools", Checks: []doctor.Check{{Level: doctor.Fail, Label: err.Error()}}}
+		return doctor.Section{Title: "Tools", Checks: []doctor.Check{{ID: "tools.install", Level: doctor.Fail, Label: err.Error()}}}
 	}
 	return doctor.Tools(toolNames(tools.Missing(all)), len(all))
 }
@@ -148,7 +148,7 @@ func agentsSection(repo source.Source) doctor.Section {
 	manager := skillManager(repo)
 	list, err := manager.List()
 	if err != nil {
-		return doctor.Section{Title: "Agents", Checks: []doctor.Check{{Level: doctor.Fail, Label: "skills: " + err.Error()}}}
+		return doctor.Section{Title: "Agents", Checks: []doctor.Check{{ID: "agents.skills", Level: doctor.Fail, Label: "skills: " + err.Error()}}}
 	}
 	var notInstalled []string
 	for _, s := range list {
@@ -158,7 +158,7 @@ func agentsSection(repo source.Source) doctor.Section {
 	}
 	unlisted, err := manager.Unlisted()
 	if err != nil {
-		return doctor.Section{Title: "Agents", Checks: []doctor.Check{{Level: doctor.Fail, Label: "skills: " + err.Error()}}}
+		return doctor.Section{Title: "Agents", Checks: []doctor.Check{{ID: "agents.skills", Level: doctor.Fail, Label: "skills: " + err.Error()}}}
 	}
 	drifted, err := agentconfig.Drifted(agentSources(repo), agentconfig.HostHomes())
 	if err != nil {

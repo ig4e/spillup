@@ -20,3 +20,17 @@
 @media(max-height:450px) { .remote-name{flex:1 1 80px} .remote-display{min-height:42px} .remote-text { max-height:42dvh } }
 .remote-text .remote-shortcuts { justify-content:flex-start; gap:4px; flex-wrap:wrap }
 .remote-shortcuts button { min-height:30px }
+.remote-tools button[aria-expanded=true] { background:#444750 }
+.remote-quality { flex:0 1 auto; min-height:0; max-height:38dvh; overflow:auto; padding:8px 12px; background:#212329; border-top:1px solid #41434b; font-variant-numeric:tabular-nums }
+.remote-quality-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px }
+.remote-quality h2 { font-size:.9rem; font-weight:600 }
+.remote-quality a { color:#a5caff; font-size:.8rem; text-decoration:underline; text-underline-offset:2px }
+.remote-quality dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(110px,100%),1fr)); gap:6px 10px }
+.remote-quality dt,.remote-quality p { font-size:.75rem; color:#c4c7cf }
+.remote-quality dd { font-size:.84rem; font-weight:600; overflow-wrap:anywhere }
+@media (max-width:640px) {
+  .remote-tools { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px }
+  .remote-name { grid-column:1/-1 }
+  .remote-tools button { min-width:0; min-height:44px; padding:4px }
+  .remote-tools button span { display:none }
+}

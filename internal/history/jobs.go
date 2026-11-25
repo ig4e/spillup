@@ -11,17 +11,18 @@ import (
 )
 
 type Job struct {
-	Started time.Time `json:"started"`
-	Updated time.Time `json:"updated"`
-	Task    string    `json:"task"`
-	State   string    `json:"state"`
-	Step    int       `json:"step,omitempty"`
-	Total   int       `json:"total,omitempty"`
+	ActionID string    `json:"action_id,omitempty"`
+	Started  time.Time `json:"started"`
+	Updated  time.Time `json:"updated"`
+	Task     string    `json:"task"`
+	State    string    `json:"state"`
+	Step     int       `json:"step,omitempty"`
+	Total    int       `json:"total,omitempty"`
 }
 
-func (s Store) BeginJob(task string) (Job, error) {
+func (s Store) BeginJob(task, actionID string) (Job, error) {
 	now := time.Now().UTC()
-	j := Job{Started: now, Updated: now, Task: task, State: "running"}
+	j := Job{ActionID: actionID, Started: now, Updated: now, Task: task, State: "running"}
 	err := edit(s.path("jobs"), 50, func(jobs []Job) ([]Job, bool) {
 		interrupt(jobs)
 		return append(jobs, j), true

@@ -251,6 +251,8 @@ func (cliBackend) SunshinePIN(ctx context.Context, pin, name, fromIP string) err
 
 func (cliBackend) RemoteSync(ctx context.Context) (string, error) { return syncRemote(ctx) }
 
-func (cliBackend) RemoteSetup() error { return startTask([]string{"remote", "setup"}) }
+func (cliBackend) RemoteSetup(actionID string) error {
+	return startTask([]string{"remote", "setup"}, actionID)
+}
 
 func (cliBackend) RemoteWebPort() int { return remotePort() }

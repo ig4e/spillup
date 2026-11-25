@@ -21,6 +21,7 @@ const (
 )
 
 type Check struct {
+	ID    string
 	Level Level
 	Label string
 	Fix   string
@@ -44,9 +45,9 @@ func Failures(sections []Section) int {
 	return n
 }
 
-func ok(label string) Check        { return Check{Level: OK, Label: label} }
-func warn(label, fix string) Check { return Check{Level: Warn, Label: label, Fix: fix} }
-func fail(label, fix string) Check { return Check{Level: Fail, Label: label, Fix: fix} }
+func ok(id, label string) Check        { return Check{ID: id, Level: OK, Label: label} }
+func warn(id, label, fix string) Check { return Check{ID: id, Level: Warn, Label: label, Fix: fix} }
+func fail(id, label, fix string) Check { return Check{ID: id, Level: Fail, Label: label, Fix: fix} }
 
 func plural(n int, one, many string) string {
 	if n == 1 {
@@ -58,45 +59,45 @@ func plural(n int, one, many string) string {
 // Tools checks the dev tools in tools.json.
 func Tools(missing []string, total int) Section {
 	if len(missing) > 0 {
-		return Section{"Tools", []Check{fail("missing: "+strings.Join(missing, ", "), "spinup tools")}}
+		return Section{"Tools", []Check{fail("tools.install", "missing: "+strings.Join(missing, ", "), "spinup tools")}}
 	}
-	return Section{"Tools", []Check{ok(fmt.Sprintf("all %d tools in tools.json", total))}}
+	return Section{"Tools", []Check{ok("tools.install", fmt.Sprintf("all %d tools in tools.json", total))}}
 }
 
 // Network checks Tailscale and how this machine reaches each online peer.
 func Network(st tailnet.Status, paths map[string]tailnet.Path, now time.Time) Section {
 	s := Section{Title: "Network"}
 	if !st.Running {
-		s.Checks = append(s.Checks, fail("Tailscale: "+orNot(st.BackendState), "spinup setup <name>"))
+		s.Checks = append(s.Checks, fail("network.connection", "Tailscale: "+orNot(st.BackendState), "spinup setup <name>"))
 		return s
 	}
-	s.Checks = append(s.Checks, ok(fmt.Sprintf("Tailscale running as %s %s", st.Self.Name, st.Self.IP)))
+	s.Checks = append(s.Checks, ok("network.connection", fmt.Sprintf("Tailscale running as %s %s", st.Self.Name, st.Self.IP)))
 	for _, n := range st.Machines() {
 		switch {
 		case n.Expired:
-			s.Checks = append(s.Checks, fail(n.Name+": Tailscale login expired", "log in on "+n.Name+": tailscale up"))
+			s.Checks = append(s.Checks, fail("network.login-expiry", n.Name+": Tailscale login expired", "log in on "+n.Name+": tailscale up"))
 		case !n.KeyExpiry.IsZero():
-			s.Checks = append(s.Checks, warn(fmt.Sprintf("%s: Tailscale login expires in %d days", n.Name, int(n.KeyExpiry.Sub(now).Hours()/24)),
+			s.Checks = append(s.Checks, warn("network.login-expiry", fmt.Sprintf("%s: Tailscale login expires in %d days", n.Name, int(n.KeyExpiry.Sub(now).Hours()/24)),
 				"https://login.tailscale.com/admin/machines > ... > Disable key expiry"))
 		}
 	}
 	if len(st.CertDomains) == 0 {
-		s.Checks = append(s.Checks, warn("Tailscale HTTPS certificates are off, so `tailscale serve` and T3 Code's pairing hang",
+		s.Checks = append(s.Checks, warn("network.certificates", "Tailscale HTTPS certificates are off, so `tailscale serve` and T3 Code's pairing hang",
 			"https://login.tailscale.com/admin/dns > HTTPS Certificates > Enable"))
 	}
 	if !st.MagicDNS {
-		s.Checks = append(s.Checks, warn("MagicDNS is off, so machine names don't resolve", "https://login.tailscale.com/admin/dns > Enable MagicDNS"))
+		s.Checks = append(s.Checks, warn("network.dns", "MagicDNS is off, so machine names don't resolve", "https://login.tailscale.com/admin/dns > Enable MagicDNS"))
 	}
 	for _, p := range st.Peers {
 		path, asked := paths[p.Name]
 		switch {
 		case !p.Online:
-			s.Checks = append(s.Checks, ok(p.Name+": offline"))
+			s.Checks = append(s.Checks, ok("network.path", p.Name+": offline"))
 		case !asked:
 		case path.Kind == tailnet.Relay:
-			s.Checks = append(s.Checks, warn(p.Name+": "+path.String(), "slower; a strict NAT or firewall blocks the direct path"))
+			s.Checks = append(s.Checks, warn("network.path", p.Name+": "+path.String(), "slower; a strict NAT or firewall blocks the direct path"))
 		default:
-			s.Checks = append(s.Checks, ok(p.Name+": "+path.String()))
+			s.Checks = append(s.Checks, ok("network.path", p.Name+": "+path.String()))
 		}
 	}
 	return s
@@ -118,34 +119,34 @@ func Accounts(svc Service, port int) Section {
 	s := Section{Title: "Accounts"}
 	switch {
 	case !svc.Installed:
-		s.Checks = append(s.Checks, fail("the accounts service isn't set up here", "spinup setup <name>"))
+		s.Checks = append(s.Checks, fail("accounts.setup", "the accounts service isn't set up here", "spinup setup <name>"))
 		return s
 	case svc.Report == nil:
-		s.Checks = append(s.Checks, fail("the accounts service doesn't answer: "+svc.Problem, "spinup setup (repairs it)"))
+		s.Checks = append(s.Checks, fail("accounts.service", "the accounts service doesn't answer: "+svc.Problem, "spinup setup (repairs it)"))
 		return s
 	}
 	r := *svc.Report
 	switch {
 	case r.Leading && !r.ProxyRunning:
-		s.Checks = append(s.Checks, fail("held here, but CLIProxyAPI isn't running", "see spinup.log; spinup setup repairs it"))
+		s.Checks = append(s.Checks, fail("accounts.holder", "held here, but CLIProxyAPI isn't running", "see spinup.log; spinup setup repairs it"))
 	case r.Leading:
-		s.Checks = append(s.Checks, ok("held here"))
+		s.Checks = append(s.Checks, ok("accounts.holder", "held here"))
 	case r.Waiting != "":
-		s.Checks = append(s.Checks, warn("nobody holds them: "+r.Waiting, "spinup status"))
+		s.Checks = append(s.Checks, warn("accounts.holder", "nobody holds them: "+r.Waiting, "spinup status"))
 	case r.Leader != "":
-		s.Checks = append(s.Checks, ok("held by "+r.Leader))
+		s.Checks = append(s.Checks, ok("accounts.holder", "held by "+r.Leader))
 	default:
-		s.Checks = append(s.Checks, warn("nobody holds them yet", "start the hub, or spinup status"))
+		s.Checks = append(s.Checks, warn("accounts.holder", "nobody holds them yet", "start the hub, or spinup status"))
 	}
 	if r.Leading {
 		s.Checks = append(s.Checks, loginsCheck(r, port))
 	}
 	if svc.LoginOnly {
-		s.Checks = append(s.Checks, warn("macOS runs the service only while you are logged in, so this machine holds the accounts only then",
+		s.Checks = append(s.Checks, warn("accounts.startup", "macOS runs the service only while you are logged in, so this machine holds the accounts only then",
 			"make an always-on Linux or Windows machine the hub or a standby, or stay logged in"))
 	}
 	if svc.ProxyLatest != "" && svc.ProxyVersion != "" && svc.ProxyLatest != svc.ProxyVersion {
-		s.Checks = append(s.Checks, warn(fmt.Sprintf("CLIProxyAPI %s, latest is %s", svc.ProxyVersion, svc.ProxyLatest), "spinup update"))
+		s.Checks = append(s.Checks, warn("accounts.proxy-version", fmt.Sprintf("CLIProxyAPI %s, latest is %s", svc.ProxyVersion, svc.ProxyLatest), "spinup update"))
 	}
 	return s
 }
@@ -164,14 +165,14 @@ func loginsCheck(r api.Report, port int) Check {
 		counts[kind]++
 	}
 	if len(r.Accounts) == 0 {
-		return warn("no logins yet", fmt.Sprintf("add accounts: http://localhost:%d/management.html > OAuth Login", port))
+		return warn("accounts.logins", "no logins yet", fmt.Sprintf("add accounts: http://localhost:%d/management.html > OAuth Login", port))
 	}
 	sort.Strings(kinds)
 	parts := make([]string, len(kinds))
 	for i, k := range kinds {
 		parts[i] = fmt.Sprintf("%d %s", counts[k], k)
 	}
-	return ok("logins: " + strings.Join(parts, ", "))
+	return ok("accounts.logins", "logins: "+strings.Join(parts, ", "))
 }
 
 // Agents checks the skills and the agent config against spinup's data and your library.
@@ -185,15 +186,15 @@ func Agents(notInstalled, unlisted, drifted []string, listed int) Section {
 		problems = append(problems, "unlisted "+strings.Join(unlisted, ", "))
 	}
 	if len(problems) > 0 {
-		s.Checks = append(s.Checks, fail("skills: "+strings.Join(problems, "; "), "spinup skills sync"))
+		s.Checks = append(s.Checks, fail("agents.skills", "skills: "+strings.Join(problems, "; "), "spinup skills sync"))
 	} else {
-		s.Checks = append(s.Checks, ok(fmt.Sprintf("skills: %d installed, none extra", listed)))
+		s.Checks = append(s.Checks, ok("agents.skills", fmt.Sprintf("skills: %d installed, none extra", listed)))
 	}
 	if len(drifted) > 0 {
-		s.Checks = append(s.Checks, fail(fmt.Sprintf("%d agent config %s out of date: %s", len(drifted),
+		s.Checks = append(s.Checks, fail("agents.config", fmt.Sprintf("%d agent config %s out of date: %s", len(drifted),
 			plural(len(drifted), "file is", "files are"), strings.Join(drifted, ", ")), "spinup agents"))
 	} else {
-		s.Checks = append(s.Checks, ok("instructions, subagents and settings are as spinup and your library set them"))
+		s.Checks = append(s.Checks, ok("agents.config", "instructions, subagents and settings are as spinup and your library set them"))
 	}
 	return s
 }
@@ -201,9 +202,9 @@ func Agents(notInstalled, unlisted, drifted []string, listed int) Section {
 // Update checks whether a newer spinup is out.
 func Update(running, latest string) Section {
 	if !release.Newer(latest, running) {
-		return Section{Title: "spinup", Checks: []Check{ok("spinup " + running)}}
+		return Section{Title: "spinup", Checks: []Check{ok("spinup.version", "spinup "+running)}}
 	}
-	return Section{Title: "spinup", Checks: []Check{warn(fmt.Sprintf("spinup %s, latest is %s", running, latest), "spinup update")}}
+	return Section{Title: "spinup", Checks: []Check{warn("spinup.version", fmt.Sprintf("spinup %s, latest is %s", running, latest), "spinup update")}}
 }
 
 func orNot(state string) string {

@@ -31,7 +31,7 @@ func (s *Server) serveSSHEnable(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	answer(w, s.b.SSHEnable(req.On), "Turning SSH "+map[bool]string{true: "on", false: "off"}[req.On]+"…")
+	answer(w, s.b.SSHEnable(req.On, actionID(r)), "Turning SSH "+map[bool]string{true: "on", false: "off"}[req.On]+"…")
 }
 
 func (s *Server) serveSSHSync(w http.ResponseWriter, r *http.Request) {

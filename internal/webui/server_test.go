@@ -13,6 +13,7 @@ import (
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/doctor"
 	"github.com/darkyeg/spinup/internal/leadership"
+	"github.com/darkyeg/spinup/internal/library"
 	"github.com/darkyeg/spinup/internal/logins"
 	"github.com/darkyeg/spinup/internal/mcp"
 	"github.com/darkyeg/spinup/internal/proxy"
@@ -48,18 +49,20 @@ func (*fakeBackend) Facts() webuiFacts {
 func (*fakeBackend) Report(context.Context) (api.Report, error) {
 	return api.Report{Name: "desk", Hold: config.HoldHub, Leading: true}, nil
 }
-func (*fakeBackend) Tailnet(context.Context) (tailnet.Status, error) { return tailnet.Status{}, nil }
-func (*fakeBackend) Doctor(context.Context) []doctor.Section         { return nil }
-func (*fakeBackend) Keys() (config.Secrets, error)                   { return config.Secrets{APIKey: "k"}, nil }
-func (*fakeBackend) HandOff(string) error                            { return errors.New("no") }
-func (*fakeBackend) TakeOver() error                                 { return nil }
-func (b *fakeBackend) MakeMain(m string) error                       { b.mainTo = m; return nil }
-func (*fakeBackend) RestartProxy() error                             { return nil }
-func (*fakeBackend) MCP() mcp.Manager                                { return mcp.Manager{} }
-func (*fakeBackend) Skills() skills.Manager                          { return skills.Manager{} }
-func (*fakeBackend) CatchUpLibrary()                                 {}
-func (*fakeBackend) OwnLogins() ([]logins.Summary, error)            { return nil, nil }
-func (*fakeBackend) SetOwn(context.Context, []string) error          { return nil }
+func (*fakeBackend) Tailnet(context.Context) (tailnet.Status, error)               { return tailnet.Status{}, nil }
+func (*fakeBackend) Doctor(context.Context) []doctor.Section                       { return nil }
+func (*fakeBackend) Keys() (config.Secrets, error)                                 { return config.Secrets{APIKey: "k"}, nil }
+func (*fakeBackend) HandOff(string) error                                          { return errors.New("no") }
+func (*fakeBackend) TakeOver() error                                               { return nil }
+func (b *fakeBackend) MakeMain(m string) error                                     { b.mainTo = m; return nil }
+func (*fakeBackend) RestartProxy() error                                           { return nil }
+func (*fakeBackend) DocumentLibrary() library.Library                              { return library.Library{} }
+func (*fakeBackend) RestoreDocument(context.Context, string, string, string) error { return nil }
+func (*fakeBackend) MCP() mcp.Manager                                              { return mcp.Manager{} }
+func (*fakeBackend) Skills() skills.Manager                                        { return skills.Manager{} }
+func (*fakeBackend) CatchUpLibrary()                                               {}
+func (*fakeBackend) OwnLogins() ([]logins.Summary, error)                          { return nil, nil }
+func (*fakeBackend) SetOwn(context.Context, []string) error                        { return nil }
 func (*fakeBackend) T3DesktopLink(context.Context, string) (string, error) {
 	return "t3code://pair?test=fixture", nil
 }
@@ -70,8 +73,8 @@ func (*fakeBackend) T3Link(context.Context, string, string) error              {
 func (*fakeBackend) RemoteState(context.Context) RemoteState                   { return RemoteState{} }
 func (*fakeBackend) SunshinePIN(context.Context, string, string, string) error { return nil }
 func (*fakeBackend) RemoteSync(context.Context) (string, error)                { return "", nil }
-func (*fakeBackend) UpdateSystem() error                                       { return nil }
-func (*fakeBackend) RemoteSetup() error                                        { return nil }
+func (*fakeBackend) UpdateSystem(string) error                                 { return nil }
+func (*fakeBackend) RemoteSetup(string) error                                  { return nil }
 func (*fakeBackend) RemoteClipboard(context.Context, uint32) (ClipboardText, error) {
 	return ClipboardText{}, nil
 }
@@ -89,11 +92,11 @@ func (*fakeBackend) RunFix(context.Context, string) (string, error) { return "",
 func (*fakeBackend) PreviewSetup(_ context.Context, name, _ string) (SetupPreview, error) {
 	return SetupPreview{Name: name, Role: config.HoldNever, Changes: []SetupChange{}}, nil
 }
-func (*fakeBackend) StartSetup(string, string) error        { return nil }
-func (*fakeBackend) SetupProgress() SetupProgress           { return SetupProgress{} }
-func (*fakeBackend) SyncT3(context.Context) (string, error) { return "", nil }
-func (*fakeBackend) UpdateState(context.Context) Update     { return Update{Current: "test"} }
-func (*fakeBackend) Apps() []App                            { return nil }
+func (*fakeBackend) StartSetup(string, string, string) error { return nil }
+func (*fakeBackend) SetupProgress() SetupProgress            { return SetupProgress{} }
+func (*fakeBackend) SyncT3(context.Context) (string, error)  { return "", nil }
+func (*fakeBackend) UpdateState(context.Context) Update      { return Update{Current: "test"} }
+func (*fakeBackend) Apps() []App                             { return nil }
 func (*fakeBackend) RolloutPlan(context.Context) (FleetPreview, error) {
 	return FleetPreview{Output: "fleet preview"}, nil
 }
@@ -102,7 +105,7 @@ func (*fakeBackend) StartUpdate() error                                        {
 func (*fakeBackend) SetAutoUpdate(bool) error                                  { return nil }
 func (*fakeBackend) SSHState(context.Context) SSHState                         { return SSHState{} }
 func (*fakeBackend) SetAccess(bool, bool) error                                { return nil }
-func (*fakeBackend) SSHEnable(bool) error                                      { return nil }
+func (*fakeBackend) SSHEnable(bool, string) error                              { return nil }
 func (*fakeBackend) SSHSync(context.Context) (string, error)                   { return "", nil }
 func (*fakeBackend) ManagedMachines(context.Context) ([]ManagedMachine, error) { return nil, nil }
 func (*fakeBackend) Remote(context.Context, string) (Remote, error) {

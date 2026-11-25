@@ -172,6 +172,8 @@ export const api = {
   /** Confirms the PIN Moonlight shows on machine's Sunshine (null: this machine). */
   sunshinePin: (machine: string | null, pin: string) =>
     post(machine ? `remote/${encodeURIComponent(machine)}/sunshine/pin` : "sunshine/pin", { pin }, true),
+  jobsOf: (machine: string | null) => read<JobRecord[]>(queryPath("activity/jobs", machine), true),
+  actionsOf: (machine: string | null) => read<ActivityEntry[]>(queryPath("activity", machine), true),
   jobHistory: read<JobRecord[]>("activity/jobs"),
   healthHistory: read<HealthObservation[]>("machines/history"),
   recentActivity: read<ActivityEntry[]>("activity"),

@@ -146,8 +146,8 @@ func (s *Server) serveRestartService(w http.ResponseWriter, _ *http.Request) {
 	answer(w, s.b.RestartService(), "Restarting spillup. This page reconnects in a few seconds.")
 }
 
-func (s *Server) serveUpdateSystem(w http.ResponseWriter, _ *http.Request) {
-	answer(w, s.b.UpdateSystem(), "Updating the system…")
+func (s *Server) serveUpdateSystem(w http.ResponseWriter, r *http.Request) {
+	answer(w, s.b.UpdateSystem(actionID(r)), "Updating the system…")
 }
 
 type RolloutRequest struct {

@@ -27,6 +27,7 @@ import (
 
 // Backend is what the dashboard reads and changes; the command line implements it with the units its own commands use.
 type Backend interface {
+	documentBackend
 	mcpSecretBackend
 	SharedQuotas(context.Context) (api.QuotaSummary, error)
 	Facts() Facts
@@ -68,7 +69,7 @@ type Backend interface {
 	// RunFix runs a doctor fix that is a spinup command; StartSetup and SetupProgress set this machine up.
 	RunFix(ctx context.Context, fix string) (string, error)
 	PreviewSetup(ctx context.Context, name, role string) (SetupPreview, error)
-	StartSetup(name, role string) error
+	StartSetup(name, role, actionID string) error
 	SetupProgress() SetupProgress
 	AnswerSetup(password string, cancel bool) error
 
@@ -80,7 +81,7 @@ type Backend interface {
 	SetAutoUpdate(auto bool) error
 	// SetAccess lets your devices open this dashboard over Tailscale, and the dashboard open terminals here.
 	SetAccess(devices, terminals bool) error
-	UpdateSystem() error
+	UpdateSystem(actionID string) error
 	// RestartService restarts the accounts service and the dashboard it hosts.
 	RestartService() error
 
@@ -91,12 +92,12 @@ type Backend interface {
 	RemoteState(ctx context.Context) RemoteState
 	SunshinePIN(ctx context.Context, pin, name, fromIP string) error
 	RemoteSync(ctx context.Context) (string, error)
-	RemoteSetup() error
+	RemoteSetup(actionID string) error
 	RemoteWebPort() int
 
 	// SSHState, SSHEnable and SSHSync make `ssh <machine>` work between your machines.
 	SSHState(ctx context.Context) SSHState
-	SSHEnable(on bool) error
+	SSHEnable(on bool, actionID string) error
 	SSHSync(ctx context.Context) (string, error)
 
 	// Panel is the CLIProxyAPI behind a Management Center view: "shared" (holders only) or "own".
@@ -185,6 +186,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	}
 	if from == browser {
 		s.mcpRoutes(read, change)
+		s.revisionRoutes(read, route)
 	}
 	read("keys", s.serveKeys)
 

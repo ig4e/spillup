@@ -19,10 +19,11 @@ var errNotNewer = errors.New("this machine's library is as new or newer")
 // libraryShare is this machine's library as the service shares it: it reads and dates the library, and
 // stores what arrives from other machines, one look or change at a time.
 type libraryShare struct {
-	lib     library.Library
-	tracker *library.Tracker
-	opened  time.Time
-	mu      sync.Mutex
+	lib         library.Library
+	tracker     *library.Tracker
+	warnHistory func(error)
+	opened      time.Time
+	mu          sync.Mutex
 	// installWanted asks the sharing loop to install the library; it holds at most one request.
 	installWanted chan struct{}
 	exchanges     exchanges
@@ -38,7 +39,7 @@ func (m *Machine) openLibrary() {
 	if err != nil {
 		m.log.Printf("library: starting without memory: %v", err)
 	}
-	m.library = &libraryShare{lib: m.o.Library, tracker: tracker, opened: time.Now(), installWanted: make(chan struct{}, 1)}
+	m.library = &libraryShare{lib: m.o.Library, tracker: tracker, warnHistory: func(err error) { m.log.Printf("library document history: %v", err) }, opened: time.Now(), installWanted: make(chan struct{}, 1)}
 	m.library.artifacts = openArtifactBudget(filepath.Join(filepath.Dir(m.o.StatePath), "artifact-transfers.json"), m.log)
 }
 
@@ -127,6 +128,9 @@ func (s *libraryShare) take(ctx context.Context, incoming api.Library, now time.
 		}
 		if library.Compare(here, incoming.Stamp) != library.Take {
 			return errNotNewer
+		}
+		if err := s.lib.RememberDocuments(current); err != nil && s.warnHistory != nil {
+			s.warnHistory(err)
 		}
 		return s.tracker.Taking(incoming.Stamp)
 	})

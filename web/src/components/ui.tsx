@@ -1,9 +1,9 @@
 import { Skeleton, Spinner, Switch } from "@heroui/react";
 import { Button } from "./Button";
 import { Apple, Check, ChevronLeft, ChevronRight, Copy, Eye, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
-import { createContext, useContext, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { currentRemote, setRemote } from "../lib/api";
-import { navigate, useRemote } from "../lib/hooks";
+import { navigate, useDesktop, useRemote } from "../lib/hooks";
 import type { Hold } from "../lib/types";
 
 /** Apple's system colors, for the rounded icon tiles in front of rows. */
@@ -47,19 +47,21 @@ interface TitleProps {
 /** Where the phone's back button goes from this page; null on the pages the tab bar opens. */
 export const BackAction = createContext<(() => void) | null>(null);
 
-/** Keep a single heading mounted as the page scrolls and the window changes size. */
-export function LargeTitle({ title, subtitle, actions, center, bleed }: TitleProps) {
-  const back = useContext(BackAction);
+/** The page's title: a toolbar on the desktop, an iOS navigation bar over a large title on a phone. */
+export function LargeTitle(props: TitleProps) {
+  return useDesktop() ? <Toolbar {...props} /> : <NavBar {...props} />;
+}
+
+function Toolbar({ title, subtitle, actions, center, bleed }: TitleProps) {
   const remote = useRemote();
   return (
     <>
       <header className={`page-header glass-toolbar ${bleed ? "page-header--bleed" : "toolbar-span"}`}>
         <div className="page-heading">
-          <div className="page-history hidden lg:flex">
+          <div className="page-history flex">
             <button type="button" aria-label="Back" onClick={() => window.history.back()}><ChevronLeft /></button>
             <button type="button" aria-label="Forward" onClick={() => window.history.forward()}><ChevronRight /></button>
           </div>
-          {back ? <button type="button" aria-label="Back" onClick={back} className="mobile-back lg:hidden"><ChevronLeft /></button> : null}
           <h1>{title}</h1>
         </div>
         {center ? <div className="page-views">{center}</div> : null}
@@ -77,6 +79,57 @@ export function LargeTitle({ title, subtitle, actions, center, bleed }: TitlePro
       {subtitle ? <p className="mb-5 max-w-2xl text-sm leading-relaxed text-muted">{subtitle}</p> : null}
     </>
   );
+}
+
+/** iOS 26's navigation bar: glass controls float over the page, and the large title hands over to a small one as it scrolls away. */
+function NavBar({ title, subtitle, actions, center, bleed }: TitleProps) {
+  const back = useContext(BackAction);
+  const remote = useRemote();
+  const bar = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const scrolled = useScrolledUnder(heading, bar);
+  return (
+    <>
+      <header ref={bar} data-scrolled={scrolled || undefined} className={`nav-bar ${bleed ? "nav-bar--bleed" : ""} ${back || actions ? "" : "nav-bar--bare"}`}>
+        <div className="nav-side">
+          {back ? (
+            <button type="button" aria-label="Back" onClick={back} className="glass-button nav-back">
+              <ChevronLeft strokeWidth={2.4} />
+            </button>
+          ) : null}
+        </div>
+        <div className="nav-title" aria-hidden="true">{title}</div>
+        <div className="nav-side nav-actions">{actions}</div>
+      </header>
+      <div className={bleed ? "mb-3" : "mb-5"}>
+        <h1 ref={heading} className="nav-large-title">{title}</h1>
+        {subtitle ? <p className="mt-1 text-[15px] leading-snug text-muted">{subtitle}</p> : null}
+        {remote ? (
+          <div className="viewing-pill">
+            <Eye aria-hidden="true" className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Viewing <strong>{remote}</strong></span>
+            <button type="button" aria-label="Back to this machine" onClick={() => setRemote(null)}>Exit</button>
+          </div>
+        ) : null}
+        {center ? <div className="nav-center">{center}</div> : null}
+      </div>
+    </>
+  );
+}
+
+function useScrolledUnder(target: RefObject<HTMLElement | null>, cover: RefObject<HTMLElement | null>) {
+  const [under, setUnder] = useState(false);
+  useEffect(() => {
+    const el = target.current;
+    if (!el) return;
+    const inset = cover.current?.offsetHeight ?? 0;
+    const io = new IntersectionObserver(([e]) => setUnder(!e.isIntersecting && e.boundingClientRect.top < inset + 1), {
+      rootMargin: `-${inset}px 0px 0px 0px`,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [target, cover]);
+  return under;
 }
 
 /** Keep normal link behavior for opening a dashboard view in another tab or window. */
@@ -143,9 +196,9 @@ export function Segmented<T extends string>({
 }
 
 /** An inset grouped list, as in System Settings: a heading, rounded rows split by hairlines, a footnote. */
-export function Group({ title, footer, children, className = "" }: { title?: ReactNode; footer?: ReactNode; children: ReactNode; className?: string }) {
+export function Group({ id, title, footer, children, className = "" }: { id?: string; title?: ReactNode; footer?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`mb-7 ${className}`}>
+    <section id={id} className={`mb-7 ${className}`}>
       {title ? <h2 className="mb-1.5 px-4 text-[13px] font-semibold text-foreground/80 lg:px-1">{title}</h2> : null}
       <div className="group-list overflow-hidden rounded-xl bg-surface">
         {children}

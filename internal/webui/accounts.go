@@ -137,7 +137,7 @@ func DoctorReport(sections []doctor.Section) Doctor {
 		}
 		section := Section{Title: sec.Title}
 		for _, c := range sec.Checks {
-			section.Checks = append(section.Checks, Check{Level: levels[c.Level], Label: c.Label, Fix: c.Fix})
+			section.Checks = append(section.Checks, Check{ID: c.ID, Level: levels[c.Level], Label: c.Label, Fix: c.Fix})
 		}
 		out.Sections = append(out.Sections, section)
 	}

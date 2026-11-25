@@ -54,7 +54,7 @@ func (s *Server) serveSetup(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	answer(w, s.b.StartSetup(req.Name, req.Role), "Setting up this machine…")
+	answer(w, s.b.StartSetup(req.Name, req.Role, actionID(r)), "Setting up this machine…")
 }
 
 func (s *Server) serveSetupProgress(w http.ResponseWriter, _ *http.Request) {

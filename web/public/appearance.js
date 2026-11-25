@@ -15,7 +15,7 @@
     root.classList.toggle("dark", dark);
     root.classList.toggle("light", !dark);
     root.style.colorScheme = scheme;
-    tint.content = dark ? "#10141a" : "#f0f3f8";
+    tint.content = dark ? "#000000" : "#f2f2f7";
   }
   apply(read());
   system.addEventListener("change", () => apply(root.dataset.appearance));

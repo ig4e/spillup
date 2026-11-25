@@ -495,10 +495,10 @@ function TabBar({ active }: { active: string }) {
   const index = Math.max(0, tabs.findIndex((t) => t.path === active));
   return (
     <nav aria-label="Pages" className="mobile-dock pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden">
-      <div className="glass-tabbar pointer-events-auto relative flex w-full max-w-[418px] rounded-full p-1">
+      <div className="glass-tabbar pointer-events-auto relative flex w-full max-w-[440px] rounded-full p-1">
         <span
           aria-hidden
-          className="tab-lens absolute inset-y-1 left-1 rounded-full transition-transform duration-200 ease-out"
+          className="tab-lens absolute inset-y-1 left-1 rounded-full"
           style={{ width: `calc((100% - 8px) / ${tabs.length})`, transform: `translateX(${index * 100}%)` }}
         />
         {tabs.map((t) => {
@@ -510,12 +510,12 @@ function TabBar({ active }: { active: string }) {
               href={pageHref(t.path)}
               onClick={(event) => openPage(event, t.path)}
               aria-current={on ? "page" : undefined}
-              className={`relative flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+              className={`tab-item relative flex h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                 on ? "tab-active" : "text-foreground"
               }`}
             >
               <Icon className="size-[23px]" strokeWidth={on ? 2.3 : 1.9} />
-              <span className="text-[11px] leading-none font-semibold">{t.label}</span>
+              <span className="text-[10px] leading-none font-medium tracking-[0.01em]">{t.label}</span>
             </a>
           );
         })}

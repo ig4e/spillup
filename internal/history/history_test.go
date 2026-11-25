@@ -59,7 +59,7 @@ func TestJobCheckpointSurvivesLossOfTaskLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, err := s.BeginJob("setup")
+	j, err := s.BeginJob("setup", "test-action")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestJobCheckpointSurvivesLossOfTaskLock(t *testing.T) {
 	}
 	lock.Close()
 	jobs, err = (Store{Dir: s.Dir}).Jobs()
-	if err != nil || len(jobs) != 1 || jobs[0].State != "interrupted" || jobs[0].Step != 2 {
+	if err != nil || len(jobs) != 1 || jobs[0].State != "interrupted" || jobs[0].Step != 2 || jobs[0].ActionID != "test-action" {
 		t.Fatalf("lost job %+v, %v", jobs, err)
 	}
 	if err := s.UpdateJob(j); err != nil {

@@ -162,7 +162,7 @@ func packagesSection(ctx context.Context) doctor.Section {
 	s := doctor.Section{Title: "Packages"}
 	results, err := packageManager().Plan(ctx)
 	if err != nil {
-		s.Checks = append(s.Checks, doctor.Check{Level: doctor.Fail, Label: err.Error(), Fix: "spinup packages plan"})
+		s.Checks = append(s.Checks, doctor.Check{ID: "packages.plan", Level: doctor.Fail, Label: err.Error(), Fix: "spinup packages plan"})
 		return s
 	}
 	for _, r := range results {
@@ -176,7 +176,7 @@ func packagesSection(ctx context.Context) doctor.Section {
 			level = doctor.Warn
 			fix = ""
 		}
-		s.Checks = append(s.Checks, doctor.Check{Level: level, Label: fmt.Sprintf("%s %s: %s %s", r.Source, r.Target, r.Action, r.Detail), Fix: fix})
+		s.Checks = append(s.Checks, doctor.Check{ID: "packages.plan", Level: level, Label: fmt.Sprintf("%s %s: %s %s", r.Source, r.Target, r.Action, r.Detail), Fix: fix})
 	}
 	return s
 }

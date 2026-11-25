@@ -23,7 +23,21 @@ func (m *Machine) shareLibrary(ctx context.Context) {
 	ticker := time.NewTicker(m.o.LibraryEvery)
 	defer ticker.Stop()
 	failing := ""
+	var captured, historyError string
 	for {
+		fresh, err := m.library.lib.ObserveDocuments(ctx, captured)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if err.Error() != historyError {
+				m.log.Printf("library document history: %v", err)
+				historyError = err.Error()
+			}
+		} else {
+			captured = fresh
+			historyError = ""
+		}
 		m.compareLibraries(ctx)
 		select {
 		case <-ctx.Done():

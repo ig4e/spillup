@@ -66,6 +66,7 @@ type Machines struct {
 }
 
 type Check struct {
+	ID    string `json:"id,omitempty"`
 	Level string `json:"level"`
 	Label string `json:"label"`
 	Fix   string `json:"fix,omitempty"`

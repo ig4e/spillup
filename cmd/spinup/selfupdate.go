@@ -25,7 +25,9 @@ func (cliBackend) UpdateState(ctx context.Context) webui.Update {
 }
 
 // UpdateSystem runs a full system update as a dashboard task, which asks for your password.
-func (cliBackend) UpdateSystem() error { return startTask([]string{"update", "--system"}) }
+func (cliBackend) UpdateSystem(actionID string) error {
+	return startTask([]string{"update", "--system"}, actionID)
+}
 
 func (cliBackend) StartUpdate() error {
 	if version == "dev" {
