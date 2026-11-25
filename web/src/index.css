@@ -386,11 +386,11 @@ body {
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    min-height: calc(52px + env(safe-area-inset-top));
+    min-height: calc(60px + env(safe-area-inset-top));
     margin-inline: calc(-1 * var(--page-left)) calc(-1 * var(--page-right));
-    padding: env(safe-area-inset-top) var(--page-right) 0 var(--page-left);
+    padding: calc(8px + env(safe-area-inset-top)) var(--page-right) 8px var(--page-left);
   }
-  .nav-bar--bare { min-height: calc(12px + env(safe-area-inset-top)) }
+  .nav-bar--bare { min-height: calc(16px + env(safe-area-inset-top)); padding-block: env(safe-area-inset-top) 0 }
   .nav-bar::before {
     content: "";
     position: absolute;
@@ -456,7 +456,7 @@ body {
   .nav-actions .button svg { width: 19px; height: 19px }
   .nav-large-title {
     min-width: 0;
-    padding-top: 2px;
+    padding-top: 6px;
     font-size: 34px;
     line-height: 41px;
     font-weight: 700;

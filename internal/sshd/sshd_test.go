@@ -20,3 +20,12 @@ func TestTheManagedBlockReplacesOnlyItself(t *testing.T) {
 		t.Fatalf("an empty block should leave only your lines:\n%q", gone)
 	}
 }
+
+func TestConfigEntriesTrustTailnetHostsOnFirstContact(t *testing.T) {
+	got := configEntries([]Host{{Name: "desk", Address: "desk.ts.net", User: "ahmed"}, {Name: "lap", Address: "lap.ts.net"}})
+	want := "Host desk\n  HostName desk.ts.net\n  User ahmed\n  StrictHostKeyChecking accept-new\n" +
+		"Host lap\n  HostName lap.ts.net\n  StrictHostKeyChecking accept-new"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}

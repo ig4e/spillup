@@ -2,10 +2,10 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.4
+### In v0.4.5
 
-- **Skills** and **MCP Servers** are now separate pages under Agents, each with its own title and actions.
-- On phones, pages size to the visible screen (`dvh`), so Safari's toolbars no longer push content or the tab bar out of view.
+- The phone navigation bar has more room above and below its buttons, and the large title sits further from them.
+- `ssh <machine>` trusts a spillup machine's host key the first time it connects. Scripts and agents that run SSH non-interactively no longer fail with "Host key verification failed".
 
 ### Install
 

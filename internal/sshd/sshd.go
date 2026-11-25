@@ -87,14 +87,21 @@ func Authorize(keys []string) error {
 
 // WriteConfig names each machine in ~/.ssh/config, so `ssh <machine>` reaches it on the tailnet as the right user.
 func WriteConfig(hosts []Host) error {
+	return writeBlock(filepath.Join(sshDir(), "config"), configEntries(hosts))
+}
+
+// configEntries trusts each machine's host key on first contact: the tailnet already authenticates the peer,
+// and without it scripts and agents (BatchMode) can never reach a machine nobody has opened by hand.
+func configEntries(hosts []Host) string {
 	var b strings.Builder
 	for _, h := range hosts {
 		fmt.Fprintf(&b, "Host %s\n  HostName %s\n", h.Name, h.Address)
 		if h.User != "" {
 			fmt.Fprintf(&b, "  User %s\n", h.User)
 		}
+		b.WriteString("  StrictHostKeyChecking accept-new\n")
 	}
-	return writeBlock(filepath.Join(sshDir(), "config"), strings.TrimSuffix(b.String(), "\n"))
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 const (
