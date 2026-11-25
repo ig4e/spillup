@@ -27,7 +27,7 @@ const isDark = () => document.documentElement.classList.contains("dark") || (!do
 type Status = { kind: "connecting" } | { kind: "open" } | { kind: "ended"; why: string };
 
 export function TerminalPage() {
-  const { data } = useOverview();
+  const { data, loading } = useOverview();
   const remote = useRemote();
   const machines = useQuery(api.localMachines, 15000);
   const local = useQuery(api.localOverview);
@@ -48,12 +48,12 @@ export function TerminalPage() {
           ) : undefined
         }
         actions={
-          <Button size="sm" variant="secondary" onPress={() => setSession((n) => n + 1)}>
+          <Button size="sm" variant="secondary" isDisabled={!data || off} onPress={() => setSession((n) => n + 1)}>
             <Plus className="size-4" /> New Session
           </Button>
         }
       />
-      {off ? (
+      {!data ? <div className="flex flex-1 items-center justify-center text-sm text-muted">{loading ? "Checking terminal access…" : "Terminal access unavailable"}</div> : off ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
           <SquareTerminal className="size-10" />
           <div className="text-[15px] font-semibold text-foreground">Terminals are off on {data?.name}</div>

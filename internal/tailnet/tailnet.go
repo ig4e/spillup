@@ -40,6 +40,10 @@ type Node struct {
 	Tagged bool
 }
 
+func (n Node) Mobile() bool {
+	return strings.EqualFold(n.OS, "android") || strings.EqualFold(n.OS, "ios") || strings.EqualFold(n.OS, "ipados")
+}
+
 // HTTPURL gives the node's MagicDNS URL, falling back to its Tailscale address.
 func (s Status) HTTPURL(n Node, port int) string {
 	if n.IP == "" || port == 0 {

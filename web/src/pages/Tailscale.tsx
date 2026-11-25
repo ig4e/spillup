@@ -18,20 +18,20 @@ export function TailscalePage() {
   return (
     <>
       <LargeTitle title="Tailscale" />
-      {machines.data?.problem ? (
+      {machines.error || machines.data?.problem ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Tailscale didn’t answer</Alert.Title>
-            <Alert.Description>{machines.data.problem}</Alert.Description>
+            <Alert.Description>{machines.error?.message ?? machines.data?.problem}</Alert.Description>
           </Alert.Content>
         </Alert>
       ) : null}
-      {!machines.data ? (
+      {machines.loading ? (
         <GroupSkeleton rows={3} />
-      ) : (
+      ) : machines.data ? (
         <>
-          <Group>
+          <Group footer={machines.refreshError ? "Showing the last available network status." : undefined}>
             <Row icon={<BrandTile brand="tailscale" icon={Waypoints} />} title="This machine" value={<span className="flex items-center gap-1.5"><Dot tone={self?.online ? "success" : "danger"} /> {self?.name ?? data?.name ?? "—"}</span>} />
             <Row icon={<IconTile icon={Globe} color="blue" />} title="Address" value={self?.ip ? <Mono copy>{self.ip}</Mono> : <span className="text-muted">—</span>} />
             {self?.dns_name ? <Row icon={<IconTile icon={Network} color="teal" />} title="Name on the tailnet" value={<Mono copy>{self.dns_name}</Mono>} /> : null}
@@ -59,7 +59,7 @@ export function TailscalePage() {
             })}
           </Group>
         </>
-      )}
+      ) : null}
     </>
   );
 }

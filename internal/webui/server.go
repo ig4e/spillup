@@ -20,6 +20,7 @@ import (
 	"github.com/darkyeg/spinup/internal/remoteweb"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/sysinfo"
+	"github.com/darkyeg/spinup/internal/t3code"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
@@ -50,6 +51,7 @@ type Backend interface {
 	Remote(machine string) (Remote, error)
 	// T3State, T3Pair and T3Link drive T3 Code here; SyncT3 links every machine's T3 to every other's.
 	T3State(ctx context.Context) T3State
+	T3Phones(ctx context.Context) ([]t3code.Phone, error)
 	T3DesktopLink(ctx context.Context, machine string) (string, error)
 	T3Pair(ctx context.Context, label string) (string, error)
 	T3Link(ctx context.Context, url, code string) error
@@ -195,6 +197,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("skills/sync", s.serveSkillSync)
 
 	read("t3", s.serveT3)
+	read("t3/phones", s.serveT3Phones)
 	change("t3/pair", s.serveT3Pair)
 	change("t3/desktop", s.serveT3Desktop)
 	change("t3/link", s.serveT3Link)

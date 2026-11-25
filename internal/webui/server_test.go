@@ -16,6 +16,7 @@ import (
 	"github.com/darkyeg/spinup/internal/logins"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
+	"github.com/darkyeg/spinup/internal/t3code"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
@@ -61,6 +62,7 @@ func (*fakeBackend) T3DesktopLink(context.Context, string) (string, error) {
 	return "t3code://pair?test=fixture", nil
 }
 func (*fakeBackend) T3State(context.Context) T3State                           { return T3State{} }
+func (*fakeBackend) T3Phones(context.Context) ([]t3code.Phone, error)          { return nil, nil }
 func (*fakeBackend) T3Pair(context.Context, string) (string, error)            { return "", nil }
 func (*fakeBackend) T3Link(context.Context, string, string) error              { return nil }
 func (*fakeBackend) RemoteState(context.Context) RemoteState                   { return RemoteState{} }

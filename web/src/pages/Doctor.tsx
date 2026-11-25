@@ -1,7 +1,7 @@
 import { Alert, Spinner } from "@heroui/react";
 import { Button } from "../components/Button";
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Group, GroupSkeleton, LargeTitle, Row, Segmented } from "../components/ui";
 import { api } from "../lib/api";
 import { navigate, useAction, usePath, useQuery } from "../lib/hooks";
@@ -20,47 +20,39 @@ const fixable = new Set(["spinup skills sync", "spinup update", "spinup tools", 
 type DoctorTab = "checks" | "updates";
 const tabs: { id: DoctorTab; label: string }[] = [{ id: "checks", label: "Checks" }, { id: "updates", label: "Updates" }];
 
-function DoctorTitle({ tab, actions }: { tab: DoctorTab; actions?: ReactNode }) {
-  return <LargeTitle title="Doctor" actions={actions} center={
-    <Segmented label="Doctor view" value={tab} options={tabs}
-      onChange={(view) => navigate(view === "updates" ? "/updates" : "/doctor")} />
-  } />;
-}
-
 export function DoctorPage() {
   const updates = usePath() === "/updates";
-  return updates ? <><DoctorTitle tab="updates" /><UpdatesSection /></> : <Checks />;
+  return (
+    <>
+      <LargeTitle title="Doctor" actions={updates ? undefined : <CheckAgain />} center={
+        <Segmented label="Doctor view" value={updates ? "updates" : "checks"} options={tabs}
+          onChange={(view) => navigate(view === "updates" ? "/updates" : "/doctor")} />
+      } />
+      {updates ? <UpdatesSection /> : <Checks />}
+    </>
+  );
+}
+
+function CheckAgain() {
+  const doctor = useQuery(api.doctor);
+  const [rechecking, setRechecking] = useState(false);
+  return (
+    <Button variant="secondary" size="sm" isPending={doctor.loading || rechecking} onPress={async () => {
+      setRechecking(true);
+      try { await doctor.reload(); } finally { setRechecking(false); }
+    }}>Check Again</Button>
+  );
 }
 
 function Checks() {
   const doctor = useQuery(api.doctor);
   const { pending, run } = useAction();
-  const [rechecking, setRechecking] = useState(false);
   const data = doctor.data;
-  const checking = doctor.loading || rechecking;
   const warnings = data?.sections.flatMap((s) => s.checks).filter((c) => c.level === "warn").length ?? 0;
   const verdict: Level = data?.failures ? "fail" : warnings ? "warn" : "ok";
 
   return (
     <>
-      <DoctorTitle
-        tab="checks"
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            isPending={checking}
-            onPress={async () => {
-              setRechecking(true);
-              await doctor.reload();
-              setRechecking(false);
-            }}
-          >
-            <>Check Again</>
-          </Button>
-        }
-      />
-
       {doctor.error ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
@@ -71,7 +63,7 @@ function Checks() {
         </Alert>
       ) : null}
 
-      {!data && checking ? (
+      {!data && doctor.loading ? (
         <>
           <div className="mb-7 flex flex-col items-center gap-3 rounded-2xl bg-surface py-10">
             <Spinner />
@@ -87,7 +79,7 @@ function Checks() {
               {data.failures ? `${data.failures} Problem${data.failures === 1 ? "" : "s"} Found` : warnings ? "Working, with Notes" : "Everything Looks Good"}
             </div>
             <div className="mt-1 text-[14px] text-muted">
-              {data.failures ? "Run the fix under each one, then check again." : warnings ? "Review the flagged checks below." : "Nothing needs your attention."}
+              {doctor.refreshError ? "Showing the last completed check. Try Check Again." : data.failures ? "Run the fix under each one, then check again." : warnings ? "Review the flagged checks below." : "Nothing needs your attention."}
             </div>
           </div>
           {data.sections.map((section) => (

@@ -176,6 +176,8 @@ Open Spillup on the computer where you run T3 Desktop. In **T3 Code → Desktop 
 
 In T3, press **Ctrl+K** (macOS **Cmd+K**), choose **Add Project**, then choose the remote machine and its folder. For a thread without a project, start a new draft, choose **No project**, and select the remote machine from the machine menu before sending. Automatic agent links continue to support delegation between running agents. [T3 remote access](https://github.com/pingdotgg/t3code/blob/v0.1.11/docs/user/remote-access.md) · [T3 threads](https://github.com/pingdotgg/t3code/blob/v0.1.11/docs/user/thread-sidebar.md)
 
+Open **T3 Code → Phones & tablets** in Spillup to see which host a phone is paired with. Spillup reads the active client sessions on reachable T3 hosts. It shows the Tailnet device name when T3 recorded a matching address, and otherwise lists the session as a phone or tablet. The **Paired** status lasts while the session is valid, including when the browser is closed. To pair a new phone, use the button for the host you want to open.
+
 ## 5. Check that traffic really goes through the proxy
 
 1. Start a thread on `Claude (proxy)` and send "hi".

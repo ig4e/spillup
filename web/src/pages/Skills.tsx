@@ -23,18 +23,16 @@ export function SkillsPage() {
       <LargeTitle
         title="Skills"
         center={
-          data ? (
             <Segmented
               label="Skill lists"
               value={tab}
               onChange={setTab}
               options={[
-                { id: "shared", label: `Shared ${data.shared.length}` },
-                { id: "here", label: `Only Here ${data.only_here.length}` },
-                { id: "removed", label: `Removed ${data.removed.length}` },
+                { id: "shared", label: `Shared ${data?.shared.length ?? "–"}` },
+                { id: "here", label: `Only Here ${data?.only_here.length ?? "–"}` },
+                { id: "removed", label: `Removed ${data?.removed.length ?? "–"}` },
               ]}
             />
-          ) : undefined
         }
         actions={
           <>
@@ -67,16 +65,16 @@ export function SkillsPage() {
         </Alert>
       ))}
 
-      {!data ? (
+      {skills.loading ? (
         <GroupSkeleton rows={5} />
-      ) : (
+      ) : data ? (
         <>
           <Budget data={data} />
           {tab === "shared" ? <SharedList skills={data.shared} library={data.library} reload={skills.reload} /> : null}
           {tab === "here" ? <OnlyHereList skills={data.only_here} reload={skills.reload} /> : null}
           {tab === "removed" ? <RemovedList skills={data.removed} reload={skills.reload} /> : null}
         </>
-      )}
+      ) : null}
 
       <AddSkills isOpen={addOpen} onOpenChange={setAddOpen} onAdded={skills.reload} />
     </>

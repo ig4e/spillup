@@ -41,6 +41,7 @@ type Machine struct {
 	Name      string     `json:"name"`
 	DNSName   string     `json:"dns_name,omitempty"`
 	IP        string     `json:"ip,omitempty"`
+	IPv6      string     `json:"ipv6,omitempty"`
 	OS        string     `json:"os,omitempty"`
 	Online    bool       `json:"online"`
 	LastSeen  *time.Time `json:"last_seen,omitempty"`

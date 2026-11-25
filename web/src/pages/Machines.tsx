@@ -19,7 +19,7 @@ export function MachinesPage() {
   const { run } = useAction();
   const { ask, dialog } = useConfirm();
 
-  const canManage = !!overview.data?.can_manage;
+  const canManage = !!overview.data?.can_manage && !!overview.data.service && !overview.refreshError && !machines.refreshError;
   const all = machines.data?.machines ?? [];
   const holders = all.filter((m) => m.hold === "hub" || m.hold === "standby");
   const main = all.find((m) => m.hold === "hub");
@@ -60,19 +60,21 @@ export function MachinesPage() {
     <>
       <LargeTitle title="Machines" />
 
-      {machines.data?.problem ? (
+      {machines.error || machines.data?.problem ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Tailscale didn’t answer</Alert.Title>
-            <Alert.Description>{machines.data.problem}</Alert.Description>
+            <Alert.Description>{machines.error?.message ?? machines.data?.problem}</Alert.Description>
           </Alert.Content>
         </Alert>
       ) : null}
 
       <Group
         footer={
-          !canManage
+          !machines.data || !overview.data ? undefined
+            : overview.refreshError || machines.refreshError ? "Showing the last available machine list."
+            : !canManage
             ? "Only the main machine and standbys can choose the main machine. Open spillup on one of them to change it."
             : holders.length < 2
               ? "To choose between machines, set up another one as a standby: install spillup there and it joins by itself."
@@ -93,7 +95,7 @@ export function MachinesPage() {
                 if (m && m.hold !== "hub") makeMain(m);
               }}
               isDisabled={!canManage || holders.length < 2}
-              placeholder="Choose…"
+              placeholder={machines.loading ? "Loading…" : "Choose…"}
             >
               <Select.Trigger>
                 <Select.Value />
@@ -123,13 +125,13 @@ export function MachinesPage() {
 
       {machines.loading && !machines.data ? (
         <GroupSkeleton rows={4} />
-      ) : (
+      ) : machines.data ? (
         <Group title="Devices" footer={`${all.filter((m) => m.online).length} of ${all.length} online.`}>
           {all.map((m) => (
             <DeviceRow key={m.name} m={m} canManage={canManage} onMakeMain={() => makeMain(m)} onMoveHere={() => moveHere(m)} />
           ))}
         </Group>
-      )}
+      ) : null}
       <HealthTimeline />
       <Scan />
       {dialog}

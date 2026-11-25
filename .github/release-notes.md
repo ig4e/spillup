@@ -2,13 +2,12 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.1
+### In v0.4.2
 
-- Remote has a native Spillup streaming client with touch, keyboard, audio, fullscreen and text clipboard controls.
-- Doctor and Updates now share one screen. Dashboard pages fit phone widths, with shorter labels and simpler machine and proxy controls.
-- T3 repairs Usage credentials for the verified active local CLIProxyAPI port and the Spillup gateway. To work on a linked machine from T3 Desktop, choose it under **T3 Code → Desktop connections** or run `spinup t3 connect <machine>`. Confirm once in T3, then select the machine in **Add Project**.
-- Workers can read quota windows and account health. Machines shows a health timeline, and Activity preserves actions and job outcomes across restarts.
-- Setup previews local configuration drift. Doctor & Updates previews the fleet, and `spinup rollout --apply` updates followers one at a time from the hub. A sole active holder waits for a maintenance update.
+- Phone pages use one stable header and a floating glass tab bar. Navigation respects screen cutouts, light and dark appearance, and reduced transparency.
+- Revisiting a page immediately shows the selected machine's last reading while Spillup checks for changes. Views share requests, and common navigation links can preload their data.
+- Machine rows, quota readings and resource graphs stay visible during temporary refresh failures. Activity keeps process actions tied to the machine that supplied the process list.
+- **T3 Code → Phones & tablets** shows which online host holds each phone's pairing. Spillup reads T3's existing mobile sessions, so already-paired phones appear without scanning another code.
 
 ### Install
 

@@ -86,6 +86,7 @@ function machines(): Machines {
     machines: base.map((m) => ({
       ...m,
       dns_name: `${m.name}.tail1234.ts.net`,
+      yours: true,
       is_self: m.name === fleet.self,
       hold: fleet.holds[m.name],
       state: fleet.holds[m.name] ? (m.name === fleet.leader ? "leading" : "synced") : undefined,
@@ -213,6 +214,8 @@ export async function mock(method: string, fullPath: string, body: any): Promise
         return [];
       case "setup":
         return { running: false, done: false, log: [] };
+      case "t3/phones":
+        return { phones: viewing === "desktop" ? [{ name: "phone", kind: "phone", count: 1 }] : [] };
       case "t3":
         return { installed: true, app: true, port: 3773, address: "http://desktop.tail1234.ts.net:3773", linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };
       case "update/fleet":

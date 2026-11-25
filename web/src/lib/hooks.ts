@@ -1,52 +1,59 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { api, currentRemote, subscribeRemote } from "./api";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { api, currentRemote, queryPath, subscribeRemote, type DashboardRead } from "./api";
+import { dashboardQueries, type QuerySnapshot } from "./query-cache";
 import type { Done, SetupProgress } from "./types";
 
-export interface Query<T> {
-  data?: T;
-  error?: Error;
-  loading: boolean;
+export interface Query<T> extends QuerySnapshot<T> {
   reload: () => Promise<void>;
 }
 
-/** Fetches on mount, then every `every` ms while the tab is visible. */
-export function useQuery<T>(load: () => Promise<T>, every = 0): Query<T> {
-  const [data, setData] = useState<T>();
-  const [error, setError] = useState<Error>();
-  const [loading, setLoading] = useState(true);
-  const loadRef = useRef(load);
-  loadRef.current = load;
+const defaultFreshness = 15_000;
+const onReturn = new Set<() => void>();
+function refreshVisible() {
+  if (document.visibilityState === "visible") onReturn.forEach(refresh => refresh());
+}
+window.addEventListener("focus", refreshVisible);
+window.addEventListener("online", refreshVisible);
+document.addEventListener("visibilitychange", refreshVisible);
 
-  const latest = useRef(0);
-  const active = useRef(0);
-  const reload = useCallback(async () => {
-    const request = ++latest.current;
-    active.current++;
-    try {
-      const next = await loadRef.current();
-      if (request === latest.current) {
-        setData(next);
-        setError(undefined);
-      }
-    } catch (e) {
-      if (request === latest.current) setError(e as Error);
-    } finally {
-      active.current--;
-      if (request === latest.current) setLoading(false);
-    }
-  }, []);
+export function prefetchQuery<T>(read: DashboardRead<T>, staleTimeMs = defaultFreshness): Promise<void> {
+  const entry = dashboardQueries.entry<T>(read.queryPath(currentRemote()));
+  return entry.fetch(read, staleTimeMs);
+}
+
+/** Share the last result and its in-flight refresh across views of the same resource. */
+export function useQuery<T>(load: DashboardRead<T>, every?: number): Query<T>;
+export function useQuery<T>(load: () => Promise<T>, every: number, key: string): Query<T>;
+export function useQuery<T>(load: () => Promise<T>, every = 0, customKey?: string): Query<T> {
+  const machine = useRemote();
+  const key = customKey === undefined ? (load as DashboardRead<T>).queryPath(machine) : queryPath("@" + customKey, machine);
+  const entry = useMemo(() => dashboardQueries.entry<T>(key), [key]);
+  const state = useSyncExternalStore(entry.subscribe, entry.snapshot);
+  const loadRef = useMemo(() => ({ current: load }), [entry]);
+  loadRef.current = load;
+  const fetch = useCallback((freshFor: number) => {
+    if (currentRemote() !== machine) return Promise.resolve();
+    return entry.fetch(loadRef.current, freshFor);
+  }, [entry, loadRef, machine]);
+  const reload = useCallback(() => fetch(0), [fetch]);
 
   useEffect(() => {
-    void reload();
-    if (!every) return;
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible" && active.current === 0) void reload();
-    }, every);
-    return () => clearInterval(id);
-  }, [reload, every]);
+    const refresh = () => {
+      if (document.visibilityState === "visible") void fetch(every || defaultFreshness);
+    };
+    refresh();
+    onReturn.add(refresh);
+    const stop = entry.observe(refresh);
+    const timer = every ? window.setInterval(refresh, every) : undefined;
+    return () => {
+      window.clearInterval(timer);
+      onReturn.delete(refresh);
+      stop();
+    };
+  }, [entry, fetch, every]);
 
-  return { data, error, loading, reload };
+  return { ...state, reload };
 }
 
 /** Resumes a running local task on page load and polls without stacking requests. */
@@ -170,33 +177,26 @@ export function usePath() {
 
 export type Theme = "system" | "light" | "dark";
 
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-
-/** Puts the chosen look on <html>; "system" follows the OS as it changes. */
-export function applyTheme(theme: Theme) {
-  const resolved = theme === "system" ? (dark.matches ? "dark" : "light") : theme;
-  const root = document.documentElement;
-  root.classList.remove("dark", "light");
-  root.classList.add(resolved);
-  root.dataset.theme = resolved;
+function appearance(): Theme {
+  const choice = document.documentElement.dataset.appearance;
+  return choice === "light" || choice === "dark" ? choice : "system";
 }
 
-export function storedTheme(): Theme {
-  const t = localStorage.getItem("theme");
-  return t === "light" || t === "dark" ? t : "system";
+function subscribeAppearance(listener: () => void) {
+  window.addEventListener("spillup:appearance", listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    window.removeEventListener("spillup:appearance", listener);
+    window.removeEventListener("storage", listener);
+  };
 }
 
 export function useTheme(): [Theme, (t: Theme) => void] {
-  const [theme, setTheme] = useState<Theme>(storedTheme);
-  useEffect(() => {
-    applyTheme(theme);
-    localStorage.setItem("theme", theme);
-    if (theme !== "system") return;
-    const follow = () => applyTheme("system");
-    dark.addEventListener("change", follow);
-    return () => dark.removeEventListener("change", follow);
-  }, [theme]);
-  return [theme, setTheme];
+  const theme = useSyncExternalStore(subscribeAppearance, appearance);
+  return [theme, (choice) => {
+    try { localStorage.setItem("theme", choice); } catch { /* Keep the choice for this tab. */ }
+    window.dispatchEvent(new CustomEvent("spillup:appearance", { detail: choice }));
+  }];
 }
 
 /** The machine whose dashboard is shown, or null for this one. */

@@ -110,6 +110,7 @@ func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, t.Bin, args...)
+	cmd.WaitDelay = time.Second
 	cmd.Env = append(os.Environ(), "T3CODE_HOME="+t.Home)
 	switch args[0] {
 	case "auth", "environment", "status", "up":

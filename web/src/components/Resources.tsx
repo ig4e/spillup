@@ -54,10 +54,13 @@ function Meter({ label, icon: Icon, value, detail, color }: { label: string; ico
   );
 }
 
-function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote: string | null }) {
-  const stats = useQuery(() => api.statsOf(viaRemote), 3000);
+export function useMachineStats(target: string | null) {
+  return useQuery(api.statsOf(target), 3000);
+}
+
+function MachineResources({ machine }: { machine: Machine }) {
+  const stats = useMachineStats(machine.is_self ? null : machine.name);
   const st: Stats | undefined = stats.data;
-  if (stats.error && !st) return null;
   const h: Sample[] = st?.history ?? [];
   const now = st?.now;
   const memPct = st && st.specs.mem_total ? (now!.mem_used / st.specs.mem_total) * 100 : 0;
@@ -72,12 +75,12 @@ function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote:
             {machine.is_self ? <span className="text-xs font-normal text-muted">This machine</span> : null}
           </div>
           <div className="truncate text-xs text-muted">
-            {st ? `${st.specs.cpu_model || osName(st.specs.os)} · ${st.specs.cores} cores · ${bytes(st.specs.mem_total, 0)}` : "Reading…"}
+            {st ? `${st.specs.cpu_model || osName(st.specs.os)} · ${st.specs.cores} cores · ${bytes(st.specs.mem_total, 0)}` : osName(machine.os)}
           </div>
         </div>
         {now ? (
           <span className="flex items-center gap-1 text-xs text-muted">
-            <Timer className="size-3" /> {uptime(now.uptime)}
+            {stats.refreshError ? "Last reading" : <><Timer className="size-3" /> {uptime(now.uptime)}</>}
           </span>
         ) : null}
       </div>
@@ -119,7 +122,9 @@ function MachineResources({ machine, viaRemote }: { machine: Machine; viaRemote:
           </div>
         </>
       ) : (
-        <div className="h-28 animate-pulse rounded-lg bg-foreground/[0.04]" />
+        <div className="flex h-28 items-center justify-center rounded-lg bg-foreground/[0.04] text-xs text-muted">
+          {stats.error ? "Statistics unavailable" : "Reading statistics…"}
+        </div>
       )}
     </div>
   );
@@ -134,7 +139,7 @@ export function Resources({ machines }: { machines: Machine[] }) {
       <h2 className="mb-1.5 px-1 text-[13px] font-semibold text-foreground/80">Resources</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {shown.map((m) => (
-          <MachineResources key={m.name} machine={m} viaRemote={m.is_self ? null : m.name} />
+          <MachineResources key={m.name} machine={m} />
         ))}
       </div>
     </section>

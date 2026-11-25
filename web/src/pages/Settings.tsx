@@ -4,7 +4,7 @@ import { useOverview } from "../App";
 import { SetupPreview } from "../components/SetupPreview";
 import { QR } from "../components/QR";
 import { BrandTile } from "../components/brand";
-import { CopyButton, Group, IconTile, LargeTitle, Mono, Row, Segmented, Toggle, holdName, osName } from "../components/ui";
+import { CopyButton, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Segmented, Toggle, holdName, osName } from "../components/ui";
 import { api } from "../lib/api";
 import { useAction, useRemote, useTheme } from "../lib/hooks";
 import type { Keys } from "../lib/types";
@@ -37,7 +37,7 @@ export function SettingsPage() {
       </Group>
 
       {remote ? null : <DevicesGroup />}
-      {remote ? null : <KeysGroup />}
+      {!remote && data ? <KeysGroup /> : null}
 
       <Group
         title="Accounts Service"
@@ -48,9 +48,9 @@ export function SettingsPage() {
         }
       >
         <Row icon={<IconTile icon={Server} color="green" />} title="Role" value={data ? holdName[data.hold] : "—"} to="/machines" />
-        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" value={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
+        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" value={data?.router_url ? <Mono copy>{data.router_url}</Mono> : data ? "Unavailable" : "—"} />
         <Row icon={<IconTile icon={Clock} color="orange" />} title="Fail over after" value={data ? `${Math.round(data.settings.failover_after_seconds / 60)} minutes offline` : "—"} />
-        <Row icon={<IconTile icon={Undo2} color="indigo" />} title="Hand back to the main machine" value={data?.settings.auto_failback ? "Automatically" : "Manually"} />
+        <Row icon={<IconTile icon={Undo2} color="indigo" />} title="Hand back to the main machine" value={data ? (data.settings.auto_failback ? "Automatically" : "Manually") : "—"} />
       </Group>
 
       {remote || !data?.installed ? null : <SetupPreview />}
@@ -125,20 +125,20 @@ function KeysGroup() {
 
 /** Your phone and other devices: the dashboard over Tailscale, and terminals on this machine. */
 function DevicesGroup() {
-  const { data, reload } = useOverview();
+  const { data, loading, refreshError, reload } = useOverview();
   const { pending, run } = useAction();
   const [devices, setDevices] = useState<boolean | null>(null);
   const [terminals, setTerminals] = useState<boolean | null>(null);
   const s = data?.settings;
-  const deviceOn = devices ?? s?.device_access ?? true;
-  const terminalsOn = terminals ?? s?.terminals ?? true;
+  if (!s) return loading ? <GroupSkeleton rows={2} /> : null;
+  const deviceOn = devices ?? s.device_access ?? true;
+  const terminalsOn = terminals ?? s.terminals ?? true;
   const save = async (d: boolean, t: boolean) => {
     setDevices(d);
     setTerminals(t);
-    if (!(await run("access", () => api.setAccess(d, t), reload))) {
-      setDevices(null);
-      setTerminals(null);
-    }
+    await run("access", () => api.setAccess(d, t), reload);
+    setDevices(null);
+    setTerminals(null);
   };
   return (
     <Group
@@ -161,13 +161,13 @@ function DevicesGroup() {
         icon={<IconTile icon={Smartphone} color="blue" />}
         title="Open from your devices"
         subtitle="Over Tailscale only"
-        accessory={<Toggle label="Open from your devices" isDisabled={pending === "access"} isSelected={deviceOn} onChange={(on) => void save(on, terminalsOn)} />}
+        accessory={<Toggle label="Open from your devices" isDisabled={pending === "access" || !!refreshError} isSelected={deviceOn} onChange={(on) => void save(on, terminalsOn)} />}
       />
       <Row
         icon={<IconTile icon={SquareTerminal} color="graphite" />}
         title="Terminals on this machine"
         subtitle="From this dashboard, here or on your devices"
-        accessory={<Toggle label="Terminals on this machine" isDisabled={pending === "access"} isSelected={terminalsOn} onChange={(on) => void save(deviceOn, on)} />}
+        accessory={<Toggle label="Terminals on this machine" isDisabled={pending === "access" || !!refreshError} isSelected={terminalsOn} onChange={(on) => void save(deviceOn, on)} />}
       />
     </Group>
   );

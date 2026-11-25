@@ -2,12 +2,12 @@ import { AlertDialog, toast } from "@heroui/react";
 import { CircleX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../components/Button";
-import { bytes } from "../components/Resources";
+import { bytes, useMachineStats } from "../components/Resources";
 import { Group, LargeTitle, Row, Segmented, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
 import { capitalize, relative } from "../lib/format";
-import { useQuery } from "../lib/hooks";
+import { useQuery, useRemote } from "../lib/hooks";
 import type { Machine, Process, Sample, Stats } from "../lib/types";
 
 type Metric = "cpu" | "memory" | "disk" | "network";
@@ -27,20 +27,6 @@ function uptime(s: number) {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
-}
-
-/** Every machine's stats, polled together, keyed by name. */
-function useFleetStats(machines: Machine[]) {
-  const names = machines.map((m) => (m.is_self ? "" : m.name));
-  const stats = useQuery(async () => {
-    const results = await Promise.allSettled(names.map((n) => api.statsOf(n || null)));
-    const out: Record<string, Stats> = {};
-    results.forEach((r, i) => {
-      if (r.status === "fulfilled") out[machines[i].name] = r.value;
-    });
-    return out;
-  }, 2500);
-  return { fleet: stats.data ?? {}, loading: stats.loading };
 }
 
 /** A graph like Activity Monitor's bottom panel: one or two filled lines over a faint grid. */
@@ -86,16 +72,37 @@ function Th({ children, right, active }: { children: React.ReactNode; right?: bo
 }
 
 export function ActivityPage() {
-  const machinesQ = useQuery(api.machines, 10000);
-  const machines = (machinesQ.data?.machines ?? []).filter((m) => m.online && (m.is_self || m.hold || m.state));
-  const { fleet, loading: loadingStats } = useFleetStats(machines);
   const [showActions, setShowActions] = useState(false);
+  const remote = useRemote();
+  const [picked, setPicked] = useState<string | null>(remote);
   const [metric, setMetric] = useState<Metric>("cpu");
-  const [picked, setPicked] = useState<string | null>(null);
+  if (!showActions) return (
+    <ActivityMonitor picked={picked} setPicked={setPicked} metric={metric} setMetric={setMetric} onShowHistory={() => setShowActions(true)} />
+  );
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <LargeTitle bleed title="Activity" actions={<Button size="sm" variant="secondary" onPress={() => setShowActions(false)}>Processes</Button>} />
+      <RecentActions />
+    </div>
+  );
+}
+
+function ActivityMonitor({ picked, setPicked, metric, setMetric, onShowHistory }: {
+  picked: string | null;
+  setPicked: (name: string) => void;
+  metric: Metric;
+  setMetric: (metric: Metric) => void;
+  onShowHistory: () => void;
+}) {
+  const machinesQ = useQuery(api.localMachines, 10000);
+  const machines = (machinesQ.data?.machines ?? []).filter((m) => m.online && (m.is_self || m.hold || m.state));
   const [chosen, setChosen] = useState<number | null>(null);
-  const [ending, setEnding] = useState<Process | null>(null);
-  const selected = machines.find((m) => m.name === picked) ?? machines.find((m) => m.is_self) ?? machines[0];
-  const st = selected ? fleet[selected.name] : undefined;
+  const [ending, setEnding] = useState<{ process: Process; target: string | null } | null>(null);
+  const selected = picked ? machines.find((m) => m.name === picked) : machines.find((m) => m.is_self);
+  const target = selected?.is_self ? null : selected?.name ?? picked;
+  const stats = useMachineStats(target);
+  const st = selected ? stats.data : undefined;
+  const live = !!selected && !!st && !stats.refreshError && !machinesQ.refreshError && !machinesQ.data?.problem;
 
   const processes = useMemo(() => {
     const list = [...(st?.processes ?? [])];
@@ -104,41 +111,30 @@ export function ActivityPage() {
 
   const chosenProcess = processes.find((p) => p.pid === chosen) ?? null;
 
-  const rows = machines.map((m) => ({ m, s: fleet[m.name] }));
-  const sortKey = (s?: Stats) =>
-    !s ? -1 : metric === "cpu" ? s.now.cpu : metric === "memory" ? s.now.mem_used / (s.specs.mem_total || 1) : metric === "disk" ? (s.now.disk_used ?? 0) / (s.specs.disk_total || 1) : s.now.rx_rate + s.now.tx_rate;
-  rows.sort((a, b) => sortKey(b.s) - sortKey(a.s));
-
   const h: Sample[] = st?.history ?? [];
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LargeTitle
         bleed
         title="Activity"
-        center={showActions ? undefined : <Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
+        center={<Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
         actions={
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onPress={() => setShowActions(!showActions)}>
-              {showActions ? "Processes" : "Recent Actions"}
-            </Button>
-            {!showActions ? (
-          <button
-            type="button"
-            aria-label="End the selected process"
-            title="End the selected process"
-            disabled={!chosenProcess}
-            onClick={() => chosenProcess && setEnding(chosenProcess)}
-            className="flex size-8 items-center justify-center rounded-full text-foreground outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:text-muted disabled:opacity-40 disabled:hover:bg-transparent"
-          >
-            <CircleX className="size-[18px]" />
-          </button>
-            ) : null}
+            <Button size="sm" variant="secondary" onPress={onShowHistory}>Recent Actions</Button>
+            <button
+              type="button"
+              aria-label="End the selected process"
+              title="End the selected process"
+              disabled={!chosenProcess || !live}
+              onClick={() => chosenProcess && live && setEnding({ process: chosenProcess, target })}
+              className="flex size-8 items-center justify-center rounded-full text-foreground outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:text-muted disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <CircleX className="size-[18px]" />
+            </button>
           </div>
         }
       />
 
-      {showActions ? <RecentActions /> : (
-      <>
       <div className="mb-3 shrink-0 overflow-auto rounded-xl bg-surface max-sm:max-h-[26dvh]">
         <table data-metric={metric} className="activity-machines w-full text-[13px]">
           <thead>
@@ -153,33 +149,12 @@ export function ActivityPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ m, s }) => {
-              const on = m.name === selected?.name;
-              return (
-                <tr
-                  key={m.name}
-                  onClick={() => {
-                  setPicked(m.name);
-                  setChosen(null);
-                }}
-                  className={`cursor-default ${on ? "bg-accent text-white [&_*]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
-                >
-                  <td className="px-3 py-1.5">
-                    <span className="flex items-center gap-2">
-                      <OsTile os={m.os} size="sm" />
-                      <span className="min-w-0 break-all font-medium">{m.name}</span>
-                      <span className="text-xs text-muted max-sm:hidden">{osName(m.os)}</span>
-                    </span>
-                  </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s ? pct(s.now.cpu) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s ? bytes(s.now.mem_used) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s?.now.disk_used ? bytes(s.now.disk_used, 0) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s ? rate(s.now.rx_rate) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s ? rate(s.now.tx_rate) : "—"}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{s ? uptime(s.now.uptime) : "—"}</td>
-                </tr>
-              );
-            })}
+            {machines.map((m) => (
+              <MachineRow key={m.name} m={m} on={m.name === selected?.name} onPick={() => {
+                setPicked(m.name);
+                setChosen(null);
+              }} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -188,7 +163,7 @@ export function ActivityPage() {
         <table className="activity-programs w-full text-[13px]">
           <thead>
             <tr>
-              <Th>Process Name {selected ? <span className="font-normal">· {selected.name}</span> : null}</Th>
+              <Th>Process Name {selected || picked ? <span className="font-normal">· {selected?.name ?? picked}{stats.refreshError && st ? " · Last reading" : ""}</span> : null}</Th>
               <Th right active={metric !== "memory"}>% CPU</Th>
               <Th right active={metric === "memory"}>Memory</Th>
               <Th right>PID</Th>
@@ -200,7 +175,7 @@ export function ActivityPage() {
                 key={p.pid}
                 aria-selected={p.pid === chosen}
                 onClick={() => setChosen(p.pid === chosen ? null : p.pid)}
-                onDoubleClick={() => setEnding(p)}
+                onDoubleClick={() => live && setEnding({ process: p, target })}
                 className={`cursor-default select-none ${p.pid === chosen ? "bg-accent text-white [&_td]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
               >
                 <td className="max-w-0 truncate px-3 py-1" title={p.name}>{p.name}<span className="block text-[10px] text-muted sm:hidden">PID {p.pid}</span></td>
@@ -212,7 +187,7 @@ export function ActivityPage() {
             {!processes.length ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-muted">
-                  {st ? "This machine doesn't list its programs." : loadingStats || machinesQ.loading ? "Reading…" : "Machine statistics are unavailable."}
+                  {st ? "This machine doesn't list its programs." : (selected && stats.loading) || machinesQ.loading ? "Reading…" : "Machine statistics are unavailable."}
                 </td>
               </tr>
             ) : null}
@@ -224,20 +199,44 @@ export function ActivityPage() {
         {st ? (
           <BottomPanel metric={metric} st={st} h={h} />
         ) : (
-          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">{loadingStats || machinesQ.loading ? "Reading statistics…" : "Machine statistics are unavailable."}</div>
+          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">{(selected && stats.loading) || machinesQ.loading ? "Reading statistics…" : "Machine statistics are unavailable."}</div>
         )}
       </div>
       <EndDialog
-        process={ending}
-        machine={selected?.is_self ? null : (selected?.name ?? null)}
+        process={ending?.process ?? null}
+        machine={ending?.target ?? null}
+        available={live && ending?.target === target && processes.some((p) => p.pid === ending?.process.pid && p.name === ending.process.name)}
         onClose={(ended) => {
           setEnding(null);
           if (ended) setChosen(null);
         }}
       />
-      </>
-      )}
     </div>
+  );
+}
+
+function MachineRow({ m, on, onPick }: { m: Machine; on: boolean; onPick: () => void }) {
+  const stats = useMachineStats(m.is_self ? null : m.name);
+  const s = stats.data;
+  return (
+    <tr
+      onClick={onPick}
+      className={`cursor-default ${on ? "bg-accent text-white [&_*]:text-white" : "odd:bg-foreground/[0.025] hover:bg-foreground/[0.04]"}`}
+    >
+      <td className="px-3 py-1.5">
+        <span className="flex items-center gap-2">
+          <OsTile os={m.os} size="sm" />
+          <button type="button" className="min-w-0 break-all rounded-sm text-left font-medium focus-visible:outline-accent" aria-pressed={on}>{m.name}</button>
+          <span className="text-xs text-muted max-sm:hidden">{stats.refreshError ? "Last reading" : osName(m.os)}</span>
+        </span>
+      </td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s ? pct(s.now.cpu) : "—"}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s ? bytes(s.now.mem_used) : "—"}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s?.now.disk_used ? bytes(s.now.disk_used, 0) : "—"}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s ? rate(s.now.rx_rate) : "—"}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s ? rate(s.now.tx_rate) : "—"}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums">{s ? uptime(s.now.uptime) : "—"}</td>
+    </tr>
   );
 }
 
@@ -275,9 +274,9 @@ function RecentActions() {
         {activity.error ? <Row title="Couldn't read actions" subtitle={activity.error.message} /> : null}
         {activity.loading ? <Row title="Reading actions…" /> : null}
         {activity.data?.length === 0 ? <Row title="No recent actions" /> : null}
-        {activity.data?.map((entry, i) => (
+        {activity.data?.map((entry) => (
           <Row
-            key={`${entry.at}/${i}`}
+            key={`${entry.at}/${entry.action}/${entry.origin}`}
             title={labels[entry.action] ?? entry.action.replaceAll("/", " · ")}
             subtitle={`${entry.origin} · ${relative(entry.at)} · ${entry.elapsed_ms} ms`}
             value={entry.status >= 200 && entry.status < 300 ? "Accepted" : `HTTP ${entry.status}`}
@@ -388,10 +387,10 @@ function BottomPanel({ metric, st, h }: { metric: Metric; st: Stats; h: Sample[]
 }
 
 /** Activity Monitor's question before it ends a program: quit it politely, or force it. */
-function EndDialog({ process, machine, onClose }: { process: Process | null; machine: string | null; onClose: (ended: boolean) => void }) {
+function EndDialog({ process, machine, available, onClose }: { process: Process | null; machine: string | null; available: boolean; onClose: (ended: boolean) => void }) {
   const [busy, setBusy] = useState<"quit" | "force" | null>(null);
   const end = async (force: boolean) => {
-    if (!process) return;
+    if (!process || !available) return;
     setBusy(force ? "force" : "quit");
     try {
       const done = await api.endProcess(machine, process.pid, force);
@@ -413,17 +412,17 @@ function EndDialog({ process, machine, onClose }: { process: Process | null; mac
           </AlertDialog.Header>
           <AlertDialog.Body>
             <div className="text-sm text-muted">
-              Quit asks it to close{machine ? ` on ${machine}` : ""}, so it can save its work. Force Quit ends it at once; unsaved work is lost.
+              {available ? <>Quit asks it to close{machine ? ` on ${machine}` : ""}, so it can save its work. Force Quit ends it immediately and can discard unsaved work.</> : "Waiting for this process to appear in the machine’s live readings."}
             </div>
           </AlertDialog.Body>
           <AlertDialog.Footer>
             <Button variant="tertiary" isDisabled={!!busy} onPress={() => onClose(false)}>
               Cancel
             </Button>
-            <Button variant="danger-soft" isPending={busy === "force"} isDisabled={!!busy} onPress={() => void end(true)}>
+            <Button variant="danger-soft" isPending={busy === "force"} isDisabled={!!busy || !available} onPress={() => void end(true)}>
               <>Force Quit</>
             </Button>
-            <Button isPending={busy === "quit"} isDisabled={!!busy} onPress={() => void end(false)}>
+            <Button isPending={busy === "quit"} isDisabled={!!busy || !available} onPress={() => void end(false)}>
               <>Quit</>
             </Button>
           </AlertDialog.Footer>

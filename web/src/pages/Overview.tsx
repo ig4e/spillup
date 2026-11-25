@@ -25,7 +25,7 @@ export function OverviewPage() {
       </>
     );
   }
-  if (!data) return null;
+  if (!data) return <LargeTitle title="Overview" />;
   if (!data.installed) return <NotSetUp />;
 
   const s = data.service;
@@ -72,7 +72,7 @@ export function OverviewPage() {
 
       <div className="mb-7 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Widget label="Online" icon={<Network className="size-3.5" />} value={machines.data ? `${online} of ${all.length}` : "—"} detail="machines" />
-        <Widget label="Main" icon={<Crown className="size-3.5" />} value={main?.name ?? "—"} detail={main ? (main.online ? "online" : "offline") : "not chosen"} />
+        <Widget label="Main" icon={<Crown className="size-3.5" />} value={main?.name ?? "—"} detail={main ? (main.online ? "online" : "offline") : machines.data ? "not chosen" : "machine"} />
         <Widget
           label="Logins"
           icon={<Users className="size-3.5" />}

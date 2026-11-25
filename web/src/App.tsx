@@ -4,7 +4,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Ellipsis,
-  Eye,
+  CloudOff,
   Gauge,
   Search,
   KeyRound,
@@ -23,8 +23,9 @@ import {
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { BrandTile } from "./components/brand";
-import { BackAction, Dot, Group, LargeTitle, Row, holdName, type Tint } from "./components/ui";
+import { BackAction, Dot, Group, LargeTitle, Row, holdName, openPage, pageHref, type Tint } from "./components/ui";
 import { api, setRemote } from "./lib/api";
+import { startNavigationPreload } from "./lib/preload";
 import { canGoBack, navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
 import type { Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
@@ -148,6 +149,10 @@ function useCollapsed(): [boolean, () => void] {
 /** Everything shown for one machine: remounted when the dashboard switches machines, so nothing stale stays. */
 function Fleet({ remote }: { remote: string | null }) {
   const overview = useQuery(api.overview, 3000);
+  const canPreload = !!overview.data?.installed && !overview.error && !overview.refreshError;
+  useEffect(() => {
+    if (canPreload) return startNavigationPreload();
+  }, [canPreload, remote]);
   const path = usePath();
   const [collapsed, toggle] = useCollapsed();
   const pagePath = path === "/updates" ? "/doctor" : path;
@@ -158,23 +163,21 @@ function Fleet({ remote }: { remote: string | null }) {
   return (
     <OverviewContext.Provider value={overview}>
       <BackAction.Provider value={backFrom(current)}>
-        <div className="flex min-h-screen">
+        <div className="dashboard-shell flex min-h-screen">
           <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
           <main className="@container/main min-w-0 flex-1">
             {current.bleed ? (
-              <div className="flex h-dvh flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] lg:h-screen lg:p-5">
-                {remote ? <RemoteBanner name={remote} /> : null}
+              <div className="page-frame page-frame--bleed flex h-dvh flex-col lg:h-screen lg:p-5">
                 <Page />
               </div>
             ) : (
-              <div className="mx-auto w-full max-w-[760px] px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] sm:px-10 lg:pb-12">
-                {remote ? <RemoteBanner name={remote} /> : null}
-                <ConnectionNotice remote={remote} />
+              <div className="page-frame mx-auto w-full max-w-[760px] lg:px-10 lg:pb-12">
                 <Page />
               </div>
             )}
           </main>
         </div>
+        <ConnectionNotice remote={remote} />
         <TabBar active={current.tab ? current.path : MORE} />
       </BackAction.Provider>
       <BusyBar />
@@ -187,26 +190,20 @@ function BusyBar() {
   return useBusy() ? <div className="busy-bar" role="progressbar" aria-label="Working…" /> : null;
 }
 
-function RemoteBanner({ name }: { name: string }) {
-  return (
-    <div className="mb-5 flex items-center gap-3 rounded-xl bg-accent px-4 py-2.5 text-[13px] text-white shadow-sm">
-      <Eye className="size-4" />
-      <span className="flex-1">
-        Viewing <b>{name}</b> from this machine. Keys and sign-ins stay on {name}.
-      </span>
-      <button type="button" className="rounded-md bg-white/20 px-2.5 py-1 font-medium hover:bg-white/30" onClick={() => setRemote(null)}>
-        Back to This Machine
-      </button>
-    </div>
-  );
-}
-
 function ConnectionNotice({ remote }: { remote: string | null }) {
-  const { error } = useOverview();
+  const { error, refreshError } = useOverview();
+  if (!error && refreshError) {
+    return (
+      <div role="status" className="connection-status">
+        <CloudOff className="size-4 shrink-0" aria-hidden="true" />
+        <span>Reconnecting · Showing saved data</span>
+      </div>
+    );
+  }
   if (!error) return null;
   const signedOut = (error as { status?: number }).status === 401;
   return (
-    <Alert status={signedOut ? "warning" : "danger"} className="mb-6">
+    <Alert status={signedOut ? "warning" : "danger"} className="connection-alert">
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>{signedOut ? "Signed out" : remote ? `${remote} isn't answering` : "spillup isn't answering"}</Alert.Title>
@@ -225,12 +222,8 @@ function ConnectionNotice({ remote }: { remote: string | null }) {
 function SidebarLink({ page, active, collapsed }: { page: Page; active: boolean; collapsed?: boolean }) {
   const link = (
     <a
-      href={page.path}
-      onClick={(e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        navigate(page.path);
-      }}
+      href={pageHref(page.path)}
+      onClick={(event) => openPage(event, page.path)}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? page.label : undefined}
       className={`flex items-center gap-2.5 rounded-[8px] py-[5px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
@@ -313,7 +306,7 @@ function useMachineSwitch() {
   const machines = useQuery(api.localMachines, 15000);
   const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online);
   return {
-    name: data?.name || "This machine",
+    name: data?.name || remote || "This machine",
     status: data ? (data.installed ? `${holdName[data.hold]}${remote ? " · viewing" : ""}` : "Not set up yet") : "…",
     here: local.data?.name || "This machine",
     others,
@@ -417,7 +410,7 @@ function MorePage() {
   return (
     <>
       <LargeTitle title="More" />
-      <label className="mb-6 -mt-2 flex h-10 items-center gap-2 ios-fill rounded-full px-3.5 text-muted focus-within:ring-2 focus-within:ring-accent/40">
+      <label className="mb-5 flex h-11 items-center gap-2 ios-fill rounded-full px-3.5 text-muted focus-within:ring-2 focus-within:ring-accent/40">
         <Search className="size-[17px] shrink-0" strokeWidth={2.2} />
         <input
           type="search"
@@ -445,11 +438,11 @@ function MorePage() {
 function TabBar({ active }: { active: string }) {
   const index = Math.max(0, tabs.findIndex((t) => t.path === active));
   return (
-    <nav aria-label="Pages" className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-5 pb-[max(env(safe-area-inset-bottom),14px)] lg:hidden">
-      <div className="glass-tabbar pointer-events-auto relative flex w-full max-w-[440px] rounded-full p-1">
+    <nav aria-label="Pages" className="mobile-dock pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden">
+      <div className="glass-tabbar pointer-events-auto relative flex w-full max-w-[418px] rounded-full p-1">
         <span
           aria-hidden
-          className="tab-lens absolute inset-y-1 left-1 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.3,1.3,0.5,1)]"
+          className="tab-lens absolute inset-y-1 left-1 rounded-full transition-transform duration-200 ease-out"
           style={{ width: `calc((100% - 8px) / ${tabs.length})`, transform: `translateX(${index * 100}%)` }}
         />
         {tabs.map((t) => {
@@ -458,18 +451,15 @@ function TabBar({ active }: { active: string }) {
           return (
             <a
               key={t.path}
-              href={t.path}
-              onClick={(e) => {
-                e.preventDefault();
-                navigate(t.path);
-              }}
+              href={pageHref(t.path)}
+              onClick={(event) => openPage(event, t.path)}
               aria-current={on ? "page" : undefined}
-              className={`relative flex h-[54px] flex-1 flex-col items-center justify-center gap-[3px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
-                on ? "text-accent" : "text-foreground"
+              className={`relative flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                on ? "tab-active" : "text-foreground"
               }`}
             >
               <Icon className="size-[23px]" strokeWidth={on ? 2.3 : 1.9} />
-              <span className="text-[10px] leading-none font-medium tracking-[0.01em]">{t.label}</span>
+              <span className="text-[11px] leading-none font-semibold">{t.label}</span>
             </a>
           );
         })}

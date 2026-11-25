@@ -42,6 +42,14 @@ func (cliBackend) T3State(ctx context.Context) webui.T3State {
 	return st
 }
 
+func (cliBackend) T3Phones(ctx context.Context) ([]t3code.Phone, error) {
+	t3, err := t3code.Find()
+	if err != nil {
+		return nil, err
+	}
+	return t3.Phones(ctx, tailnet.CLI{Bin: tailscaleBin()})
+}
+
 func (cliBackend) T3Pair(ctx context.Context, label string) (string, error) {
 	t3, err := t3code.Find()
 	if err != nil {
@@ -136,6 +144,10 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 			return "", ctx.Err()
 		}
 		if !p.Online || p.Expired || !ts.SameOwner(p) {
+			continue
+		}
+		if p.Mobile() && !t3code.LinksTo(local.Linked, "", p.IP, p.IPv6, p.Name, p.DNSName) {
+			record(p.Name, "T3 linking", "Mobile client")
 			continue
 		}
 		var st webui.T3State

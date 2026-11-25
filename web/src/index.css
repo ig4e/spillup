@@ -38,7 +38,7 @@
   --group-edge: transparent;
   --radius: 0.625rem;
   --tooltip-delay: 400ms;
-  --skeleton-animation: pulse;
+  --skeleton-animation: none;
 }
 
 .dark,
@@ -119,7 +119,7 @@ body {
   width: 35%;
   background: var(--accent);
   border-radius: 2px;
-  animation: busy-slide 1.1s ease-in-out infinite;
+  animation: busy-slide 1.1s ease-in-out 150ms infinite backwards;
 }
 @keyframes busy-slide {
   from {
@@ -130,20 +130,106 @@ body {
   }
 }
 
-/* macOS Tahoe: the sidebar floats inside the window as frosted glass, with a soft edge and shadow. */
+/* A solid base also serves browsers without backdrop filtering. */
 .glass-sidebar {
-  background: var(--sidebar);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: var(--surface);
   box-shadow: var(--glass-shadow);
-  border: 0.5px solid var(--sidebar-edge);
+  border: 1px solid var(--sidebar-edge);
 }
 
-/* The toolbar sits on the content as a strip of glass while it scrolls underneath. */
-.glass-toolbar {
-  background: color-mix(in oklab, var(--background) 78%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  min-height: 54px;
+  margin-bottom: 20px;
+  padding: 6px 24px;
+  background-color: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+.page-header--bleed {
+  margin: -20px -20px 12px;
+}
+.page-heading, .page-actions, .viewed-machine {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.page-heading { grid-area: 1 / 1 }
+.page-heading h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.page-history {
+  flex: none;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background-color: var(--surface);
+}
+.page-history button, .mobile-back {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.mobile-back { display: none }
+.page-history svg { width: 16px; height: 16px }
+.page-history button:hover { background: var(--surface-hover) }
+.page-header :is(button, a):focus-visible, .mobile-dock a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.page-actions { grid-area: 1 / 3; flex-wrap: wrap; justify-content: flex-end }
+.page-views { grid-area: 1 / 2; min-width: 0 }
+.viewed-machine {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+.viewed-machine strong { color: var(--foreground); font-weight: 600 }
+.viewed-machine button { margin-left: auto; padding: 6px 8px; color: var(--foreground); font-weight: 600 }
+.connection-status, .connection-alert {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 32;
+  max-width: min(420px, calc(100% - 32px));
+  box-shadow: var(--glass-shadow);
+}
+.connection-status {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.connection-alert { max-height: 40dvh; overflow: auto; background-color: var(--surface) }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-sidebar { background: var(--sidebar) }
+  .glass-toolbar { background-color: color-mix(in srgb, var(--background) 84%, transparent) }
+  .glass-sidebar, .glass-toolbar {
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    backdrop-filter: blur(18px) saturate(145%);
+  }
 }
 
 /* Groups are soft filled boxes on the window, as in Tahoe's System Settings: no hard shadow. */
@@ -202,94 +288,152 @@ body {
   box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.3);
 }
 
-/* On a phone the window is iOS's grouped background: light gray (black in dark mode) with white cells. */
 @media (width < 64rem) {
   :root,
   .light,
   [data-theme="light"] {
-    --background: #f2f2f7;
+    --background: #f0f3f8;
     --surface: #ffffff;
-    --surface-hover: #e5e5ea;
-    --surface-secondary: #f2f2f7;
-    --surface-tertiary: #d1d1d6;
-    --separator: rgb(60 60 67 / 0.2);
-    --glass-tint: rgb(255 255 255 / 0.62);
-    --glass-edge: rgb(255 255 255 / 0.75);
-    --glass-lens: rgb(0 0 0 / 0.055);
-    --glass-drop: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 6px 24px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.05);
+    --surface-hover: #e8edf4;
+    --surface-secondary: #edf1f6;
+    --surface-tertiary: #d4dce6;
+    --muted: #5e6774;
+    --separator: rgb(53 67 87 / 0.16);
+    --group-edge: rgb(53 67 87 / 0.09);
+    --glass-tint: rgb(248 251 255 / 0.74);
+    --glass-rim: rgb(255 255 255 / 0.95);
+    --glass-drop: 0 4px 18px rgb(31 52 85 / 0.13), 0 1px 4px rgb(31 52 85 / 0.1);
+    --glass-accent: #1258a6;
+    --glass-lens: rgb(196 218 245 / 0.8);
+    --ambient: rgb(171 205 239 / 0.3);
   }
   .dark,
   [data-theme="dark"] {
-    --background: #000000;
-    --surface: #1c1c1e;
-    --surface-hover: #2c2c2e;
-    --surface-secondary: #2c2c2e;
-    --surface-tertiary: #3a3a3c;
-    --overlay: #1c1c1e;
-    --field-background: #2c2c2e;
-    --separator: rgb(84 84 88 / 0.6);
-    --group-edge: transparent;
-    --glass-tint: rgb(58 58 62 / 0.55);
-    --glass-edge: rgb(255 255 255 / 0.13);
-    --glass-lens: rgb(255 255 255 / 0.1);
-    --glass-drop: 0 0 0 0.5px rgb(0 0 0 / 0.6), 0 8px 28px rgb(0 0 0 / 0.45);
+    --background: #10141a;
+    --surface: #1d232c;
+    --surface-hover: #2a323e;
+    --surface-secondary: #282f3a;
+    --surface-tertiary: #3a4350;
+    --overlay: #202630;
+    --field-background: #282f3a;
+    --muted: #a7afbc;
+    --separator: rgb(178 197 218 / 0.16);
+    --group-edge: rgb(178 197 218 / 0.1);
+    --glass-tint: rgb(32 40 51 / 0.78);
+    --glass-rim: rgb(211 227 249 / 0.22);
+    --glass-drop: 0 5px 22px rgb(0 0 0 / 0.35), 0 1px 4px rgb(0 0 0 / 0.3);
+    --glass-accent: #a2d2ff;
+    --glass-lens: rgb(69 101 136 / 0.68);
+    --ambient: rgb(51 93 133 / 0.24);
   }
-
-  html {
-    -webkit-tap-highlight-color: transparent;
+  html { -webkit-tap-highlight-color: transparent; scroll-padding-top: 72px }
+  .dashboard-shell {
+    background-image: radial-gradient(ellipse 40rem 22rem at 0 0, var(--ambient), transparent);
+    --page-left: max(16px, env(safe-area-inset-left));
+    --page-right: max(16px, env(safe-area-inset-right));
   }
-
-  /* Liquid Glass: a clear, saturated blur of what is behind, a bright hairline rim and a soft drop shadow. */
-  .glass-tabbar,
-  .glass-button {
-    background: var(--glass-tint);
-    backdrop-filter: blur(22px) saturate(190%);
-    -webkit-backdrop-filter: blur(22px) saturate(190%);
-    box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0.5px var(--glass-edge), var(--glass-drop);
+  .page-frame {
+    padding-inline: var(--page-left) var(--page-right);
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
-  .glass-button {
-    box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0.5px var(--glass-edge), 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 4px rgb(0 0 0 / 0.08);
+  .page-frame--bleed { padding-bottom: calc(76px + env(safe-area-inset-bottom)) }
+  .page-frame--bleed:has(.remote-player) { padding-top: env(safe-area-inset-top) }
+  .page-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 6px;
+    width: auto;
+    margin: 0 calc(-1 * var(--page-right)) 18px calc(-1 * var(--page-left));
+    padding: calc(6px + env(safe-area-inset-top)) var(--page-right) 6px var(--page-left);
+    border-bottom: 1px solid var(--group-edge);
+    box-shadow: inset 0 1px 0 var(--glass-rim);
   }
-
-  .tab-lens {
-    background: var(--glass-lens);
-    box-shadow: inset 0 0 0 0.5px color-mix(in oklab, var(--glass-edge) 60%, transparent);
+  .page-header--bleed { margin-bottom: 12px }
+  .page-heading { gap: 5px; min-height: 44px }
+  .page-heading h1 { font-size: clamp(20px, 5.8vw, 26px); font-weight: 680; letter-spacing: -0.037em }
+  .page-heading:only-child, .page-header:not(:has(.page-actions > *)) .page-heading { grid-column: 1 / -1 }
+  .mobile-back {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    margin-left: -7px;
+    background: radial-gradient(ellipse at 30% 0%, var(--glass-rim), transparent 65%), var(--surface-secondary);
+    box-shadow: inset 0 0 0 1px var(--group-edge), inset 0 1px 0 var(--glass-rim);
   }
-
-  .nav-bar {
-    transition: background-color 0.2s, box-shadow 0.2s;
+  .mobile-back svg { width: 20px; height: 20px; stroke-width: 2.4 }
+  .page-actions { grid-area: 1 / 2; gap: 5px }
+  .page-actions :is(button, [role="button"]) { min-height: 44px; max-width: 100% }
+  .page-actions button[aria-label] { min-width: 44px }
+  .page-views {
+    grid-area: 2 / 1 / auto / -1;
+    max-width: 100%;
+    padding: 3px 0 2px;
   }
-  .nav-bar[data-scrolled] {
-    background: color-mix(in oklab, var(--background) 72%, transparent);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    box-shadow: 0 0.5px 0 var(--separator);
-  }
-
-  /* Under a large title the segmented control spans the width as a capsule, as in iOS 26. */
-  .nav-center .segmented {
+  .page-views .segmented, .page-views .tabs__list-container {
     display: flex;
+    max-width: 100%;
     width: 100%;
-    border-radius: 9999px;
-    padding: 3px;
-    background: rgb(118 118 128 / 0.12);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-radius: 18px !important;
+    padding: 2px;
+    background: var(--surface-secondary);
+    box-shadow: inset 0 0 0 1px var(--group-edge);
   }
-  .nav-center .segment {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    height: 34px;
-    border-radius: 9999px;
+  .page-views .segment, .page-views .tabs__tab {
+    flex: 1 0 auto;
+    min-height: 44px;
+    padding-inline: 10px;
+    border-radius: 16px !important;
     font-size: 13px;
-    padding-inline: 6px;
   }
-  .dark .nav-center .segmented {
-    background: rgb(118 118 128 / 0.24);
+  .page-views .tabs__indicator { border-radius: 16px !important }
+  .group-row .segmented { max-width: 100%; overflow-x: auto }
+  .group-row .segment { min-height: 44px; min-width: 44px; padding-inline: 7px }
+  .viewed-machine {
+    margin-top: 3px;
+    padding-left: 5px;
+    border-top: 1px solid var(--group-edge);
   }
-  .dark .nav-center .segment--on {
-    background: #636366;
+  .viewed-machine button { min-height: 44px; color: var(--glass-accent) }
+  .mobile-dock {
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
+  .glass-tabbar {
+    background-color: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--group-edge), inset 0 2px 0 var(--glass-rim), var(--glass-drop);
+  }
+  .tab-lens {
+    background: linear-gradient(150deg, color-mix(in srgb, var(--glass-rim) 70%, transparent), transparent 52%), var(--glass-lens);
+    box-shadow: inset 0 0 0 1px var(--group-edge), inset 0 1px 0 var(--glass-rim);
+  }
+  .tab-active { color: var(--glass-accent) }
+  .connection-alert, .connection-status { right: var(--page-right, max(16px, env(safe-area-inset-right))); bottom: calc(76px + env(safe-area-inset-bottom)) }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-toolbar, .glass-tabbar {
+      background-color: var(--glass-tint);
+      background-image: linear-gradient(125deg, color-mix(in srgb, var(--glass-rim) 42%, transparent), transparent 50%);
+      -webkit-backdrop-filter: blur(16px) saturate(150%);
+      backdrop-filter: blur(16px) saturate(150%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-lens, .glass-sidebar, .segment { transition: none !important }
+  .busy-bar::after { width: 100%; animation: none }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .glass-sidebar, .glass-toolbar, .glass-tabbar, .tab-lens, .mobile-back {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface);
+    border: 1px solid var(--separator);
+    box-shadow: none;
+  }
+  .tab-lens { background: var(--surface-secondary); border-color: var(--muted) }
+  .mobile-dock a[aria-current="page"] { text-decoration: underline; text-underline-offset: 2px }
+  .dashboard-shell { background-image: none }
 }
 
 /* iOS's tertiary fill, behind search fields. */
@@ -301,9 +445,12 @@ body {
 }
 
 /* A narrow page's toolbar spans the whole window, as a wide page's does, so its arrows and actions stay put. */
-.toolbar-span {
-  width: 100cqw;
-  margin-inline: calc(50% - 50cqw);
+@media (min-width: 64rem) {
+  html { scrollbar-gutter: stable }
+  .toolbar-span {
+    width: 100cqw;
+    margin-inline: calc(50% - 50cqw);
+  }
 }
 
 @media (max-width: 639px) {

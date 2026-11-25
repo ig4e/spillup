@@ -1,8 +1,9 @@
 import { Skeleton, Spinner, Switch } from "@heroui/react";
 import { Button } from "./Button";
-import { Apple, Check, ChevronLeft, ChevronRight, Copy, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { navigate, useDesktop } from "../lib/hooks";
+import { Apple, Check, ChevronLeft, ChevronRight, Copy, Eye, Laptop, Monitor, Server, Smartphone, type LucideIcon } from "lucide-react";
+import { createContext, useContext, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { currentRemote, setRemote } from "../lib/api";
+import { navigate, useRemote } from "../lib/hooks";
 import type { Hold } from "../lib/types";
 
 /** Apple's system colors, for the rounded icon tiles in front of rows. */
@@ -46,94 +47,48 @@ interface TitleProps {
 /** Where the phone's back button goes from this page; null on the pages the tab bar opens. */
 export const BackAction = createContext<(() => void) | null>(null);
 
-/** The page's title: a toolbar on the desktop, an iOS navigation bar over a large title on a phone. */
-export function LargeTitle(props: TitleProps) {
-  return useDesktop() ? <Toolbar {...props} /> : <NavBar {...props} />;
-}
-
-/** The page's toolbar, as in Tahoe's apps: back and forward, the title, a view switcher in the middle,
- * and the page's actions, on glass that stays put while the page scrolls under it. Full-width pages use
- * the same bar, flush with their content. */
-function Toolbar({
-  title,
-  subtitle,
-  actions,
-  center,
-  bleed,
-}: TitleProps) {
-  return (
-    <>
-      <header
-        className={`glass-toolbar sticky top-0 z-10 grid min-h-[52px] grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 py-2 ${bleed ? "-mx-5 -mt-5 mb-3" : "toolbar-span mb-2"}`}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex shrink-0 overflow-hidden rounded-full bg-surface shadow-[0_0_0_0.5px_var(--border)]">
-            <button type="button" aria-label="Back" onClick={() => window.history.back()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
-              <ChevronLeft className="size-4" />
-            </button>
-            <button type="button" aria-label="Forward" onClick={() => window.history.forward()} className="px-2 py-1.5 text-muted hover:bg-surface-hover hover:text-foreground">
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-          <h1 className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em]">{title}</h1>
-        </div>
-        <div className="flex justify-center">{center}</div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div>
-      </header>
-      {subtitle ? <p className={`max-w-2xl text-[13px] text-muted ${bleed ? "mb-3 px-1" : "mb-6"}`}>{subtitle}</p> : bleed ? null : <div className="mb-4" />}
-    </>
-  );
-}
-
-/** iOS's navigation bar: clear over the large title, glass with a small title once the large one scrolls under it. */
-function NavBar({ title, subtitle, actions, center, bleed }: TitleProps) {
+/** Keep a single heading mounted as the page scrolls and the window changes size. */
+export function LargeTitle({ title, subtitle, actions, center, bleed }: TitleProps) {
   const back = useContext(BackAction);
-  const bar = useRef<HTMLElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const scrolled = useScrolledUnder(heading, bar);
+  const remote = useRemote();
   return (
     <>
-      <header
-        ref={bar}
-        data-scrolled={scrolled || undefined}
-        className={`nav-bar sticky top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-[env(safe-area-inset-top)] ${bleed ? "" : "-mx-4 px-4 sm:-mx-10 sm:px-10"}`}
-      >
-        <div className={`flex items-center ${back ? "h-12" : "h-5"}`}>
-          {back ? (
-            <button type="button" aria-label="Back" onClick={back} className="glass-button flex size-10 items-center justify-center rounded-full text-foreground active:scale-95">
-              <ChevronLeft className="size-[22px]" strokeWidth={2.4} />
-            </button>
-          ) : null}
+      <header className={`page-header glass-toolbar ${bleed ? "page-header--bleed" : "toolbar-span"}`}>
+        <div className="page-heading">
+          <div className="page-history hidden lg:flex">
+            <button type="button" aria-label="Back" onClick={() => window.history.back()}><ChevronLeft /></button>
+            <button type="button" aria-label="Forward" onClick={() => window.history.forward()}><ChevronRight /></button>
+          </div>
+          {back ? <button type="button" aria-label="Back" onClick={back} className="mobile-back lg:hidden"><ChevronLeft /></button> : null}
+          <h1>{title}</h1>
         </div>
-        <div className={`min-w-0 truncate text-[17px] font-semibold transition-opacity duration-200 ${scrolled ? "opacity-100" : "opacity-0"}`}>{title}</div>
-        <div />
+        {center ? <div className="page-views">{center}</div> : null}
+        {actions ? <div className="page-actions">{actions}</div> : null}
+        {remote ? (
+          <div className="viewed-machine">
+            <Eye aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="min-w-0 truncate">Viewing <strong>{remote}</strong></span>
+            <button type="button" aria-label="Back to this machine" onClick={() => setRemote(null)}>Exit view</button>
+          </div>
+        ) : null}
       </header>
-      <div className={bleed ? "mb-3" : "mb-6"}>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <h1 ref={heading} className="min-w-0 text-[34px] leading-[41px] font-bold tracking-[0.01em] break-words">
-            {title}
-          </h1>
-          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-        </div>
-        {subtitle ? <p className="mt-1.5 text-[15px] leading-snug text-muted">{subtitle}</p> : null}
-        {center ? <div className="nav-center mt-4">{center}</div> : null}
-      </div>
+      {subtitle ? <p className="mb-5 max-w-2xl text-sm leading-relaxed text-muted">{subtitle}</p> : null}
     </>
   );
 }
 
-function useScrolledUnder(target: RefObject<HTMLElement | null>, cover: RefObject<HTMLElement | null>) {
-  const [under, setUnder] = useState(false);
-  useEffect(() => {
-    const el = target.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([e]) => setUnder(!e.isIntersecting && e.boundingClientRect.top < (cover.current?.offsetHeight ?? 0) + 1), {
-      rootMargin: `-${cover.current?.offsetHeight ?? 0}px 0px 0px 0px`,
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [target, cover]);
-  return under;
+/** Keep normal link behavior for opening a dashboard view in another tab or window. */
+export function pageHref(path: string) {
+  const url = new URL(path, window.location.origin);
+  const remote = currentRemote();
+  if (remote) url.searchParams.set("machine", remote);
+  return url.pathname + url.search + url.hash;
+}
+
+export function openPage(event: MouseEvent<HTMLAnchorElement>, path: string) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  navigate(path);
 }
 
 /** A macOS segmented control: a light track, the chosen segment raised on it. */
@@ -148,14 +103,31 @@ export function Segmented<T extends string>({
   options: { id: T; label: ReactNode }[];
   label: string;
 }) {
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+    const index = buttons.indexOf(event.target as HTMLButtonElement);
+    if (index < 0) return;
+    let next: number;
+    switch (event.key) {
+      case "ArrowRight": next = (index + 1) % buttons.length; break;
+      case "ArrowLeft": next = (index - 1 + buttons.length) % buttons.length; break;
+      case "Home": next = 0; break;
+      case "End": next = buttons.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    buttons[next].focus();
+    onChange(options[next].id);
+  }
   return (
-    <div role="radiogroup" aria-label={label} className="segmented inline-flex items-center rounded-[7px] p-[2px]">
+    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className="segmented inline-flex items-center rounded-[7px] p-[2px]">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           role="radio"
           aria-checked={o.id === value}
+          tabIndex={o.id === value ? 0 : -1}
           onClick={() => onChange(o.id)}
           className={`segment h-[22px] rounded-[5px] px-3 text-[12px] font-medium whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
             o.id === value ? "segment--on" : ""
@@ -221,15 +193,9 @@ export function Row({
   );
   const cls = `group-row relative flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left ${icon ? "group-row--icon" : ""}`;
   if (!pressable) return <div className={cls}>{body}</div>;
-  return (
-    <button
-      type="button"
-      className={`${cls} outline-none transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover active:bg-surface-tertiary`}
-      onClick={() => (to ? navigate(to) : onPress?.())}
-    >
-      {body}
-    </button>
-  );
+  const interactive = `${cls} outline-none transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover active:bg-surface-tertiary`;
+  if (to) return <a className={interactive} href={pageHref(to)} onClick={(event) => openPage(event, to)}>{body}</a>;
+  return <button type="button" className={interactive} onClick={onPress}>{body}</button>;
 }
 
 export function Dot({ tone, className = "" }: { tone: "success" | "warning" | "danger" | "muted" | "accent"; className?: string }) {

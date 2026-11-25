@@ -19,11 +19,16 @@ interface Streaming {
 
 /** Remote desktop to any of your machines: pick one and an app, and it streams right here. */
 export function RemotePage() {
+  const [streaming, setStreaming] = useState<Streaming | null>(null);
+  if (streaming) return <RemoteStream hostId={streaming.host.id} appId={streaming.appId} machine={streaming.machine} title={streaming.title} onEnd={() => setStreaming(null)} />;
+  return <RemoteBrowser onStart={setStreaming} />;
+}
+
+function RemoteBrowser({ onStart }: { onStart: (stream: Streaming) => void }) {
   const remote = useQuery(api.remote, 5000);
   const machines = useQuery(api.localMachines, 15000);
   const { pending, run } = useAction();
   const { progress, setProgress, connectionError } = useTaskProgress("remote");
-  const [streaming, setStreaming] = useState<Streaming | null>(null);
   const st = remote.data;
   const all = machines.data?.machines ?? [];
   const selectedHost = new URLSearchParams(window.location.search).get("hostId");
@@ -31,8 +36,6 @@ export function RemotePage() {
   const setUp = async () => {
     if (await run("setup", api.remoteSetup)) setProgress({ running: true, done: false, log: [] });
   };
-
-  if (streaming) return <RemoteStream hostId={streaming.host.id} appId={streaming.appId} machine={streaming.machine} title={streaming.title} onEnd={() => setStreaming(null)} />;
 
   const ready = st?.web_running;
   return (
@@ -62,18 +65,24 @@ export function RemotePage() {
           </Group>
         ) : (
           <div className="grid min-w-0 grid-cols-1 items-start gap-3 sm:grid-cols-2">
-            {[...st.hosts].sort((a, b) => Number(String(b.id) === selectedHost) - Number(String(a.id) === selectedHost)).map((h) => (
+            {[...st.hosts].sort((a, b) => Number(String(b.id) === selectedHost) - Number(String(a.id) === selectedHost) || (a.machine || a.name).localeCompare(b.machine || b.name)).map((h) => (
               <HostCard
-                key={h.id + ":" + h.paired}
+                key={h.id}
                 host={h}
                 machine={all.find((m) => m.name === h.machine)}
                 pairing={pending === "sync"}
                 onPair={() => run("sync", api.remoteSync, remote.reload)}
-                onStart={(appId, title) => setStreaming({ host: h, machine: h.machine || h.name, appId, title })}
+                onStart={(appId, title) => onStart({ host: h, machine: h.machine || h.name, appId, title })}
               />
             ))}
           </div>
         )}
+        {ready && !progress && remote.refreshError ? (
+          <Group footer={remote.refreshError.message}>
+            <Row title="Showing the last machine list" value="Retry" onPress={() => void remote.reload()} />
+            <Row title="Repair remote desktop" tone="accent" busy={pending === "setup"} onPress={pending ? undefined : setUp} />
+          </Group>
+        ) : null}
         {ready && !progress ? (
           <div className="mt-5 flex min-w-0 flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" isPending={pending === "sync"} onPress={() => run("sync", api.remoteSync, remote.reload)}>
@@ -101,8 +110,6 @@ function HostCard({
   onStart: (appId: number, title: string) => void;
 }) {
   const online = machine?.online ?? host.state !== "Offline";
-  const apps = useQuery(() => (host.paired && online ? api.remoteApps(host.id) : Promise.resolve([])), 15000);
-  const list = [...(apps.data ?? [])].sort((a, b) => Number(b.title.toLowerCase() === "desktop") - Number(a.title.toLowerCase() === "desktop"));
   return (
     <section className="group-list min-w-0 rounded-2xl bg-surface p-1">
       <div className="flex min-w-0 items-center gap-3 px-3 py-3">
@@ -114,21 +121,27 @@ function HostCard({
       </div>
       {!host.paired ? (
         <Button className="m-2" size="sm" variant="secondary" isDisabled={!online} isPending={pairing} onPress={onPair}>Pair</Button>
-      ) : online && list.length ? (
-        <div className="border-t border-border/70 px-1">
-          {list.map((app) => (
-            <button key={app.app_id} type="button" onClick={() => onStart(app.app_id, app.title)}
-              className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] hover:bg-surface-hover focus-visible:outline-accent">
-              <Play aria-hidden className="size-3.5 shrink-0 text-accent" />
-              <span className="min-w-0 flex-1 break-words">{app.title}</span>
-              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />
-            </button>
-          ))}
-        </div>
-      ) : online ? (
-        <p className="break-words px-3 pb-3 text-xs text-muted">{apps.error ? "Couldn’t read the app list. Retrying…" : apps.data ? "No apps published by Sunshine." : "Loading apps…"}</p>
-      ) : null}
+      ) : online ? <HostApps host={host} onStart={onStart} /> : null}
     </section>
+  );
+}
+
+function HostApps({ host, onStart }: { host: RemoteHost; onStart: (id: number, title: string) => void }) {
+  const apps = useQuery(() => api.remoteApps(host.id), 15000, JSON.stringify(["remoteApps", host.id, host.machine || host.name]));
+  const list = [...(apps.data ?? [])].sort((a, b) => Number(b.title.toLowerCase() === "desktop") - Number(a.title.toLowerCase() === "desktop") || a.title.localeCompare(b.title));
+  return list.length ? (
+    <div className="border-t border-border/70 px-1">
+      {list.map((app) => (
+        <button key={app.app_id} type="button" onClick={() => onStart(app.app_id, app.title)}
+          className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] hover:bg-surface-hover focus-visible:outline-accent">
+          <Play aria-hidden className="size-3.5 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 break-words">{app.title}</span>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />
+        </button>
+      ))}
+    </div>
+  ) : (
+    <p className="break-words px-3 pb-3 text-xs text-muted">{apps.error ? "Couldn’t read the app list. Retrying…" : apps.data ? "No apps published by Sunshine." : "Loading apps…"}</p>
   );
 }
 

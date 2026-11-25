@@ -1,6 +1,10 @@
 package webui
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/darkyeg/spinup/internal/t3code"
+)
 
 // T3State is T3 Code on a machine, as the main machine needs it to link every machine to every other.
 type T3State struct {
@@ -53,6 +57,20 @@ type linkRequest struct {
 
 func (s *Server) serveT3(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.b.T3State(r.Context()))
+}
+
+func (s *Server) serveT3Phones(w http.ResponseWriter, r *http.Request) {
+	phones, err := s.b.T3Phones(r.Context())
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "Couldn't read paired devices from T3 Code.")
+		return
+	}
+	if phones == nil {
+		phones = []t3code.Phone{}
+	}
+	writeJSON(w, struct {
+		Phones []t3code.Phone `json:"phones"`
+	}{phones})
 }
 
 func (s *Server) serveT3Pair(w http.ResponseWriter, r *http.Request) {

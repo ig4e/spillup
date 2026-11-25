@@ -18,7 +18,7 @@ export function OwnLogins() {
   const [busy, setBusy] = useState<string | null>(null);
   const remote = useRemote();
   const data = own.data;
-  if (!data) return <GroupSkeleton rows={4} />;
+  if (!data) return own.error ? <Group><Row title="Sign-in status unavailable" subtitle={own.error.message} /></Group> : <GroupSkeleton rows={4} />;
 
   const toggle = async (p: string, on: boolean) => {
     setBusy(p);

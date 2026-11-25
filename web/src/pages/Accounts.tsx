@@ -1,7 +1,7 @@
 import { AppWindow, Boxes, ExternalLink, KeyRound, LifeBuoy, RotateCw, Server, Terminal, Users } from "lucide-react";
 import { useOverview } from "../App";
 import { useConfirm } from "../components/Confirm";
-import { Choice, Dot, Group, IconTile, LargeTitle, Mono, Row } from "../components/ui";
+import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row } from "../components/ui";
 import { SharedQuotas } from "../components/SharedQuotas";
 import { BrandTile } from "../components/brand";
 import { api } from "../lib/api";
@@ -52,11 +52,18 @@ export function AccountsPage() {
       run: () => run("takeover", api.takeover, overview.reload),
     });
 
+  if (!data || (data.installed && !s)) return (
+    <>
+      <LargeTitle title="Accounts" />
+      {overview.loading ? <GroupSkeleton rows={3} /> : <Group><Row title="Accounts unavailable" subtitle={overview.error?.message ?? data?.service_problem} /></Group>}
+    </>
+  );
+
   return (
     <>
       <LargeTitle title="Accounts" />
 
-      <Group>
+      <Group footer={overview.refreshError ? "Showing the last account status." : undefined}>
         <Row
           icon={<IconTile icon={KeyRound} color={leader ? "green" : "orange"} />}
           title="Held by"
@@ -85,7 +92,7 @@ export function AccountsPage() {
           title="Main Machine, Copied to Standbys"
           subtitle="Standbys keep an up-to-date copy and take over while the main machine is off."
           chosen={!s?.hub_only}
-          disabled={!data?.can_manage}
+          disabled={!data.can_manage || !!overview.refreshError}
           onChoose={() =>
             ask({
               title: "Copy the logins to standbys?",
@@ -101,7 +108,7 @@ export function AccountsPage() {
           title="Keep logins on the main machine"
           subtitle="No login file ever leaves the main machine. Every other machine uses it over Tailscale."
           chosen={!!s?.hub_only}
-          disabled={!data?.can_manage}
+          disabled={!data.can_manage || !!overview.refreshError}
           onChoose={() =>
             ask({
               title: "Keep the logins on the main machine only?",
@@ -122,7 +129,7 @@ export function AccountsPage() {
       </Group>
 
       <Group title="Use Them in Your Apps">
-        {hintsFor(apps.data, data).map((h) => (
+        {apps.loading ? <Row title="Reading installed apps…" /> : hintsFor(apps.data, data).map((h) => (
           <Row key={h.app} icon={<BrandTile brand={h.brand} icon={AppWindow} color="gray" />} title={h.app} subtitle={<><span className="whitespace-normal">{h.text}</span>{h.code ? <span className="mt-1 block"><Mono copy>{h.code}</Mono></span> : null}</>} />
         ))}
       </Group>
@@ -177,13 +184,13 @@ export function AccountsPage() {
             title="Status"
             value={s?.proxy_running ? (s.in_flight ? `Running · ${s.in_flight} requests` : "Running") : "Standing by"}
           />
-          {data?.can_manage && s?.leading ? <Row icon={<IconTile icon={RotateCw} color="blue" />} title="Restart CLIProxyAPI…" tone="accent" onPress={restart} /> : null}
+          {data.can_manage && s?.leading ? <Row icon={<IconTile icon={RotateCw} color="blue" />} title="Restart CLIProxyAPI…" tone="accent" onPress={overview.refreshError ? undefined : restart} /> : null}
         </Group>
       ) : null}
 
       {holds && data?.can_manage && !s?.leading ? (
         <Group footer="Use only if the machine that held the accounts was lost for good.">
-          <Row icon={<IconTile icon={LifeBuoy} color="red" />} title="Take Over Accounts Here…" tone="danger" onPress={takeover} />
+          <Row icon={<IconTile icon={LifeBuoy} color="red" />} title="Take Over Accounts Here…" tone="danger" onPress={overview.refreshError ? undefined : takeover} />
         </Group>
       ) : null}
       {dialog}

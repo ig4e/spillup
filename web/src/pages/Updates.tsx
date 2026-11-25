@@ -43,9 +43,11 @@ export function UpdatesSection() {
                 <Toggle
                   label="Update automatically"
                   isSelected={auto ?? data.auto}
+                  isDisabled={pending === "auto"}
                   onChange={async (on) => {
                     setAuto(on);
-                    if (!(await run("auto", () => api.setAutoUpdate(on), update.reload))) setAuto(null);
+                    await run("auto", () => api.setAutoUpdate(on), update.reload);
+                    setAuto(null);
                   }}
                 />
               }

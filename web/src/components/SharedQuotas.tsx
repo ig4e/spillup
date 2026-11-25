@@ -47,13 +47,13 @@ function QuotaRow({ account, title }: { account: QuotaSummary["accounts"][number
 }
 
 export function SharedQuotas() {
-  const { data, error, loading } = useQuery(api.sharedQuotas, 30_000);
+  const { data, error, refreshError, loading } = useQuery(api.sharedQuotas, 30_000);
   const accounts = data?.accounts ?? [];
   const seen = new Map<string, number>();
   const counts = new Map<string, number>();
   for (const a of accounts) counts.set(a.provider, (counts.get(a.provider) ?? 0) + 1);
   return (
-    <Group title="Shared Quota & Upstream Health" footer={data && !error ? `Holder checked ${relative(data.checked_at)}. Claude and Codex usage is checked up to once every five minutes.` : undefined}>
+    <Group title="Shared Quota & Upstream Health" footer={data ? `Holder checked ${relative(data.checked_at)}. ${refreshError ? "Refresh unavailable. Showing the last reading." : "Claude and Codex usage is checked up to once every five minutes."}` : undefined}>
       {error ? <Row title="Quota summary unavailable" subtitle={<span className="whitespace-normal">{error.message}</span>} />
         : accounts.length ? accounts.map((account) => {
           const n = (seen.get(account.provider) ?? 0) + 1;

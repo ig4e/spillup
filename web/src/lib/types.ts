@@ -68,6 +68,7 @@ export interface Machine {
   name: string;
   dns_name?: string;
   ip?: string;
+  ipv6?: string;
   os?: string;
   online: boolean;
   last_seen?: string;
@@ -173,6 +174,10 @@ export interface T3State {
   environment_id?: string;
   linked?: string;
   problem?: string;
+}
+
+export interface T3Phones {
+  phones: { name?: string; kind: "phone" | "tablet"; count: number }[];
 }
 
 export interface UpdateState {
