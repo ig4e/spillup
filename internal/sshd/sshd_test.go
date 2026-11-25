@@ -29,3 +29,15 @@ func TestConfigEntriesTrustTailnetHostsOnFirstContact(t *testing.T) {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
 }
+
+func TestParseHostsReadsBackWrittenEntries(t *testing.T) {
+	hosts := []Host{{Name: "desk", Address: "desk.ts.net", User: "ahmed"}, {Name: "lap", Address: "lap.ts.net"}}
+	text := replaceBlock("Host mine\n  User me\n", configEntries(hosts))
+	got := parseHosts(text)
+	if len(got) != 2 || got[0] != hosts[0] || got[1] != hosts[1] {
+		t.Fatalf("got %+v", got)
+	}
+	if parseHosts("Host mine\n") != nil {
+		t.Fatal("hosts outside spillup's block must be ignored")
+	}
+}

@@ -70,15 +70,29 @@ func syncSSH(ctx context.Context) (string, error) {
 	if _, err := sshd.PublicKey(ctx); err != nil {
 		return "", err
 	}
+	known := map[string]sshd.Host{}
+	for _, h := range sshd.ConfiguredHosts() {
+		known[h.Name] = h
+	}
 	var hosts []sshd.Host
 	var keys, unreachable []string
 	for _, p := range ts.Peers {
-		if !p.Online || !ts.SameOwner(p) {
+		if !ts.SameOwner(p) {
 			continue
 		}
 		var st webui.SSHState
-		if err := bridgeCall(ctx, p.Name, http.MethodGet, "ssh", nil, &st); err != nil {
-			unreachable = append(unreachable, p.Name)
+		var asked error
+		if p.Online {
+			asked = bridgeCall(ctx, p.Name, http.MethodGet, "ssh", nil, &st)
+		}
+		if !p.Online || asked != nil {
+			// A machine that is off or restarting keeps its entry, so an update never erases `ssh <machine>`.
+			if h, ok := known[p.Name]; ok {
+				hosts = append(hosts, h)
+			}
+			if p.Online {
+				unreachable = append(unreachable, fmt.Sprintf("%s (%v)", p.Name, asked))
+			}
 			continue
 		}
 		hosts = append(hosts, sshd.Host{Name: p.Name, Address: strings.TrimSuffix(p.DNSName, "."), User: st.User})
@@ -103,7 +117,7 @@ func syncSSH(ctx context.Context) (string, error) {
 	named.Unlock()
 	summary := fmt.Sprintf("`ssh <name>` reaches %d machine(s) from here; %d key(s) let in.", len(hosts), len(keys))
 	if len(unreachable) > 0 {
-		summary += " Couldn't ask " + strings.Join(unreachable, ", ") + ": it needs this spillup version or newer."
+		summary += " Couldn't ask " + strings.Join(unreachable, ", ") + "; machines without spillup can't answer."
 	}
 	return summary, nil
 }

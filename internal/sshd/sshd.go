@@ -148,3 +148,38 @@ func replaceBlock(text, body string) string {
 	}
 	return text + block
 }
+
+// ConfiguredHosts are the machines spillup's block in ~/.ssh/config names now.
+func ConfiguredHosts() []Host {
+	text, _ := os.ReadFile(filepath.Join(sshDir(), "config"))
+	return parseHosts(string(text))
+}
+
+func parseHosts(text string) []Host {
+	start := strings.Index(text, blockBegin)
+	end := strings.Index(text, blockEnd)
+	if start < 0 || end < start {
+		return nil
+	}
+	var hosts []Host
+	for _, line := range strings.Split(text[start+len(blockBegin):end], "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "Host":
+			hosts = append(hosts, Host{Name: value})
+		case "HostName", "User":
+			if len(hosts) == 0 {
+				continue
+			}
+			if key == "HostName" {
+				hosts[len(hosts)-1].Address = value
+			} else {
+				hosts[len(hosts)-1].User = value
+			}
+		}
+	}
+	return hosts
+}

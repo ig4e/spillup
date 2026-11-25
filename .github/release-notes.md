@@ -2,10 +2,10 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.5
+### In v0.4.6
 
-- The phone navigation bar has more room above and below its buttons, and the large title sits further from them.
-- `ssh <machine>` trusts a spillup machine's host key the first time it connects. Scripts and agents that run SSH non-interactively no longer fail with "Host key verification failed".
+- `ssh <machine>` survives updates. If a machine is off or restarting when the periodic SSH sync runs, it keeps its entry in `~/.ssh/config` instead of losing it.
+- `spinup ssh sync` says why it couldn't ask a machine.
 
 ### Install
 
