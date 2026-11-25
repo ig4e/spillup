@@ -26,6 +26,9 @@ if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
   Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null
 }
 $config = "$env:ProgramData\ssh\sshd_config"
+if ((Get-Service sshd).StartType -eq 'Disabled') {
+  Set-Service sshd -StartupType Manual
+}
 Start-Service sshd
 if (Test-Path $config) {
   $text = Get-Content $config -Raw
