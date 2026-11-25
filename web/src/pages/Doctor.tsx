@@ -14,7 +14,7 @@ const mark: Record<Level, React.ReactNode> = {
 };
 
 // fixable is what the dashboard can run with one click; other fixes are things to do by hand.
-const fixable = /^spinup (skills|update|tools|agents|packages|t3|restart)\b/;
+const fixable = new Set(["spinup skills sync", "spinup update", "spinup tools", "spinup agents", "spinup packages sync", "spinup t3 setup", "spinup t3 link", "spinup restart"]);
 
 export function DoctorPage() {
   const doctor = useQuery(api.doctor);
@@ -56,7 +56,7 @@ export function DoctorPage() {
         </Alert>
       ) : null}
 
-      {!data ? (
+      {!data && checking ? (
         <>
           <div className="mb-7 flex flex-col items-center gap-3 rounded-2xl bg-surface py-10">
             <Spinner />
@@ -64,7 +64,7 @@ export function DoctorPage() {
           </div>
           <GroupSkeleton rows={4} />
         </>
-      ) : (
+      ) : data ? (
         <>
           <div className="mb-7 flex flex-col items-center rounded-2xl bg-surface px-6 py-9 text-center shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
             <span className="[&>svg]:size-14">{mark[verdict]}</span>
@@ -82,9 +82,9 @@ export function DoctorPage() {
                   key={i}
                   icon={mark[c.level]}
                   title={<span className="whitespace-normal">{c.label}</span>}
-                  subtitle={c.fix && !fixable.test(c.fix) ? <span className="whitespace-normal">{c.fix}</span> : undefined}
+                  subtitle={c.fix && !fixable.has(c.fix) ? <span className="whitespace-normal">{c.fix}</span> : undefined}
                   accessory={
-                    c.fix && fixable.test(c.fix) ? (
+                    c.fix && fixable.has(c.fix) ? (
                       <Button size="sm" variant="secondary" isPending={pending === c.fix} onPress={() => run(c.fix!, () => api.fix(c.fix!), doctor.reload)}>
                         Fix
                       </Button>
@@ -95,7 +95,7 @@ export function DoctorPage() {
             </Group>
           ))}
         </>
-      )}
+      ) : null}
     </>
   );
 }

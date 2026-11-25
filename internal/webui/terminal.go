@@ -3,6 +3,7 @@ package webui
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"os"
 	"sync"
@@ -40,6 +41,11 @@ func (ts *terminals) get(id string) *terminal {
 }
 
 func (ts *terminals) start(cols, rows uint16) (*terminal, error) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	if len(ts.open) >= 16 {
+		return nil, errors.New("close a terminal before opening another")
+	}
 	home, _ := os.UserHomeDir()
 	term, err := pty.Start(pty.Shell(), home, nil, cols, rows)
 	if err != nil {
@@ -48,12 +54,10 @@ func (ts *terminals) start(cols, rows uint16) (*terminal, error) {
 	b := make([]byte, 12)
 	_, _ = rand.Read(b)
 	t := &terminal{id: hex.EncodeToString(b), term: term, readers: map[chan []byte]bool{}, detached: time.Now()}
-	ts.mu.Lock()
 	if ts.open == nil {
 		ts.open = map[string]*terminal{}
 	}
 	ts.open[t.id] = t
-	ts.mu.Unlock()
 	go t.pump(func() { ts.drop(t.id) })
 	go ts.closeWhenIdle(t)
 	return t, nil
@@ -98,7 +102,12 @@ func (t *terminal) pump(gone func()) {
 				select {
 				case r <- chunk:
 				default:
+					close(r)
+					delete(t.readers, r)
 				}
+			}
+			if len(t.readers) == 0 && t.detached.IsZero() {
+				t.detached = time.Now()
 			}
 			t.mu.Unlock()
 		}
@@ -124,8 +133,9 @@ func (t *terminal) attach() (chan []byte, []byte, bool) {
 	if t.exited {
 		return nil, nil, false
 	}
-	r := make(chan []byte, 256)
+	r := make(chan []byte, 32)
 	t.readers[r] = true
+	t.detached = time.Time{}
 	return r, append([]byte(nil), t.recent...), true
 }
 
@@ -199,19 +209,19 @@ func (s *Server) serveTerminalOutput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer t.detach(out)
-	flusher, _ := w.(http.Flusher)
+	controller := http.NewResponseController(w)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	write := func(b []byte) bool {
+		_ = controller.SetWriteDeadline(time.Now().Add(15 * time.Second))
+		defer controller.SetWriteDeadline(time.Time{})
 		if _, err := w.Write(b); err != nil {
 			return false
 		}
-		if flusher != nil {
-			flusher.Flush()
-		}
-		return true
+		err := controller.Flush()
+		return err == nil || errors.Is(err, http.ErrNotSupported)
 	}
 	if !write(recent) {
 		return

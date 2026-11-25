@@ -1,15 +1,14 @@
 import { Alert } from "@heroui/react";
 import { Button } from "../components/Button";
 import { Crown, KeyRound, Network, RefreshCw, Sparkles, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useOverview } from "../App";
 import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
-import type { SetupProgress } from "../lib/types";
 import { TaskLog } from "../components/TaskProgress";
 import { api } from "../lib/api";
 import { relative, secondsAgo } from "../lib/format";
-import { useQuery } from "../lib/hooks";
+import { useQuery, useTaskProgress } from "../lib/hooks";
 
 export function OverviewPage() {
   const { data, loading } = useOverview();
@@ -132,19 +131,10 @@ function NotSetUp() {
   const { reload } = useOverview();
   const [name, setName] = useState("");
   const [role, setRole] = useState<"hub" | "standby" | "use">("standby");
-  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  const { progress, setProgress, connectionError } = useTaskProgress("setup");
   const [problem, setProblem] = useState<string | null>(null);
   const valid = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name);
 
-  useEffect(() => {
-    if (!progress?.running) return;
-    const id = setInterval(async () => {
-      const p = await api.setupProgress();
-      setProgress(p);
-      if (!p.running) void reload();
-    }, 1000);
-    return () => clearInterval(id);
-  }, [progress?.running, reload]);
 
   const start = async () => {
     try {
@@ -168,6 +158,7 @@ function NotSetUp() {
       {progress ? (
         <TaskLog
           progress={progress}
+          connectionError={connectionError}
           hint="Approve any administrator prompt, and sign in to Tailscale when the link appears."
           onRetry={() => setProgress(null)}
           onDone={() => void reload()}

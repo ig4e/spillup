@@ -98,7 +98,7 @@ func TestArtifactRoutesRequireAuthenticationAndValidateContent(t *testing.T) {
 	data := []byte("package")
 	digest := fmt.Sprintf("%x", sha256.Sum256(data))
 	requestArtifact(t, m, digest)
-	for _, test := range []struct {
+	for i, test := range []struct {
 		name, path, key string
 		body            []byte
 		want            int
@@ -112,7 +112,7 @@ func TestArtifactRoutesRequireAuthenticationAndValidateContent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, api.PathLibraryArtifact+test.path, bytes.NewReader(test.body))
 			r.Header.Set(api.APIKeyHeader, test.key)
-			r.Header.Set(api.ForwardedHeader, test.name)
+			r.RemoteAddr = fmt.Sprintf("100.64.0.%d:51000", i+1)
 			w := httptest.NewRecorder()
 			m.withAPIKey(m.acceptArtifact)(w, r)
 			if w.Code != test.want {
@@ -145,7 +145,7 @@ func TestLegacyPeerCannotErasePackages(t *testing.T) {
 	}
 	files := []library.File{{Path: library.Instructions, Data: []byte("old client edit")}}
 	incoming := api.Library{Stamp: library.Stamp{Hash: library.Fingerprint(files), ChangedAt: now}, Files: files}
-	if err := m.library.take(incoming, now); err == nil {
+	if err := m.library.take(context.Background(), incoming, now); err == nil {
 		t.Fatal("legacy update erased package intent")
 	}
 	if _, err := os.Stat(m.library.lib.Path(library.Packages)); err != nil {
@@ -165,7 +165,7 @@ func TestRejectedPackageOmissionDoesNotPoisonTracker(t *testing.T) {
 	}
 	files := []library.File{{Path: library.Instructions, Data: []byte("incoming")}}
 	incoming := api.Library{Protocol: 2, Files: files, Stamp: library.Stamp{Hash: library.Fingerprint(files), ChangedAt: time.Now()}}
-	if err := m.library.take(incoming, time.Now()); err == nil {
+	if err := m.library.take(context.Background(), incoming, time.Now()); err == nil {
 		t.Fatal("omission accepted")
 	}
 	after, err := m.library.snapshot(time.Now())
@@ -192,7 +192,7 @@ func TestTakeComparesAfterConcurrentPackageEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
-	go func() { done <- m.library.take(incoming, time.Now()) }()
+	go func() { done <- m.library.take(context.Background(), incoming, time.Now()) }()
 	time.Sleep(50 * time.Millisecond)
 	requestArtifact(t, m, strings.Repeat("b", 64))
 	_ = lock.Close()

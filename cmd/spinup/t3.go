@@ -99,6 +99,8 @@ func syncT3Links(ctx context.Context) (string, error) {
 
 // reconcileT3Links pairs discovered T3 environments. Each daemon owns its outgoing links.
 func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 70*time.Second)
+	defer cancel()
 	cfg, err := config.Load()
 	if err != nil {
 		return "", errNotInstalled
@@ -116,11 +118,17 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 	}
 	machines := []t3Machine{{Node: ts.Self, address: t3TailnetURL(ts, ts.Self, local.Port), self: true, state: local}}
 	for _, p := range ts.Peers {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		if !p.Online || p.Expired || !ts.SameOwner(p) {
 			continue
 		}
 		var st webui.T3State
-		if err := bridgeCall(ctx, p.Name, http.MethodGet, "t3", nil, &st); err == nil && st.Installed {
+		probe, done := context.WithTimeout(ctx, 12*time.Second)
+		err := bridgeCall(probe, p.Name, http.MethodGet, "t3", nil, &st)
+		done()
+		if err == nil && st.Installed {
 			machines = append(machines, t3Machine{Node: p, address: t3TailnetURL(ts, p, st.Port), state: st})
 		}
 	}
@@ -147,6 +155,9 @@ func reconcileT3Links(ctx context.Context, outgoingOnly bool) (string, error) {
 			continue
 		}
 		for _, to := range ready {
+			if err := ctx.Err(); err != nil {
+				return "", fmt.Errorf("T3 linking after %d new links: %w", linked, err)
+			}
 			if from.IP == to.IP || t3code.LinksTo(from.state.Linked, to.state.EnvironmentID, to.IP, to.IPv6, to.Name, to.DNSName) {
 				continue
 			}
@@ -213,7 +224,7 @@ func bridgeCall(ctx context.Context, machine, method, path string, in, out any) 
 		req.Header[k] = v
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	resp, err := directMachineClient.Do(req)
 	if err != nil {
 		return err
 	}

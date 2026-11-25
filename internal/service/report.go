@@ -12,10 +12,10 @@ import (
 func (m *Machine) Report() api.Report {
 	now := time.Now()
 	st := m.ledger.view(now)
-	waiting, leaderAddr := m.notes.get()
+	waiting, leaderName, leaderAddr := m.notes.get()
 	r := api.Report{
 		Name: m.tail.selfName(), Hold: m.hold(), Version: m.o.Version, Leading: st.Leading, Starting: st.Starting,
-		LeaderAddr: leaderAddr, Waiting: waiting, Peers: m.peers.peers(), Synced: m.replica.synced(now),
+		Leader: leaderName, LeaderAddr: leaderAddr, Waiting: waiting, Peers: m.peers.peers(), Synced: m.replica.synced(now),
 		InFlight: m.activity.inFlight(), Own: providerNames(m.own.get()), OwnRunning: m.ownRunning(), HubOnly: m.hubOnly.get(), PID: os.Getpid(),
 	}
 	if m.hold().CanHold() {

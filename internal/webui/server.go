@@ -4,11 +4,13 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"mime"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
@@ -108,15 +110,17 @@ type Server struct {
 	token  string
 	assets fs.FS
 	// changing serializes edits, so two clicks never edit the library at once.
-	changing sync.Mutex
+	changing *sync.Mutex
 	refusals refusals
 	stats    *sysinfo.Sampler
 	tailnet  tailnetView
 	terms    terminals
 }
 
+var dashboardChanges sync.Mutex
+
 func New(b Backend, token string) *Server {
-	return &Server{b: b, token: token, assets: assets(), stats: sysinfo.NewSampler()}
+	return &Server{b: b, token: token, assets: assets(), stats: sysinfo.NewSampler(), changing: &dashboardChanges}
 }
 
 // reach says who may call a dashboard route: the browser signed in here, or the main machine's dashboard
@@ -150,6 +154,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	add := func(method, path string, h http.HandlerFunc) {
 		if method == http.MethodPost {
 			h = s.serialized(h)
+			h = trackAction(from, path, h)
 		}
 		route(method, path, h)
 	}
@@ -192,18 +197,19 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	change("fix", s.serveFix)
 	change("setup", s.serveSetup)
 	read("setup", s.serveSetupProgress)
-	change("setup/answer", s.serveSetupAnswer)
+	route(http.MethodPost, "setup/answer", s.serveSetupAnswer)
 
 	read("remote", s.serveRemoteState)
 	change("sunshine/pin", s.serveSunshinePin)
 	change("remote/sync", s.serveRemoteSync)
 	change("remote/setup", s.serveRemoteSetup)
 	change("processes/end", s.serveEndProcess)
+	read("activity", s.serveActivity)
 	read("stats", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s.stats.Stats()) })
 	read("apps", s.serveApps)
 	read("proxy/logins", s.serveProxyLogins)
 
-	route(http.MethodPost, "term", s.serveTerminalStart)
+	route(http.MethodPost, "term", trackAction(from, "term", s.serveTerminalStart))
 	route(http.MethodGet, "term/{id}/out", s.serveTerminalOutput)
 	route(http.MethodPost, "term/{id}/in", s.serveTerminalInput)
 	route(http.MethodPost, "term/{id}/size", s.serveTerminalResize)
@@ -287,7 +293,10 @@ func jsonOnly(h http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) serialized(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.changing.Lock()
+		if !s.changing.TryLock() {
+			writeError(w, http.StatusConflict, "another dashboard change is running. Try again when it finishes")
+			return
+		}
 		defer s.changing.Unlock()
 		h(w, r)
 	}
@@ -310,8 +319,17 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(v); err != nil {
+	controller := http.NewResponseController(w)
+	if controller.SetReadDeadline(time.Now().Add(10*time.Second)) == nil {
+		defer controller.SetReadDeadline(time.Time{})
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err := decoder.Decode(v); err != nil {
 		writeError(w, http.StatusBadRequest, "bad request: "+err.Error())
+		return false
+	}
+	if err := decoder.Decode(new(json.RawMessage)); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "request must contain one JSON value")
 		return false
 	}
 	return true

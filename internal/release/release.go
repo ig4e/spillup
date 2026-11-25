@@ -31,7 +31,7 @@ func Latest(ctx context.Context, repo string) (Release, error) {
 			Digest string `json:"digest"`
 		} `json:"assets"`
 	}
-	data, err := get(ctx, "https://api.github.com/repos/"+repo+"/releases/latest")
+	data, err := get(ctx, "https://api.github.com/repos/"+repo+"/releases/latest", 4<<20)
 	if err != nil {
 		return Release{}, err
 	}
@@ -65,17 +65,21 @@ func (r Release) Fetch(ctx context.Context, name string) ([]byte, error) {
 	if !ok {
 		return r.fetchByDigest(ctx, name, url)
 	}
-	data, err := get(ctx, url)
+	data, err := get(ctx, url, 256<<20)
 	if err != nil {
 		return nil, err
 	}
-	sums, err := get(ctx, sumsURL)
+	sums, err := get(ctx, sumsURL, 1<<20)
 	if err != nil {
 		return nil, fmt.Errorf("checksums.txt: %w", err)
 	}
 	sum := sha256.Sum256(data)
-	if want := checksumFor(string(sums), name); want == "" || want != hex.EncodeToString(sum[:]) {
+	hexSum := hex.EncodeToString(sum[:])
+	if want := checksumFor(string(sums), name); want == "" || want != hexSum {
 		return nil, fmt.Errorf("checksum mismatch for %s: refusing it", name)
+	}
+	if github := r.digests[name]; github != "" && github != hexSum {
+		return nil, fmt.Errorf("GitHub digest mismatch for %s: refusing it", name)
 	}
 	return data, nil
 }
@@ -85,7 +89,7 @@ func (r Release) fetchByDigest(ctx context.Context, name, url string) ([]byte, e
 	if !ok {
 		return nil, fmt.Errorf("release %s has no checksums.txt and GitHub records no digest for %s", r.Version, name)
 	}
-	data, err := get(ctx, url)
+	data, err := get(ctx, url, 256<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +109,7 @@ func checksumFor(sums, name string) string {
 	return ""
 }
 
-func get(ctx context.Context, url string) ([]byte, error) {
+func get(ctx context.Context, url string, limit int64) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -124,5 +128,12 @@ func get(ctx context.Context, url string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
 	}
-	return io.ReadAll(resp.Body)
+	if resp.ContentLength > limit {
+		return nil, fmt.Errorf("download exceeds %d bytes", limit)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("download exceeds %d bytes", limit)
+	}
+	return data, err
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/sysproc"
 )
@@ -15,6 +16,7 @@ import (
 // Run shares this terminal, so the program can show progress and ask questions.
 func Run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", describe(name, args), err)
@@ -25,6 +27,7 @@ func Run(ctx context.Context, name string, args ...string) error {
 // Output runs the program without a window and returns what it printed; a failure carries its error output.
 func Output(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = 5 * time.Second
 	sysproc.Hide(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

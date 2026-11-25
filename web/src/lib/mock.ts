@@ -190,7 +190,9 @@ export async function mock(method: string, fullPath: string, body: any): Promise
           { name: "phone", ip: "100.99.1.33", os: "iOS", online: true, yours: true, spillup: false },
           { name: "nas", ip: "100.80.4.2", os: "linux", online: true, yours: true, spillup: true, hold: "never" },
         ];
-      case "setup":
+      case "activity":
+      return [];
+    case "setup":
         return { running: false, done: false, log: [] };
       case "t3":
         return { installed: true, app: true, port: 3773, address: "http://desktop.tail1234.ts.net:3773", linked: '[{"url":"http://100.88.30.17:3773","label":"desktop"}]' };

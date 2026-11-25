@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/library"
@@ -51,6 +52,8 @@ func (m *Machine) acceptArtifact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "artifact transfer budget exhausted or cooling down; run spinup packages fetch to repair it")
 		return
 	}
+	clearDeadline := readBodyDeadline(w, 2*time.Minute)
+	defer clearDeadline()
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, library.ArtifactLimit))
 	if err != nil {
 		writeError(w, http.StatusRequestEntityTooLarge, "package artifact exceeds transfer limit")

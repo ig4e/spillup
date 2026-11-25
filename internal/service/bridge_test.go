@@ -48,8 +48,8 @@ func TestTheMainMachineReachesEveryMachinesDashboardWithTheRightKey(t *testing.T
 	if code, _ := bridgeCall(laptop.peerAPI, "", ""); code != http.StatusUnauthorized {
 		t.Errorf("laptop dashboard without a key: %d, want 401", code)
 	}
-	if code, _ := bridgeGet(laptop.peerAPI, "/spinup/ui/api/term/x/out", api.APIKeyHeader, "k"); code != http.StatusUnauthorized {
-		t.Errorf("laptop terminal with the API key from a device that isn't yours: %d, want 401", code)
+	if code, _ := bridgeGet(laptop.peerAPI, "/spinup/ui/api/term/x/out", api.APIKeyHeader, "k"); code != http.StatusOK {
+		t.Errorf("laptop terminal with the API key from your device: %d, want 200", code)
 	}
 	if code, _ := bridgeGet(hub.peerAPI, "/spinup/ui/api/term/x/out", api.KeyHeader, "m"); code == http.StatusUnauthorized {
 		t.Errorf("hub terminal with the dashboard password: %d, want it let through", code)
@@ -58,9 +58,10 @@ func TestTheMainMachineReachesEveryMachinesDashboardWithTheRightKey(t *testing.T
 		t.Errorf("a machine that only uses the accounts routed tailnet traffic: %q", body)
 	}
 
-	if code, _ := bridgeCall(hub.peerAPI, api.APIKeyHeader, "k"); code != http.StatusUnauthorized {
-		t.Errorf("hub dashboard with only the API key: %d, want 401: a machine that only uses the accounts must not steer a holder", code)
-	}
+	tn.waitFor("hub recognizes its own laptop", func() bool {
+		code, _ := bridgeCall(hub.peerAPI, api.APIKeyHeader, "k")
+		return code == http.StatusOK
+	})
 	if code, body := bridgeCall(hub.peerAPI, api.KeyHeader, "m"); code != http.StatusOK || !strings.Contains(body, "dashboard of hub") {
 		t.Errorf("hub dashboard with the dashboard password: %d %q", code, body)
 	}

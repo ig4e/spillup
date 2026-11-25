@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -24,7 +25,7 @@ func TestTakenLibraryKeepsItsAgeAfterTrackerLoss(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Second)
 			files := []library.File{{Path: library.Instructions, Data: []byte("earlier instructions")}}
 			taken := api.Library{Stamp: library.Stamp{ChangedAt: now.Add(-time.Hour), Hash: library.Fingerprint(files)}, Files: files}
-			if err := m.library.take(taken, now); err != nil {
+			if err := m.library.take(context.Background(), taken, now); err != nil {
 				t.Fatal(err)
 			}
 			memory := filepath.Join(dir, "library.json")
@@ -42,7 +43,7 @@ func TestTakenLibraryKeepsItsAgeAfterTrackerLoss(t *testing.T) {
 			}
 			files = []library.File{{Path: library.Instructions, Data: []byte("newer instructions")}}
 			newer := api.Library{Stamp: library.Stamp{ChangedAt: now.Add(-30 * time.Minute), Hash: library.Fingerprint(files)}, Files: files}
-			if err := m.library.take(newer, now.Add(time.Minute)); err != nil {
+			if err := m.library.take(context.Background(), newer, now.Add(time.Minute)); err != nil {
 				t.Fatalf("the actual newer library was refused: %v", err)
 			}
 		})
@@ -65,7 +66,7 @@ func TestDeletingLastLibraryFileReachesAnotherMachine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := other.take(before, now); err != nil {
+	if err := other.take(context.Background(), before, now); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(path); err != nil {
@@ -75,7 +76,7 @@ func TestDeletingLastLibraryFileReachesAnotherMachine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := other.take(deleted, now.Add(time.Minute)); err != nil {
+	if err := other.take(context.Background(), deleted, now.Add(time.Minute)); err != nil {
 		t.Fatalf("deletion was refused: %v", err)
 	}
 	if _, err := os.Stat(other.lib.Path(library.Instructions)); !os.IsNotExist(err) {
@@ -121,7 +122,11 @@ func TestTheWholeLibraryGoesToAMachineAtMostOncePerGap(t *testing.T) {
 	m.openLibrary()
 	fetch := func(from string) int {
 		r := httptest.NewRequest(http.MethodGet, api.PathLibrary, nil)
-		r.Header.Set(api.ForwardedHeader, from)
+		ip := "100.64.0.2"
+		if from == "laptop" {
+			ip = "100.64.0.3"
+		}
+		r.RemoteAddr = ip + ":51000"
 		w := httptest.NewRecorder()
 		m.serveLibrary(w, r)
 		return w.Code

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -42,12 +43,20 @@ func askForPasswords(cmd *exec.Cmd, exe string) (stop func(), err error) {
 		return nil, err
 	}
 	srv := &http.Server{ReadHeaderTimeout: 5 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/ask" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Spinup-Askpass")), []byte(token)) != 1 {
+		if r.Method != http.MethodPost || r.URL.Path != "/ask" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Spinup-Askpass")), []byte(token)) != 1 {
 			http.Error(w, "no", http.StatusForbidden)
 			return
 		}
-		prompt, _ := io.ReadAll(io.LimitReader(r.Body, 1024))
-		if answer, ok := waitForPassword(strings.TrimSpace(string(prompt))); ok {
+		controller := http.NewResponseController(w)
+		_ = controller.SetReadDeadline(time.Now().Add(10 * time.Second))
+		prompt, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+		_ = controller.SetReadDeadline(time.Time{})
+		if err != nil {
+			http.Error(w, "invalid password prompt", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		if answer, ok := waitForPassword(r.Context(), strings.TrimSpace(string(prompt))); ok {
 			_, _ = io.WriteString(w, answer)
 			return
 		}
@@ -59,11 +68,15 @@ func askForPasswords(cmd *exec.Cmd, exe string) (stop func(), err error) {
 }
 
 // waitForPassword shows prompt in the dashboard and waits up to five minutes for an answer.
-func waitForPassword(prompt string) (string, bool) {
+func waitForPassword(ctx context.Context, prompt string) (string, bool) {
 	if prompt == "" {
 		prompt = "Your password"
 	}
 	setupRun.Lock()
+	if setupRun.prompt != "" {
+		setupRun.Unlock()
+		return "", false
+	}
 	setupRun.prompt = prompt
 	answers := setupRun.answers
 	setupRun.Unlock()
@@ -75,6 +88,8 @@ func waitForPassword(prompt string) (string, bool) {
 	select {
 	case answer := <-answers:
 		return answer, answer != ""
+	case <-ctx.Done():
+		return "", false
 	case <-time.After(5 * time.Minute):
 		return "", false
 	}

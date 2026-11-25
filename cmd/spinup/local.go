@@ -30,7 +30,7 @@ type local struct {
 func localService(cfg config.Config, key string) local {
 	return local{
 		base:   fmt.Sprintf("http://127.0.0.1:%d", cfg.Port),
-		client: api.Client{HTTP: &http.Client{Transport: &http.Transport{Proxy: nil}}, Key: key},
+		client: api.Client{HTTP: directMachineClient, Key: key},
 	}
 }
 

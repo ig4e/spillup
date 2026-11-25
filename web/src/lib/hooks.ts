@@ -1,7 +1,7 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { currentRemote, subscribeRemote } from "./api";
-import type { Done } from "./types";
+import { api, currentRemote, subscribeRemote } from "./api";
+import type { Done, SetupProgress } from "./types";
 
 export interface Query<T> {
   data?: T;
@@ -18,14 +18,22 @@ export function useQuery<T>(load: () => Promise<T>, every = 0): Query<T> {
   const loadRef = useRef(load);
   loadRef.current = load;
 
+  const latest = useRef(0);
+  const active = useRef(0);
   const reload = useCallback(async () => {
+    const request = ++latest.current;
+    active.current++;
     try {
-      setData(await loadRef.current());
-      setError(undefined);
+      const next = await loadRef.current();
+      if (request === latest.current) {
+        setData(next);
+        setError(undefined);
+      }
     } catch (e) {
-      setError(e as Error);
+      if (request === latest.current) setError(e as Error);
     } finally {
-      setLoading(false);
+      active.current--;
+      if (request === latest.current) setLoading(false);
     }
   }, []);
 
@@ -33,12 +41,49 @@ export function useQuery<T>(load: () => Promise<T>, every = 0): Query<T> {
     void reload();
     if (!every) return;
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") void reload();
+      if (document.visibilityState === "visible" && active.current === 0) void reload();
     }, every);
     return () => clearInterval(id);
   }, [reload, every]);
 
   return { data, error, loading, reload };
+}
+
+/** Resumes a running local task on page load and polls without stacking requests. */
+export function useTaskProgress(task: string) {
+  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  const [connectionError, setConnectionError] = useState("");
+  const tracking = progress?.running === true;
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const next = await api.setupProgress();
+        if (disposed) return;
+        setConnectionError("");
+        if ((!next.task || next.task === task) && (tracking || next.running)) {
+          if (next.running || next.done) setProgress(next);
+          else setProgress({ running: false, done: true, failed: "The service lost track of this task.", log: [] });
+        } else if (tracking && next.task !== task) {
+          setProgress({ running: false, done: true, failed: "Another task replaced this one.", log: [] });
+        }
+        if (tracking && next.running && (!next.task || next.task === task)) timer = setTimeout(poll, 1000);
+      } catch (e) {
+        if (disposed || !tracking) return;
+        setConnectionError((e as Error).message);
+        timer = setTimeout(poll, 2500);
+      }
+    }
+    void poll();
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [task, tracking]);
+
+  return { progress, setProgress, connectionError };
 }
 
 let busyCount = 0;

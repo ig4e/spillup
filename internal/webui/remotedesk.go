@@ -72,10 +72,11 @@ func (s *Server) serveRemoteSetup(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) serveRemoteWeb(w http.ResponseWriter, r *http.Request) {
 	target := fmt.Sprintf("127.0.0.1:%d", s.b.RemoteWebPort())
 	proxy := &httputil.ReverseProxy{
+		Transport:     dashboardTransport,
 		FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme, pr.Out.URL.Host, pr.Out.Host = "http", target, ""
-			pr.Out.Header.Del("Cookie")
+			stripDashboardHeaders(pr.Out.Header)
 			pr.Out.Header.Set(remoteweb.UserHeader, remoteweb.User)
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {

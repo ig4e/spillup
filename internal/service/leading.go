@@ -79,7 +79,7 @@ func (m *Machine) startProxy(ctx context.Context, epoch int64, previous claim) e
 	}
 	m.activity.open()
 	m.ledger.finishLeading()
-	m.notes.routeTo("")
+	m.notes.routeTo("", "")
 	m.replica.pushAgain()
 	m.save()
 	m.log.Printf("this machine now holds the accounts (epoch %d)", epoch)
@@ -204,7 +204,7 @@ func (m *Machine) handOff(ctx context.Context, target string, drainFor time.Dura
 		return err
 	}
 	m.ledger.handedOffUnknown(target, st.Epoch+1, time.Now())
-	m.notes.routeTo("")
+	m.notes.routeTo("", "")
 	m.save()
 	m.log.Printf("hand-off to %s: no answer (%v); presuming it holds the accounts until it shows otherwise", target, err)
 	return err
@@ -212,7 +212,7 @@ func (m *Machine) handOff(ctx context.Context, target string, drainFor time.Dura
 
 func (m *Machine) handedOff(target string, epoch int64) {
 	m.ledger.handedOff(target, epoch)
-	m.notes.routeTo("")
+	m.notes.routeTo("", "")
 	m.replica.pullSoon()
 	m.save()
 	m.log.Printf("handed the accounts to %s (epoch %d)", target, epoch)

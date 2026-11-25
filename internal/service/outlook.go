@@ -6,6 +6,7 @@ import "sync"
 type outlook struct {
 	mu         sync.Mutex
 	waiting    string
+	leaderName string
 	leaderAddr string
 	everRouted bool
 }
@@ -17,15 +18,18 @@ func (o *outlook) note(reason string) (isNew bool) {
 	isNew = reason != "" && reason != o.waiting
 	o.waiting = reason
 	if reason != "" {
-		o.leaderAddr = ""
+		o.leaderName, o.leaderAddr = "", ""
 	}
 	return isNew
 }
 
-func (o *outlook) routeTo(addr string) {
+func (o *outlook) routeTo(name, addr string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.leaderAddr = addr
+	if addr == "" {
+		name = ""
+	}
+	o.leaderName, o.leaderAddr = name, addr
 	o.everRouted = o.everRouted || addr != ""
 }
 
@@ -36,8 +40,8 @@ func (o *outlook) sawLeader() bool {
 	return o.everRouted
 }
 
-func (o *outlook) get() (waiting, leaderAddr string) {
+func (o *outlook) get() (waiting, leaderName, leaderAddr string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.waiting, o.leaderAddr
+	return o.waiting, o.leaderName, o.leaderAddr
 }

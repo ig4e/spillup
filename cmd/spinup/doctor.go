@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -17,9 +19,12 @@ import (
 	"github.com/darkyeg/spinup/internal/t3code"
 	"github.com/darkyeg/spinup/internal/tailnet"
 	"github.com/darkyeg/spinup/internal/tools"
+	"github.com/darkyeg/spinup/internal/webui"
 )
 
-type doctorCmd struct{}
+type doctorCmd struct {
+	JSON bool `help:"Print checks as JSON for scripts and fleet monitoring."`
+}
 
 func (doctorCmd) Help() string {
 	return `Checks this machine: tools, Tailscale and the paths to your other machines, the accounts,
@@ -27,29 +32,48 @@ skills and agent config, and whether spinup itself is up to date. Every problem
 comes with the command that fixes it.`
 }
 
-func (doctorCmd) Run() error {
+func (cmd doctorCmd) Run() error {
 	sections := doctorSections(context.Background())
-	printSections(sections)
-	if n := doctor.Failures(sections); n > 0 {
-		return fmt.Errorf("%d problem(s); run the fix commands above", n)
+	if cmd.JSON {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(webui.DoctorReport(sections)); err != nil {
+			return err
+		}
+	} else {
+		printSections(sections)
 	}
-	fmt.Println("\nAll good.")
+	if n := doctor.Failures(sections); n > 0 {
+		return fmt.Errorf("%d problem(s); see the reported fixes", n)
+	}
+	if !cmd.JSON {
+		fmt.Println("\nAll good.")
+	}
 	return nil
 }
 
-// doctorSections checks everything `spinup doctor` checks.
+// doctorSections runs independent checks concurrently and returns them in display order.
 func doctorSections(ctx context.Context) []doctor.Section {
+	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
+	defer cancel()
 	repo := repoData()
-	return []doctor.Section{
-		toolsSection(repo),
-		networkSection(ctx),
-		accountsSection(ctx),
-		agentsSection(repo),
-		packagesSection(ctx),
-		proxySection(ctx),
-		t3Section(ctx),
-		doctor.Update(version, latestVersion(ctx, releases)),
+	checks := []func() doctor.Section{
+		func() doctor.Section { return toolsSection(repo) },
+		func() doctor.Section { return networkSection(ctx) },
+		func() doctor.Section { return accountsSection(ctx) },
+		func() doctor.Section { return agentsSection(repo) },
+		func() doctor.Section { return packagesSection(ctx) },
+		func() doctor.Section { return proxySection(ctx) },
+		func() doctor.Section { return t3Section(ctx) },
+		func() doctor.Section { return doctor.Update(version, latestVersion(ctx, releases)) },
 	}
+	sections := make([]doctor.Section, len(checks))
+	var wg sync.WaitGroup
+	for i, check := range checks {
+		wg.Go(func() { sections[i] = check() })
+	}
+	wg.Wait()
+	return sections
 }
 
 func printSections(sections []doctor.Section) {

@@ -185,3 +185,36 @@ func TestMachinesShowWhoHoldsTheAccounts(t *testing.T) {
 		t.Errorf("a device that only uses the accounts: %+v", phone)
 	}
 }
+
+func TestDashboardActionsAreRecordedWithoutRequestBodies(t *testing.T) {
+	h := New(&fakeBackend{}, testToken).Handler()
+	post := httptest.NewRequest(http.MethodPost, "/api/machines/main", strings.NewReader(`{"machine":"private-value"}`))
+	signedIn(post)
+	post.Host = "localhost:8320"
+	post.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, post)
+	if w.Code != http.StatusOK {
+		t.Fatalf("action returned %d: %s", w.Code, w.Body.String())
+	}
+	log := do(t, h, http.MethodGet, "/api/activity", signedIn)
+	if log.Code != http.StatusOK || !strings.Contains(log.Body.String(), `"action":"machines/main"`) || strings.Contains(log.Body.String(), "private-value") {
+		t.Fatalf("activity returned %d: %s", log.Code, log.Body.String())
+	}
+	if got := do(t, h, http.MethodGet, "/api/activity", nil).Code; got != http.StatusUnauthorized {
+		t.Fatalf("unsigned activity request returned %d", got)
+	}
+}
+
+func TestDashboardRejectsAnotherMutationWhileBusy(t *testing.T) {
+	s := New(&fakeBackend{}, testToken)
+	s.changing.Lock()
+	defer s.changing.Unlock()
+	w := do(t, s.Handler(), http.MethodPost, "/api/t3/sync", func(r *http.Request) {
+		signedIn(r)
+		r.Header.Set("Content-Type", "application/json")
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("busy mutation returned %d", w.Code)
+	}
+}

@@ -66,13 +66,16 @@ func (m *Machine) catchUpLibrary(ctx context.Context) {
 // libraryPartners: a holder shares with the holders that proved themselves, any other machine with the leader.
 func (m *Machine) libraryPartners() []string {
 	if !m.hold().CanHold() {
-		if _, addr := m.notes.get(); addr != "" {
+		if _, leader, addr := m.notes.get(); addr != "" && m.tail.ownsPeer(leader) {
 			return []string{"http://" + addr}
 		}
 		return nil
 	}
 	var bases []string
 	for _, name := range m.peers.holders() {
+		if !m.tail.ownsPeer(name) {
+			continue
+		}
 		if base, err := m.provenURL(name, ""); err == nil {
 			bases = append(bases, base)
 		}
@@ -132,7 +135,7 @@ func (m *Machine) exchangeLibrary(ctx context.Context, base string, here, there 
 	case library.Take:
 		incoming, ok := m.fetchLibrary(ctx, base)
 		if ok {
-			m.logTake(m.library.take(incoming, time.Now()), incoming.Stamp)
+			m.logTake(m.library.take(ctx, incoming, time.Now()), incoming.Stamp)
 		}
 		return ok
 	case library.Give:

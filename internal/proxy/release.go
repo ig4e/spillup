@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/darkyeg/spinup/internal/atomicfile"
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/release"
 )
@@ -83,15 +85,33 @@ func removeOldExes(exe string) {
 }
 
 func replaceExe(exe string, content []byte) error {
-	if err := os.WriteFile(exe+".new", content, 0o755); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(exe), ".proxy-*.new")
+	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(exe); err == nil {
-		if err := os.Rename(exe, fmt.Sprintf("%s.old%d", exe, time.Now().Unix())); err != nil {
+	name := tmp.Name()
+	defer os.Remove(name)
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(name, 0o755); err != nil {
+		return err
+	}
+	old := fmt.Sprintf("%s.old%d", exe, time.Now().UnixNano())
+	if err := atomicfile.Rename(exe, old); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		return atomicfile.Rename(name, exe)
 	}
-	return os.Rename(exe+".new", exe)
+	if err := atomicfile.Rename(name, exe); err != nil {
+		return errors.Join(err, atomicfile.Rename(old, exe))
+	}
+	return nil
 }
 
 func assetName(version string) (string, error) {
@@ -119,19 +139,27 @@ func extractZip(data []byte, keep map[string]bool) (map[string][]byte, error) {
 		return nil, err
 	}
 	files := map[string][]byte{}
+	remaining := uint64(256 << 20)
 	for _, f := range z.File {
 		name := path.Base(f.Name)
-		if !keep[name] || f.FileInfo().IsDir() {
+		if !keep[name] || !f.Mode().IsRegular() {
 			continue
 		}
+		if f.UncompressedSize64 > remaining || files[name] != nil {
+			return nil, fmt.Errorf("duplicate or oversized CLIProxyAPI archive entry %q", name)
+		}
+		remaining -= f.UncompressedSize64
 		rc, err := f.Open()
 		if err != nil {
 			return nil, err
 		}
-		files[name], err = io.ReadAll(rc)
+		files[name], err = io.ReadAll(io.LimitReader(rc, int64(f.UncompressedSize64)+1))
 		rc.Close()
 		if err != nil {
 			return nil, err
+		}
+		if uint64(len(files[name])) != f.UncompressedSize64 {
+			return nil, fmt.Errorf("incorrect archive size for %q", name)
 		}
 	}
 	return files, nil
@@ -143,9 +171,14 @@ func extractTarGz(data []byte, keep map[string]bool) (map[string][]byte, error) 
 		return nil, err
 	}
 	files := map[string][]byte{}
-	tr := tar.NewReader(gz)
+	defer gz.Close()
+	limited := &io.LimitedReader{R: gz, N: (256 << 20) + 1}
+	tr := tar.NewReader(limited)
 	for {
 		h, err := tr.Next()
+		if limited.N == 0 {
+			return nil, errors.New("CLIProxyAPI archive exceeds its expanded size limit")
+		}
 		if err == io.EOF {
 			return files, nil
 		}
@@ -153,6 +186,9 @@ func extractTarGz(data []byte, keep map[string]bool) (map[string][]byte, error) 
 			return nil, err
 		}
 		if name := path.Base(h.Name); keep[name] && h.Typeflag == tar.TypeReg {
+			if h.Size >= limited.N || files[name] != nil {
+				return nil, fmt.Errorf("duplicate or oversized CLIProxyAPI archive entry %q", name)
+			}
 			if files[name], err = io.ReadAll(tr); err != nil {
 				return nil, err
 			}

@@ -44,7 +44,7 @@ func (cliBackend) ScanDevices(ctx context.Context) ([]webui.Device, error) {
 func probeDevice(ctx context.Context, d *webui.Device, port int) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	client := &http.Client{Transport: &http.Transport{Proxy: nil}}
+	client := directMachineClient
 	base := "http://" + net.JoinHostPort(d.IP, strconv.Itoa(port))
 	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+api.PathLeader, nil); err == nil {
 		if resp, err := client.Do(req); err == nil {

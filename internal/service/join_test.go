@@ -11,6 +11,7 @@ import (
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/library"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
@@ -84,5 +85,42 @@ func TestYourWorkersOpenTheMainMachinesDashboardAndNobodyElse(t *testing.T) {
 	}
 	if got := call("100.64.0.2", api.APIKeyHeader, "wrong"); got != http.StatusUnauthorized {
 		t.Errorf("a wrong key: %d, want 401", got)
+	}
+}
+
+func TestForeignWorkerKeyCannotReadPrivateDashboardOrSyncLibrary(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Hold = config.HoldNever
+	m := New(Options{Config: cfg, Secrets: config.Secrets{APIKey: "fixture"}, Library: library.At(t.TempDir()),
+		StatePath: t.TempDir() + "/state.json", Log: log.New(io.Discard, "", 0),
+		Dashboard: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
+	})
+	m.openLibrary()
+	m.tail.set(tailnet.Status{
+		Self:  tailnet.Node{IP: "100.64.0.1", UserID: 1},
+		Peers: []tailnet.Node{{IP: "100.64.0.2", UserID: 1}, {IP: "100.64.0.3", UserID: 2}},
+	})
+	call := func(handler http.Handler, method, path, ip string) int {
+		r := httptest.NewRequest(method, path, nil)
+		r.RemoteAddr = ip + ":51000"
+		r.Header.Set(api.APIKeyHeader, "fixture")
+		r.Header.Set(api.ForwardedHeader, "owner")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w.Code
+	}
+	for _, path := range []string{"/spinup/ui/api/stats", "/spinup/ui/cpa/own/", "/spinup/ui/v0/management/auth-files", "/spinup/ui/api/t3/pair"} {
+		if got := call(m.tailnetHandler(), http.MethodGet, path, "100.64.0.3"); got != http.StatusUnauthorized {
+			t.Errorf("%s returned %d to a foreign Tailnet device", path, got)
+		}
+	}
+	if got := call(m.tailnetHandler(), http.MethodGet, "/spinup/ui/api/stats", "100.64.0.2"); got != http.StatusNoContent {
+		t.Errorf("owner dashboard request returned %d", got)
+	}
+	if got := call(m.routes(onTailnet), http.MethodGet, api.PathLibraryState, "100.64.0.3"); got != http.StatusForbidden {
+		t.Errorf("foreign library request returned %d", got)
+	}
+	if got := call(m.routes(onTailnet), http.MethodGet, api.PathLibraryState, "100.64.0.2"); got != http.StatusOK {
+		t.Errorf("owner library request returned %d", got)
 	}
 }

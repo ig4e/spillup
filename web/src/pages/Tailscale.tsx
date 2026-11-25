@@ -1,14 +1,12 @@
 import { Alert } from "@heroui/react";
 import { ExternalLink, Globe, KeyRound, Network, RefreshCw, SquareTerminal, Waypoints } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useOverview } from "../App";
 import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Toggle, osName } from "../components/ui";
 import { BrandTile, OsTile } from "../components/brand";
 import { TaskLog } from "../components/TaskProgress";
-import type { SetupProgress } from "../lib/types";
 import { api } from "../lib/api";
 import { relative } from "../lib/format";
-import { useAction, useQuery, useRemote } from "../lib/hooks";
+import { useAction, useQuery, useRemote, useTaskProgress } from "../lib/hooks";
 
 export function TailscalePage() {
   const { data } = useOverview();
@@ -71,12 +69,7 @@ function SSHGroup() {
   const ssh = useQuery(api.ssh, 30000);
   const remote = useRemote();
   const { pending, run } = useAction();
-  const [progress, setProgress] = useState<SetupProgress | null>(null);
-  useEffect(() => {
-    if (!progress?.running) return;
-    const id = setInterval(async () => setProgress(await api.setupProgress()), 1000);
-    return () => clearInterval(id);
-  }, [progress?.running]);
+  const { progress, setProgress, connectionError } = useTaskProgress("ssh");
   const task = !!progress;
   const st = ssh.data;
   if (!st) return ssh.loading ? <GroupSkeleton rows={2} /> : null;
@@ -124,6 +117,7 @@ function SSHGroup() {
       {progress ? (
         <TaskLog
           progress={progress}
+          connectionError={connectionError}
           hint={st.server === "tailscale" ? "Enter your password when asked: Tailscale needs it to change its settings." : "Approve the administrator prompt on this machine."}
           onRetry={() => setProgress(null)}
           onDone={() => {

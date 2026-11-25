@@ -3,29 +3,34 @@
 package main
 
 import (
+	"context"
 	"io"
 	"os/exec"
+	"time"
 )
 
 // launchTask runs a spinup command with sudo asking the dashboard for your password.
-func launchTask(exe string, args []string) (io.Reader, func() error, error) {
-	cmd := exec.Command(exe, args...)
+func launchTask(ctx context.Context, exe string, args []string) (io.Reader, func() error, error) {
+	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd.WaitDelay = 5 * time.Second
 	stopAsking, err := askForPasswords(cmd, exe)
 	if err != nil {
 		return nil, nil, err
 	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		stopAsking()
-		return nil, nil, err
-	}
-	cmd.Stderr = cmd.Stdout
+	out, writer := io.Pipe()
+	cmd.Stdout, cmd.Stderr = writer, writer
 	if err := cmd.Start(); err != nil {
 		stopAsking()
+		out.Close()
+		writer.Close()
 		return nil, nil, err
 	}
-	return out, func() error {
-		defer stopAsking()
-		return cmd.Wait()
-	}, nil
+	done := make(chan error, 1)
+	go func() {
+		err := cmd.Wait()
+		stopAsking()
+		writer.Close()
+		done <- err
+	}()
+	return out, func() error { return <-done }, nil
 }

@@ -6,12 +6,14 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
 type setupCmd struct {
+	Plan     bool   `help:"Preview setup and the selected role without making changes."`
 	Name     string `arg:"" optional:"" help:"This machine's name on your tailnet; other machines reach it by it (asked when omitted)."`
 	Hub      bool   `xor:"hold" help:"This machine normally holds the accounts. One hub per tailnet."`
 	Standby  bool   `xor:"hold" help:"This machine takes the accounts while the hub is off."`
@@ -34,6 +36,9 @@ type setupStep struct {
 
 func (c setupCmd) Run() error {
 	ctx := context.Background()
+	if c.Plan && strings.TrimSpace(c.Name) == "" {
+		c.Name = currentMachineName(ctx)
+	}
 	repo := repoData()
 	name, err := c.machineName(ctx)
 	if err != nil {
@@ -51,10 +56,32 @@ func (c setupCmd) Run() error {
 		{"Remote desktop", false, setUpRemote},
 		{"T3 Code", false, setUpT3},
 	}
+	if c.Plan {
+		cfg, err := serviceConfig(serviceRequest{hold: c.hold(), repo: repo})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Setup preview for %s (%s)\n", name, holdPhrase(cfg.Hold))
+		for i, step := range steps {
+			requirement := "report errors and continue"
+			if step.needed {
+				requirement = "stop on error"
+			}
+			fmt.Printf("  %d. %s (%s)\n", i+1, step.title, requirement)
+		}
+		fmt.Printf("  %d. Check setup\n", len(steps)+1)
+		return nil
+	}
 	var failed []string
 	for i, s := range steps {
-		fmt.Printf("\n[%d/%d] %s\n", i+1, len(steps), s.title)
-		if err := s.run(ctx); err != nil {
+		fmt.Printf("\n[%d/%d] %s\n", i+1, len(steps)+1, s.title)
+		stepCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		err := s.run(stepCtx)
+		if stepCtx.Err() != nil {
+			err = stepCtx.Err()
+		}
+		cancel()
+		if err != nil {
 			if s.needed {
 				return fmt.Errorf("%s: %w", s.title, err)
 			}
@@ -62,7 +89,7 @@ func (c setupCmd) Run() error {
 			failed = append(failed, s.title)
 		}
 	}
-	fmt.Println()
+	fmt.Printf("\n[%d/%d] Check setup\n", len(steps)+1, len(steps)+1)
 	printAddresses(ctx, name)
 	fmt.Println()
 	if err := (doctorCmd{}).Run(); err != nil {

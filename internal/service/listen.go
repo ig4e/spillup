@@ -23,7 +23,7 @@ func (m *Machine) servePeers(ctx context.Context) {
 			continue
 		}
 		m.log.Printf("peer API on %s", addr)
-		srv := &http.Server{Handler: m.tailnetHandler(), ReadHeaderTimeout: 30 * time.Second}
+		srv := &http.Server{Handler: m.tailnetHandler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 		served := make(chan struct{})
 		go func() {
 			defer close(served)

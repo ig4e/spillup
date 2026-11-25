@@ -115,6 +115,7 @@ func New(o Options) *Machine {
 		MaxIdleConnsPerHost:   8,
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: time.Second,
+		ResponseHeaderTimeout: 3 * time.Minute,
 	}
 	m := &Machine{
 		o:   o,
@@ -150,7 +151,7 @@ func (m *Machine) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("can't listen on %s (is the old CLIProxyAPI or another spinup still running?): %w", m.o.FrontListen, err)
 	}
-	srv := &http.Server{Handler: m.routes(onLocalhost), ReadHeaderTimeout: 30 * time.Second}
+	srv := &http.Server{Handler: m.routes(onLocalhost), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	go srv.Serve(front)
 	defer srv.Close()
 	m.log.Printf("spinup %s on %s (hold: %s)", m.o.Version, m.o.FrontListen, m.hold())

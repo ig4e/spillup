@@ -105,7 +105,7 @@ func hostDashboard(ctx context.Context, port int, logger *log.Logger) {
 
 // serveDashboard serves until ctx ends, then stops within five seconds.
 func serveDashboard(ctx context.Context, l net.Listener, h http.Handler) error {
-	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 90 * time.Second}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(l) }()
 	select {

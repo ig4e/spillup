@@ -53,6 +53,10 @@ const panelSeed = `<script>(function(){try{var e=new TextEncoder(),d=e.encode(JS
 // proxy its calls go to.
 func (s *Server) servePanelPage(w http.ResponseWriter, r *http.Request) {
 	target := r.PathValue("target")
+	if target != panelOwn && target != panelShared {
+		writePanelProblem(w, fmt.Errorf("unknown CLIProxyAPI dashboard"))
+		return
+	}
 	machine := r.URL.Query().Get("machine")
 	var page string
 	var err error
@@ -90,7 +94,7 @@ func fetchPanelPage(ctx context.Context, p Panel) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, panelBase(p)+"/management.html", nil)
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	resp, err := dashboardClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("CLIProxyAPI isn't answering: %w", err)
 	}
@@ -128,13 +132,15 @@ func (s *Server) servePanelAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host := net.JoinHostPort("127.0.0.1", strconv.Itoa(p.Port))
+	ctx, cancel := context.WithTimeout(r.Context(), 80*time.Second)
+	defer cancel()
+	r = r.WithContext(ctx)
 	proxy := &httputil.ReverseProxy{
+		Transport:     dashboardTransport,
 		FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme, pr.Out.URL.Host, pr.Out.Host = "http", host, ""
-			pr.Out.Header.Del("Cookie")
-			pr.Out.Header.Del("Origin")
-			pr.Out.Header.Del("Referer")
+			stripDashboardHeaders(pr.Out.Header)
 			pr.Out.Header.Set("Authorization", "Bearer "+p.Key)
 			pr.Out.Header.Set("X-Management-Key", p.Key)
 		},
@@ -204,7 +210,7 @@ func (s *Server) fetchRemotePanelPage(r *http.Request, machine, target string) (
 	for k, v := range rm.Header {
 		req.Header[k] = v
 	}
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	resp, err := dashboardClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("%s didn't answer: %w", machine, err)
 	}
@@ -224,14 +230,16 @@ func (s *Server) serveRemotePanelAPI(w http.ResponseWriter, r *http.Request, mac
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
+	ctx, cancel := context.WithTimeout(r.Context(), 80*time.Second)
+	defer cancel()
+	r = r.WithContext(ctx)
 	proxy := &httputil.ReverseProxy{
+		Transport:     dashboardTransport,
 		FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme, pr.Out.URL.Host, pr.Out.Host = rm.Base.Scheme, rm.Base.Host, ""
 			pr.Out.URL.Path, pr.Out.URL.RawPath = BridgePrefix+r.URL.Path, ""
-			for _, h := range []string{"Cookie", "Origin", "Referer", "Authorization", "X-Management-Key"} {
-				pr.Out.Header.Del(h)
-			}
+			stripDashboardHeaders(pr.Out.Header)
 			for k, v := range rm.Header {
 				pr.Out.Header[k] = v
 			}

@@ -201,7 +201,21 @@ export interface Device {
   hold?: Hold;
 }
 
+export interface ActivityEntry {
+  at: string;
+  action: string;
+  origin: string;
+  status: number;
+  elapsed_ms: number;
+}
+
 export interface SetupProgress {
+  task?: string;
+  phase?: string;
+  step?: number;
+  total?: number;
+  elapsed_seconds?: number;
+  quiet_seconds?: number;
   running: boolean;
   done: boolean;
   failed?: string;

@@ -6,13 +6,34 @@ import { Button } from "./Button";
 import { Group, IconTile, Row } from "./ui";
 
 /** A spinup task the dashboard runs, such as setup: its live output, sudo's password questions, and what to do when it ends. */
-export function TaskLog({ progress, hint, onRetry, onDone }: { progress: SetupProgress; hint: string; onRetry: () => void; onDone: () => void }) {
+export function TaskLog({ progress, connectionError, hint, onRetry, onDone }: { progress: SetupProgress; connectionError: string; hint: string; onRetry: () => void; onDone: () => void }) {
+  const total = progress.total ?? 0;
+  const completed = Math.max(0, (progress.step ?? 0) - 1);
+  const elapsed = progress.elapsed_seconds ?? 0;
+  const duration = `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+  const status = connectionError
+    ? `Reconnecting. ${connectionError}`
+    : progress.prompt
+      ? "Waiting for your password"
+      : (progress.quiet_seconds ?? 0) >= 45
+        ? "Waiting for more output. Check for a system prompt or sign-in."
+        : "";
   return (
     <Group
-      title={progress.running ? "Setting Up…" : progress.failed ? "Setup Stopped" : "Set Up"}
-      footer={progress.failed ? `${progress.failed}. Fix what the log says, then try again.` : progress.running ? hint : undefined}
+      title={progress.running ? "Running" : progress.failed ? "Stopped" : "Complete"}
+      footer={progress.failed || (progress.running ? hint : undefined)}
     >
-      {progress.prompt ? <PasswordPrompt prompt={progress.prompt} /> : null}
+      {progress.running ? (
+        <div className="flex flex-col gap-2 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span>{total ? `Step ${progress.step} of ${total} · ${progress.phase}` : progress.phase || "Waiting for output"}</span>
+            <span className="shrink-0 text-muted">{duration}</span>
+          </div>
+          <progress aria-label="Task progress" max={total || 1} value={total ? completed : undefined} className="h-2 w-full accent-accent" />
+          {status ? <p role="status" className="text-xs text-muted">{status}</p> : null}
+        </div>
+      ) : null}
+      {progress.prompt ? <PasswordPrompt key={progress.prompt} prompt={progress.prompt} /> : null}
       <div className="max-h-96 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
         {progress.log.length ? progress.log.map((line, i) => <div key={i}>{linkify(line)}</div>) : <span className="text-muted">Starting…</span>}
       </div>
@@ -25,11 +46,15 @@ export function TaskLog({ progress, hint, onRetry, onDone }: { progress: SetupPr
 function PasswordPrompt({ prompt }: { prompt: string }) {
   const [password, setPassword] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const send = async (cancel = false) => {
     setSending(true);
+    setError("");
     try {
       await api.answerSetup(cancel ? "" : password, cancel);
       setPassword("");
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
       setSending(false);
     }
@@ -48,6 +73,7 @@ function PasswordPrompt({ prompt }: { prompt: string }) {
       <div className="text-xs text-muted">
         {prompt.replace(/^\[sudo\]\s*/, "")} spillup passes it to sudo to install Tailscale and start the service at boot, and doesn’t keep it.
       </div>
+      {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
       <div className="flex gap-2">
         <input
           type="password"

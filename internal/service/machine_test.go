@@ -68,10 +68,10 @@ type seenFrom struct {
 func (s seenFrom) Status(context.Context) (tailnet.Status, error) {
 	s.net.mu.Lock()
 	defer s.net.mu.Unlock()
-	st := tailnet.Status{Running: true, Self: tailnet.Node{Name: s.self, IP: "127.0.0.1", Online: s.net.online[s.self]}}
+	st := tailnet.Status{Running: true, Self: tailnet.Node{Name: s.self, IP: "127.0.0.1", UserID: 1, Online: s.net.online[s.self]}}
 	for name, online := range s.net.online {
 		if name != s.self {
-			st.Peers = append(st.Peers, tailnet.Node{Name: name, IP: "127.0.0.1", Online: online, LastSeen: s.net.lastSeen[name]})
+			st.Peers = append(st.Peers, tailnet.Node{Name: name, IP: "127.0.0.1", UserID: 1, Online: online, LastSeen: s.net.lastSeen[name]})
 		}
 	}
 	return st, nil

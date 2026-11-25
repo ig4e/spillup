@@ -16,6 +16,8 @@ Ask what it **holds**:
 
 Done when: you know the name and the hold. If the user didn't say and `spinup status` (or `spinup machines`) shows a hub already, it is not the hub.
 
+Use `spinup setup <name> --plan` to preview the selected role and setup steps. Choose `--hub` or `--standby` for a different role in the preview.
+
 ## 2. Install spinup
 
 The installers require a published binary release. For an unreleased build, follow the [README's source-build instructions](../README.md#quick-start) from the checkout of the intended branch or commit. `go install github.com/darkyeg/spinup/cmd/spinup@latest` resolves Go's latest module version; it does not install unmerged branch changes.

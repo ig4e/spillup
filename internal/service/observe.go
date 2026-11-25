@@ -112,17 +112,18 @@ func askAll[T any](ctx context.Context, devices map[string]tailnet.Node, ask fun
 func (m *Machine) findLeader(ctx context.Context, ts tailnet.Status) {
 	online := map[string]tailnet.Node{}
 	for _, p := range ts.Peers {
-		if p.Online {
+		if p.Online && !p.Expired && ts.SameOwner(p) {
 			online[p.Name] = p
 		}
 	}
-	addr, best := "", int64(-1)
+	leader, addr, best := "", "", int64(-1)
 	for name, l := range askAll(ctx, online, m.askLeader) {
-		if l.Leading && l.Name == name && l.Proof >= api.KnowsAPIKey && l.Epoch > best {
-			addr, best = m.o.PeerAddr(name, online[name].IP), l.Epoch
+		if l.Leading && l.Name == name && l.Proof >= api.KnowsAPIKey &&
+			(l.Epoch > best || l.Epoch == best && name < leader) {
+			leader, addr, best = name, m.o.PeerAddr(name, online[name].IP), l.Epoch
 		}
 	}
-	m.notes.routeTo(addr)
+	m.notes.routeTo(leader, addr)
 }
 
 // learn remembers a machine that can hold and called with the key.

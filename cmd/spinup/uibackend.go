@@ -128,8 +128,8 @@ func (cliBackend) Remote(machine string) (webui.Remote, error) {
 		return webui.Remote{}, fmt.Errorf("Tailscale: %w", err)
 	}
 	node, ok := st.Peer(machine)
-	if !ok || node.IP == "" {
-		return webui.Remote{}, fmt.Errorf("%s isn't on your tailnet", machine)
+	if !st.Running || !ok || node.IP == "" || node.Expired || !st.SameOwner(node) {
+		return webui.Remote{}, fmt.Errorf("%s is unavailable on your Tailscale account", machine)
 	}
 	h := http.Header{}
 	if s.ManagementPassword != "" {

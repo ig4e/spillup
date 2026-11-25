@@ -4,10 +4,16 @@ import "net/http"
 
 // SetupProgress is a `spinup setup` the dashboard started: whether it still runs, and what it printed.
 type SetupProgress struct {
-	Running bool     `json:"running"`
-	Done    bool     `json:"done"`
-	Failed  string   `json:"failed,omitempty"`
-	Log     []string `json:"log"`
+	Task           string   `json:"task,omitempty"`
+	Phase          string   `json:"phase,omitempty"`
+	Step           int      `json:"step,omitempty"`
+	Total          int      `json:"total,omitempty"`
+	ElapsedSeconds int      `json:"elapsed_seconds,omitempty"`
+	QuietSeconds   int      `json:"quiet_seconds,omitempty"`
+	Running        bool     `json:"running"`
+	Done           bool     `json:"done"`
+	Failed         string   `json:"failed,omitempty"`
+	Log            []string `json:"log"`
 	// Prompt is what setup asks while it waits for your password, such as sudo's question.
 	Prompt string `json:"prompt,omitempty"`
 }

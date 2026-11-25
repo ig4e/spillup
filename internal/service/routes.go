@@ -5,9 +5,9 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
@@ -41,11 +41,15 @@ func (m *Machine) routes(a audience) http.Handler {
 	mux.HandleFunc("POST "+api.PathRole, m.keyed(m.holding(m.serveRole)))
 	mux.HandleFunc("POST "+api.PathMode, m.keyed(m.holding(m.serveMode)))
 	if m.library != nil {
-		mux.HandleFunc("GET "+api.PathLibraryState, m.withAPIKey(m.serveLibraryState))
-		mux.HandleFunc("GET "+api.PathLibrary, m.withAPIKey(m.serveLibrary))
-		mux.HandleFunc("POST "+api.PathLibrary, m.withAPIKey(m.acceptLibrary))
-		mux.HandleFunc("GET "+api.PathLibraryArtifact, m.withAPIKey(m.serveArtifact))
-		mux.HandleFunc("POST "+api.PathLibraryArtifact, m.withAPIKey(m.acceptArtifact))
+		libraryAccess := m.withAPIKey
+		if a == onTailnet {
+			libraryAccess = m.withLibraryPeer
+		}
+		mux.HandleFunc("GET "+api.PathLibraryState, libraryAccess(m.serveLibraryState))
+		mux.HandleFunc("GET "+api.PathLibrary, libraryAccess(m.serveLibrary))
+		mux.HandleFunc("POST "+api.PathLibrary, libraryAccess(m.acceptLibrary))
+		mux.HandleFunc("GET "+api.PathLibraryArtifact, libraryAccess(m.serveArtifact))
+		mux.HandleFunc("POST "+api.PathLibraryArtifact, libraryAccess(m.acceptArtifact))
 		if a == onLocalhost {
 			mux.HandleFunc("POST "+api.PathLibrarySync, m.withAPIKey(m.serveLibrarySync))
 		}
@@ -95,21 +99,17 @@ func (m *Machine) tailnetHandler() http.Handler {
 
 // bridged admits another machine's dashboard. A machine that keeps the dashboard password answers to it,
 // and to the API key from a device Tailscale says is on its own account, so your workers can open the main
-// machine's dashboard and nobody else's device can; the others answer to the API key.
+// machine's dashboard and nobody else's device can. An API key alone can read a worker's overview.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if m.bridgeAdmits(r) && (!ownerDashboardAction(r.URL.Path) || m.bridgeAdmitsOwner(r)) {
+		workerOverview := m.o.Secrets.ManagementPassword == "" &&
+			r.Method == http.MethodGet && r.URL.Path == dashboardPrefix+"api/overview"
+		if m.bridgeAdmitsOwner(r) || workerOverview && m.matchesAPIKey(r) {
 			h.ServeHTTP(w, r)
 			return
 		}
 		writeError(w, http.StatusUnauthorized, "missing or wrong key for this machine's dashboard")
 	}
-}
-
-func ownerDashboardAction(path string) bool {
-	return strings.HasPrefix(path, dashboardPrefix+"api/term") ||
-		strings.HasPrefix(path, dashboardPrefix+"api/processes") ||
-		strings.HasPrefix(path, dashboardPrefix+"api/t3/")
 }
 
 // bridgeAdmitsOwner admits the dashboard password, or the API key from one of your own devices, even where
@@ -120,22 +120,7 @@ func (m *Machine) bridgeAdmitsOwner(r *http.Request) bool {
 	}
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	_, yours := m.tail.owned(ip)
-	return yours && m.o.Secrets.APIKey != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(api.APIKeyHeader)), []byte(m.o.Secrets.APIKey)) == 1
-}
-
-func (m *Machine) bridgeAdmits(r *http.Request) bool {
-	matches := func(header, want string) bool {
-		return want != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(header)), []byte(want)) == 1
-	}
-	if m.o.Secrets.ManagementPassword == "" {
-		return matches(api.APIKeyHeader, m.o.Secrets.APIKey)
-	}
-	if matches(api.KeyHeader, m.o.Secrets.ManagementPassword) {
-		return true
-	}
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	_, yours := m.tail.owned(ip)
-	return yours && matches(api.APIKeyHeader, m.o.Secrets.APIKey)
+	return yours && m.matchesAPIKey(r)
 }
 
 // keyed admits callers with the management password, and remembers callers that can hold.
@@ -345,7 +330,19 @@ func (m *Machine) serveMode(w http.ResponseWriter, r *http.Request) {
 var okBody = map[string]bool{"ok": true}
 
 func decode(w http.ResponseWriter, r *http.Request, limit int64, v any) bool {
-	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit)).Decode(v)
+	clearDeadline := readBodyDeadline(w, time.Minute)
+	defer clearDeadline()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
+	err := decoder.Decode(v)
+	if err == nil {
+		err = decoder.Decode(new(json.RawMessage))
+		switch {
+		case errors.Is(err, io.EOF):
+			err = nil
+		case err == nil:
+			err = errors.New("request must contain one JSON value")
+		}
+	}
 	var tooLarge *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooLarge):

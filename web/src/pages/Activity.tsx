@@ -3,9 +3,10 @@ import { CircleX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { bytes } from "../components/Resources";
-import { LargeTitle, Segmented, osName } from "../components/ui";
+import { Group, LargeTitle, Row, Segmented, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
+import { relative } from "../lib/format";
 import { useQuery } from "../lib/hooks";
 import type { Machine, Process, Sample, Stats } from "../lib/types";
 
@@ -39,7 +40,7 @@ function useFleetStats(machines: Machine[]) {
     });
     return out;
   }, 2500);
-  return stats.data ?? {};
+  return { fleet: stats.data ?? {}, loading: stats.loading };
 }
 
 /** A graph like Activity Monitor's bottom panel: one or two filled lines over a faint grid. */
@@ -87,7 +88,8 @@ function Th({ children, right, active }: { children: React.ReactNode; right?: bo
 export function ActivityPage() {
   const machinesQ = useQuery(api.machines, 10000);
   const machines = (machinesQ.data?.machines ?? []).filter((m) => m.online && (m.is_self || m.hold || m.state));
-  const fleet = useFleetStats(machines);
+  const { fleet, loading: loadingStats } = useFleetStats(machines);
+  const [showActions, setShowActions] = useState(false);
   const [metric, setMetric] = useState<Metric>("cpu");
   const [picked, setPicked] = useState<string | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
@@ -113,8 +115,13 @@ export function ActivityPage() {
       <LargeTitle
         bleed
         title="Activity"
-        center={<Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
+        center={showActions ? undefined : <Segmented label="What to show" value={metric} onChange={setMetric} options={metrics} />}
         actions={
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onPress={() => setShowActions(!showActions)}>
+              {showActions ? "Processes" : "Recent Actions"}
+            </Button>
+            {!showActions ? (
           <button
             type="button"
             aria-label="End the selected process"
@@ -125,9 +132,13 @@ export function ActivityPage() {
           >
             <CircleX className="size-[18px]" />
           </button>
+            ) : null}
+          </div>
         }
       />
 
+      {showActions ? <RecentActions /> : (
+      <>
       <div className="mb-3 overflow-hidden rounded-xl bg-surface max-lg:overflow-x-auto">
         <table className="w-full text-[13px] max-lg:whitespace-nowrap">
           <thead>
@@ -201,7 +212,7 @@ export function ActivityPage() {
             {!processes.length ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-muted">
-                  {st ? "This machine doesn't list its programs." : "Reading…"}
+                  {st ? "This machine doesn't list its programs." : loadingStats || machinesQ.loading ? "Reading…" : "Machine statistics are unavailable."}
                 </td>
               </tr>
             ) : null}
@@ -213,7 +224,7 @@ export function ActivityPage() {
         {st ? (
           <BottomPanel metric={metric} st={st} h={h} />
         ) : (
-          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">Reading {selected?.name ?? "this machine"}…</div>
+          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">{loadingStats || machinesQ.loading ? "Reading statistics…" : "Machine statistics are unavailable."}</div>
         )}
       </div>
       <EndDialog
@@ -224,6 +235,42 @@ export function ActivityPage() {
           if (ended) setChosen(null);
         }}
       />
+      </>
+      )}
+    </div>
+  );
+}
+
+function RecentActions() {
+  const activity = useQuery(api.recentActivity, 5000);
+  const labels: Record<string, string> = {
+    "accounts/handoff": "Move accounts",
+    "accounts/mode": "Change account storage",
+    "accounts/takeover": "Take over accounts",
+    "accounts/restart": "Restart proxy",
+    "machines/main": "Change hub",
+    "processes/end": "End process",
+    "settings/access": "Change dashboard access",
+    "t3/link": "Link T3 environment",
+    "t3/pair": "Create T3 pairing",
+    "t3/sync": "Sync T3 machines",
+    term: "Open terminal",
+  };
+  return (
+    <div className="min-h-0 overflow-auto">
+      <Group title="Dashboard Actions" footer="Shows the last 100 requests on this machine since Spillup started.">
+        {activity.error ? <Row title="Couldn't read actions" subtitle={activity.error.message} /> : null}
+        {activity.loading ? <Row title="Reading actions…" /> : null}
+        {activity.data?.length === 0 ? <Row title="No recent actions" /> : null}
+        {activity.data?.map((entry, i) => (
+          <Row
+            key={`${entry.at}/${i}`}
+            title={labels[entry.action] ?? entry.action.replaceAll("/", " · ")}
+            subtitle={`${entry.origin} · ${relative(entry.at)} · ${entry.elapsed_ms} ms`}
+            value={entry.status >= 200 && entry.status < 300 ? "Accepted" : `HTTP ${entry.status}`}
+          />
+        ))}
+      </Group>
     </div>
   );
 }

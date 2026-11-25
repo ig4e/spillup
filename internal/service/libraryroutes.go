@@ -14,17 +14,31 @@ import (
 // libraryLimit bounds a library on the wire: its files, base64-encoded.
 const libraryLimit = library.SizeLimit * 3 / 2
 
+func (m *Machine) matchesAPIKey(r *http.Request) bool {
+	key := m.o.Secrets.APIKey
+	return key != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get(api.APIKeyHeader)), []byte(key)) == 1
+}
+
 // withAPIKey admits callers that know the API key: every machine of yours.
 func (m *Machine) withAPIKey(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		want := m.o.Secrets.APIKey
-		got := r.Header.Get(api.APIKeyHeader)
-		if want == "" || subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		if !m.matchesAPIKey(r) {
 			writeError(w, http.StatusUnauthorized, "missing or wrong "+api.APIKeyHeader)
 			return
 		}
 		h(w, r)
 	}
+}
+
+// Library entries can install code and change agent instructions across the fleet.
+func (m *Machine) withLibraryPeer(h http.HandlerFunc) http.HandlerFunc {
+	return m.withAPIKey(func(w http.ResponseWriter, r *http.Request) {
+		if _, owned := m.tail.owned(caller(r)); !owned {
+			writeError(w, http.StatusForbidden, "library sync is limited to devices on your Tailscale account")
+			return
+		}
+		h(w, r)
+	})
 }
 
 func (m *Machine) serveLibraryState(w http.ResponseWriter, _ *http.Request) {
@@ -51,11 +65,7 @@ func (m *Machine) serveLibrary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, l)
 }
 
-// caller is the machine that sent r: the name it gives, else its address.
 func caller(r *http.Request) string {
-	if name := r.Header.Get(api.ForwardedHeader); name != "" {
-		return name
-	}
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return host
 }
@@ -66,7 +76,7 @@ func (m *Machine) acceptLibrary(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, libraryLimit, &incoming) {
 		return
 	}
-	err := m.library.take(incoming, time.Now())
+	err := m.library.take(r.Context(), incoming, time.Now())
 	m.logTake(err, incoming.Stamp)
 	if errors.Is(err, errNotNewer) {
 		added, addErr := m.library.addFetched(incoming.Files)

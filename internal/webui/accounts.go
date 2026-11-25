@@ -110,7 +110,11 @@ func timeOrNil(t time.Time) *time.Time {
 }
 
 func (s *Server) serveDoctor(w http.ResponseWriter, r *http.Request) {
-	sections := s.b.Doctor(r.Context())
+	writeJSON(w, DoctorReport(s.b.Doctor(r.Context())))
+}
+
+// DoctorReport formats the diagnostic checks for the dashboard and CLI.
+func DoctorReport(sections []doctor.Section) Doctor {
 	out := Doctor{Sections: []Section{}, Failures: doctor.Failures(sections)}
 	levels := map[doctor.Level]string{doctor.OK: "ok", doctor.Warn: "warn", doctor.Fail: "fail"}
 	for _, sec := range sections {
@@ -123,7 +127,7 @@ func (s *Server) serveDoctor(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Sections = append(out.Sections, section)
 	}
-	writeJSON(w, out)
+	return out
 }
 
 func (s *Server) serveKeys(w http.ResponseWriter, _ *http.Request) {

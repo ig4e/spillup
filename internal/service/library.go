@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -72,7 +73,7 @@ func (s *libraryShare) snapshot(now time.Time) (api.Library, error) {
 }
 
 // take stores incoming when it is newer than this machine's library, and errNotNewer otherwise.
-func (s *libraryShare) take(incoming api.Library, now time.Time) error {
+func (s *libraryShare) take(ctx context.Context, incoming api.Library, now time.Time) error {
 	if incoming.Protocol > 2 {
 		return errors.New("unsupported library protocol; update spinup")
 	}
@@ -91,7 +92,7 @@ func (s *libraryShare) take(incoming api.Library, now time.Time) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	err := s.lib.TakeIf(incoming.Files, incoming.Stamp.ChangedAt, func(current []library.File) error {
+	err := s.lib.TakeIf(ctx, incoming.Files, incoming.Stamp.ChangedAt, func(current []library.File) error {
 		if observedAt := time.Now(); observedAt.After(now) {
 			now = observedAt
 		}

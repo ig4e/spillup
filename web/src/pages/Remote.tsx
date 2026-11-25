@@ -1,13 +1,13 @@
 import { Popover } from "@heroui/react";
 import { Expand, KeyRound, Link2, Monitor, MonitorSmartphone, Play, Sun, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { TaskLog } from "../components/TaskProgress";
 import { Dot, Group, IconTile, LargeTitle, Row, osName } from "../components/ui";
 import { OsTile } from "../components/brand";
 import { api } from "../lib/api";
-import { useAction, useQuery } from "../lib/hooks";
-import type { Machine, RemoteHost, SetupProgress } from "../lib/types";
+import { useAction, useQuery, useTaskProgress } from "../lib/hooks";
+import type { Machine, RemoteHost } from "../lib/types";
 
 const mocked = import.meta.env.VITE_MOCK === "1";
 
@@ -23,20 +23,11 @@ export function RemotePage() {
   const remote = useQuery(api.remote, 5000);
   const machines = useQuery(api.machines, 15000);
   const { pending, run } = useAction();
-  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  const { progress, setProgress, connectionError } = useTaskProgress("remote");
   const [streaming, setStreaming] = useState<Streaming | null>(null);
   const st = remote.data;
   const all = machines.data?.machines ?? [];
 
-  useEffect(() => {
-    if (!progress?.running) return;
-    const id = setInterval(async () => {
-      const p = await api.setupProgress();
-      setProgress(p);
-      if (!p.running) void remote.reload();
-    }, 1000);
-    return () => clearInterval(id);
-  }, [progress?.running, remote]);
 
   const setUp = async () => {
     if (await run("setup", api.remoteSetup)) setProgress({ running: true, done: false, log: [] });
@@ -72,6 +63,7 @@ export function RemotePage() {
         {progress ? (
           <TaskLog
             progress={progress}
+          connectionError={connectionError}
             hint="Approve any administrator prompt. spillup installs Sunshine, Moonlight and the browser client, then pairs your machines."
             onRetry={() => setProgress(null)}
             onDone={() => {

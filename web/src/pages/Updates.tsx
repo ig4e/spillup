@@ -1,11 +1,10 @@
 import { Button } from "../components/Button";
 import { CloudDownload, Package, RefreshCw, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TaskLog } from "../components/TaskProgress";
-import type { SetupProgress } from "../lib/types";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Toggle } from "../components/ui";
 import { api } from "../lib/api";
-import { useAction, useQuery } from "../lib/hooks";
+import { useAction, useQuery, useTaskProgress } from "../lib/hooks";
 
 export function UpdatesPage() {
   const update = useQuery(api.update);
@@ -65,17 +64,13 @@ export function UpdatesPage() {
 
 /** The system's own packages, which own Tailscale, Sunshine and Moonlight here: a full update you start. */
 function SystemUpdates({ pending, reload }: { pending: string[]; reload: () => Promise<void> }) {
-  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  const { progress, setProgress, connectionError } = useTaskProgress("update");
   const { pending: busy, run } = useAction();
-  useEffect(() => {
-    if (!progress?.running) return;
-    const id = setInterval(async () => setProgress(await api.setupProgress()), 1000);
-    return () => clearInterval(id);
-  }, [progress?.running]);
   if (progress) {
     return (
       <TaskLog
         progress={progress}
+          connectionError={connectionError}
         hint="spillup runs a full system update (pacman -Syu), the only kind Arch supports."
         onRetry={() => setProgress(null)}
         onDone={() => {

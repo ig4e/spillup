@@ -28,7 +28,7 @@ func (m *Machine) follow(ctx context.Context, leader string, epoch int64, ts tai
 		return
 	}
 	changed := m.ledger.follow(leader, epoch)
-	m.notes.routeTo(addr)
+	m.notes.routeTo(leader, addr)
 	m.transition.Unlock()
 	if changed {
 		m.replica.pullSoon()

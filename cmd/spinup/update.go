@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/darkyeg/spinup/internal/config"
+	"github.com/darkyeg/spinup/internal/filelock"
 	"github.com/darkyeg/spinup/internal/host"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/release"
@@ -33,17 +35,29 @@ a full system update. The accounts stay where they are.`
 }
 
 func (c updateCmd) Run() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+	lockCtx, stop := context.WithTimeout(ctx, time.Second)
+	lock, err := filelock.Acquire(lockCtx, filepath.Join(config.StateDir(), "update.lock"))
+	stop()
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.New("another spillup update is already running")
+	}
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	removeReplacedBinary()
 	newer, err := updateSelf(ctx)
 	switch {
 	case err != nil:
 		step("Couldn't update spinup: %v", err)
 	case newer != "":
-		return runUpdated(newer, c.args()...)
+		lock.Close()
+		return runUpdated(ctx, newer, c.args()...)
 	}
 	var failed []string
-	for _, part := range []struct {
+	parts := []struct {
 		name string
 		run  func(context.Context) error
 	}{
@@ -56,8 +70,19 @@ func (c updateCmd) Run() error {
 		{"T3 Code", func(ctx context.Context) error { return updateT3(ctx, c.Auto) }},
 		{"remote desktop", func(ctx context.Context) error { return updateRemote(ctx, c.Auto) }},
 		{"system packages", func(ctx context.Context) error { return updateSystem(ctx, c.System) }},
-	} {
-		if err := part.run(ctx); err != nil {
+	}
+	for i, part := range parts {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		fmt.Printf("\n[%d/%d] Update %s\n", i+1, len(parts), part.name)
+		partCtx, stop := context.WithTimeout(ctx, 45*time.Minute)
+		err := part.run(partCtx)
+		if partCtx.Err() != nil {
+			err = partCtx.Err()
+		}
+		stop()
+		if err != nil {
 			step("%s: %v", part.name, err)
 			failed = append(failed, part.name)
 		}
@@ -138,8 +163,9 @@ func (c updateCmd) args() []string {
 }
 
 // runUpdated finishes the update with the new binary, so the rest runs the new code.
-func runUpdated(exe string, args ...string) error {
-	cmd := exec.Command(exe, append([]string{"update"}, args...)...)
+func runUpdated(ctx context.Context, exe string, args ...string) error {
+	cmd := exec.CommandContext(ctx, exe, append([]string{"update"}, args...)...)
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	err := cmd.Run()
 	if exit := (*exec.ExitError)(nil); errors.As(err, &exit) {

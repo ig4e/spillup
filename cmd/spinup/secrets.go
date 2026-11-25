@@ -69,7 +69,7 @@ func obtainSecrets(cfg config.Config, ts tailnet.Status, req serviceRequest) (co
 func joinFleet(ts tailnet.Status, port int, hold config.Hold) (config.Secrets, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	client := api.Client{HTTP: &http.Client{Transport: &http.Transport{Proxy: nil}}}
+	client := api.Client{HTTP: directMachineClient}
 	for _, p := range ts.Peers {
 		if !p.Online || !ts.SameOwner(p) {
 			continue
@@ -126,11 +126,16 @@ func fetchSecrets(ts tailnet.Status, port int, password string) (config.Secrets,
 
 // secretsFrom sends the password only to a device that proves it knows it.
 func secretsFrom(ctx context.Context, candidates []holderCandidate, password string) (config.Secrets, error) {
-	public := api.Client{HTTP: http.DefaultClient}
-	keyed := api.Client{HTTP: http.DefaultClient, Key: password}
+	public := api.Client{HTTP: directMachineClient}
+	keyed := api.Client{HTTP: directMachineClient, Key: password}
 	claimedWithoutProof := ""
 	for _, c := range candidates {
-		l, proof, err := public.AskLeader(ctx, c.base, c.name, config.Secrets{ManagementPassword: password})
+		if ctx.Err() != nil {
+			return config.Secrets{}, ctx.Err()
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		l, proof, err := public.AskLeader(probeCtx, c.base, c.name, config.Secrets{ManagementPassword: password})
+		cancel()
 		switch {
 		case err != nil || !l.Leading || l.Name != c.name:
 			continue
@@ -158,4 +163,13 @@ func orAsk(given, prompt, what string) (string, error) {
 		return "", fmt.Errorf("no %s given", what)
 	}
 	return given, nil
+}
+
+var directMachineClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 4 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		IdleConnTimeout:     60 * time.Second,
+		MaxIdleConnsPerHost: 4,
+	},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }

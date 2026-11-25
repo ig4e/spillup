@@ -49,7 +49,7 @@ func (m *Machine) destination() (destination, bool) {
 		proxyAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(m.cfg.ProxyPort))
 		return destination{url: &url.URL{Host: proxyAddr}, end: end}, true
 	}
-	if _, leaderAddr := m.notes.get(); leaderAddr != "" {
+	if _, _, leaderAddr := m.notes.get(); leaderAddr != "" {
 		return destination{url: &url.URL{Host: leaderAddr}, toPeer: true}, true
 	}
 	return destination{}, false
@@ -74,11 +74,21 @@ func (m *Machine) takeoverPossible() bool {
 
 // forward sends everything that isn't spinup's own (the API, the dashboard) to whoever holds the accounts.
 func (m *Machine) forward(w http.ResponseWriter, r *http.Request) {
+	clearDeadline := readBodyDeadline(w, 2*time.Minute)
+	defer clearDeadline()
 	if err := keepBody(r); err != nil {
 		writeError(w, http.StatusBadRequest, "couldn't read the request: "+err.Error())
 		return
 	}
 	m.forwarder.ServeHTTP(w, r)
+}
+
+func readBodyDeadline(w http.ResponseWriter, within time.Duration) func() {
+	controller := http.NewResponseController(w)
+	if controller.SetReadDeadline(time.Now().Add(within)) != nil {
+		return func() {}
+	}
+	return func() { _ = controller.SetReadDeadline(time.Time{}) }
 }
 
 // keepBody makes a request that fits in replayBodyUpTo sendable again: a larger body is sent once.

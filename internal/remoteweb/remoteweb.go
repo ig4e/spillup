@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -115,12 +116,23 @@ func (i Install) Download(ctx context.Context) (string, error) {
 // unpack returns the archive's files under its package/ folder, by their path inside it.
 func unpack(name string, data []byte) (map[string][]byte, error) {
 	out := map[string][]byte{}
-	add := func(path string, r io.Reader) error {
-		rel, ok := strings.CutPrefix(filepath.ToSlash(path), "package/")
-		if !ok || rel == "" || strings.Contains(rel, "..") {
+	remaining := int64(256 << 20)
+	add := func(name string, r io.Reader) error {
+		rel, ok := strings.CutPrefix(filepath.ToSlash(name), "package/")
+		if !ok || rel == "" {
 			return nil
 		}
-		content, err := io.ReadAll(io.LimitReader(r, 256<<20))
+		if rel == "." || !filepath.IsLocal(filepath.FromSlash(rel)) || path.Clean(rel) != rel || strings.ContainsAny(rel, `\:`) {
+			return fmt.Errorf("invalid moonlight-web archive path %q", rel)
+		}
+		if _, exists := out[rel]; exists {
+			return fmt.Errorf("duplicate moonlight-web archive path %q", rel)
+		}
+		content, err := io.ReadAll(io.LimitReader(r, remaining+1))
+		if int64(len(content)) > remaining {
+			return errors.New("moonlight-web archive exceeds its expanded size limit")
+		}
+		remaining -= int64(len(content))
 		out[rel] = content
 		return err
 	}
@@ -130,7 +142,7 @@ func unpack(name string, data []byte) (map[string][]byte, error) {
 			return nil, err
 		}
 		for _, f := range z.File {
-			if f.FileInfo().IsDir() {
+			if !f.Mode().IsRegular() {
 				continue
 			}
 			rc, err := f.Open()
@@ -149,9 +161,14 @@ func unpack(name string, data []byte) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	tr := tar.NewReader(gz)
+	defer gz.Close()
+	limited := &io.LimitedReader{R: gz, N: (256 << 20) + 1}
+	tr := tar.NewReader(limited)
 	for {
 		h, err := tr.Next()
+		if limited.N == 0 {
+			return nil, errors.New("moonlight-web archive exceeds its expanded size limit")
+		}
 		if errors.Is(err, io.EOF) {
 			return out, nil
 		}

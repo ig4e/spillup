@@ -164,6 +164,8 @@ func (m *Machine) newOwnForwarder() *httputil.ReverseProxy {
 // forwardLocal is the router for this machine's own programs: families it serves itself go to its own
 // logins, never to the shared accounts, so a missing sign-in fails loudly instead of sharing a token.
 func (m *Machine) forwardLocal(w http.ResponseWriter, r *http.Request) {
+	clearDeadline := readBodyDeadline(w, 2*time.Minute)
+	defer clearDeadline()
 	if err := keepBody(r); err != nil {
 		writeError(w, http.StatusBadRequest, "couldn't read the request: "+err.Error())
 		return

@@ -1,4 +1,4 @@
-import type { App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { ActivityEntry, App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -42,17 +42,29 @@ async function call<T>(method: "GET" | "POST", target: string, body?: unknown, l
     const { mock } = await import("./mock");
     return mock(method, path, body) as Promise<T>;
   }
-  const res = await fetch(`/api/${path}`, {
-    method,
-    headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
-    body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
-    credentials: "same-origin",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiError(data?.error?.message ?? `${res.status} ${res.statusText}`, res.status);
+  const timeout = target === "setup" && method === "GET" ? 8_000 : method === "GET" ? 45_000 : 90_000;
+  const signal = AbortSignal.timeout(timeout);
+  try {
+    const res = await fetch(`/api/${path}`, {
+      method,
+      headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+      body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
+      credentials: "same-origin",
+      signal,
+    });
+    if (res.status === 204) return undefined as T;
+    const data = res.headers.get("Content-Type")?.includes("application/json") ? await res.json() : undefined;
+    if (!res.ok) {
+      throw new ApiError(data?.error?.message ?? `${res.status} ${res.statusText}`, res.status);
+    }
+    if (data === undefined) throw new ApiError("The machine returned an unexpected response.", res.status);
+    return data as T;
+  } catch (error) {
+    if (signal.aborted) {
+      throw new ApiError(method === "GET" ? "The machine took too long to respond." : "The machine took too long to respond. Check its status before retrying.", 408);
+    }
+    throw error;
   }
-  return data as T;
 }
 
 const post = (path: string, body?: unknown) => call<Done>("POST", path, body);
@@ -89,7 +101,7 @@ export const api = {
   /** A host's apps, from this machine's moonlight-web, which the dashboard serves at /remote/. */
   remoteApps: async (hostId: number): Promise<{ app_id: number; title: string }[]> => {
     if (mocked) return [{ app_id: 1, title: "Desktop" }, { app_id: 2, title: "Steam Big Picture" }];
-    const res = await fetch(`/remote/api/apps?host_id=${hostId}`, { credentials: "same-origin" });
+    const res = await fetch(`/remote/api/apps?host_id=${hostId}`, { credentials: "same-origin", signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new ApiError((await res.text()) || res.statusText, res.status);
     return ((await res.json()) as { apps: { app_id: number; title: string }[] }).apps;
   },
@@ -98,6 +110,7 @@ export const api = {
   /** Confirms the PIN Moonlight shows on machine's Sunshine (null: this machine). */
   sunshinePin: (machine: string | null, pin: string) =>
     call<{ message: string }>("POST", machine ? `remote/${encodeURIComponent(machine)}/sunshine/pin` : "sunshine/pin", { pin }, true),
+  recentActivity: () => call<ActivityEntry[]>("GET", "activity"),
   /** A machine's specs and load: this one, or another by name, whichever dashboard is shown. */
   statsOf: (machine: string | null) => call<Stats>("GET", machine ? `remote/${encodeURIComponent(machine)}/stats` : "stats", undefined, true),
   /** Asks a program on machine (null: this one) to quit, or with force ends it. */
@@ -111,7 +124,7 @@ export const api = {
   setHubOnly: (hub_only: boolean) => post("accounts/mode", { hub_only }),
   fix: (fix: string) => post("fix", { fix }),
   setup: (name: string, role: string) => post("setup", { name, role }),
-  setupProgress: () => call<SetupProgress>("GET", "setup"),
+  setupProgress: () => call<SetupProgress>("GET", "setup", undefined, true),
   answerSetup: (password: string, cancel = false) => post("setup/answer", { password, cancel }),
   update: () => call<UpdateState>("GET", "update"),
   startUpdate: () => post("update"),

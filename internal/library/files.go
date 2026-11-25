@@ -145,13 +145,15 @@ func (l Library) AddFetched(files []File) (added []string, err error) {
 // fetched skill that came along replaces this machine's copy of it. File times keep the source date
 // so losing the tracker cannot make a received copy look like a new local edit.
 func (l Library) Take(files []File, changedAt time.Time) error {
-	return l.TakeIf(files, changedAt, nil)
+	return l.TakeIf(context.Background(), files, changedAt, nil)
 }
 
 // TakeIf validates a replacement, then checks it against the current files while
 // holding the same lock as package edits. A rejected check makes no changes.
-func (l Library) TakeIf(files []File, changedAt time.Time, accept func([]File) error) error {
-	lock, err := filelock.Acquire(context.Background(), l.Path(".packages.lock"))
+func (l Library) TakeIf(ctx context.Context, files []File, changedAt time.Time, accept func([]File) error) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	lock, err := filelock.Acquire(ctx, l.Path(".packages.lock"))
 	if err != nil {
 		return err
 	}
