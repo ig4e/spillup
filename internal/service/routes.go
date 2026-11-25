@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
@@ -105,7 +106,7 @@ func (m *Machine) tailnetHandler() http.Handler {
 // machine's dashboard and nobody else's device can. An API key alone can read a worker's overview.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == dashboardPrefix+"api/host/clipboard" {
+		if r.URL.Path == dashboardPrefix+"api/host/clipboard" || strings.HasPrefix(r.URL.Path, dashboardPrefix+"api/host/mcp/") {
 			m.withOwnedPeer(h.ServeHTTP)(w, r)
 			return
 		}

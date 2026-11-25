@@ -17,7 +17,7 @@ For example, the file can contain `Keep explanations concise and report the chec
 | Project rules | The project's `AGENTS.md` and agent settings | Commit them in that project |
 | Provider endpoints, credentials and machine paths | Local agent config or that T3 Code provider instance | Configure them locally; keep secrets out of git and the library |
 
-The library shares instructions and skills, not the whole `~/.claude` or `~/.codex` folder and not the settings templates in `agents/`. MCP server settings, device URLs and plugin installation state stay local; see the [sync boundary](LIBRARY.md#what-stays-on-each-machine). Computers with different spinup versions or different checkouts can apply different defaults. Use the same version and source before expecting identical managed values.
+The library shares instructions and skills, not the whole `~/.claude` or `~/.codex` folder and not the settings templates in `agents/`. MCP definitions can be shared and approved separately for each native client ([MCP guide](MCP.md)). Device URLs in native config and plugin installation state stay local; see the [sync boundary](LIBRARY.md#what-stays-on-each-machine). Computers with different spinup versions or different checkouts can apply different defaults. Use the same version and source before expecting identical managed values.
 
 Complete plugins are managed separately with `spinup packages`. Portable package requests and locked content are shared, while each native manager maintains its own local registration. Package management preserves personal model settings and uses independent receipts for each resolved tool home. See [PACKAGES.md](PACKAGES.md).
 

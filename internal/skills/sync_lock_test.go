@@ -45,7 +45,7 @@ func TestSyncSerializesStoreWriters(t *testing.T) {
 	f := newFixture(t, sampleManifest)
 	var entered atomic.Int32
 	started, release := make(chan struct{}), make(chan struct{})
-	f.manager.install = func(ctx context.Context, _ string, _ []string, names []string) (string, error) {
+	f.manager.install = func(ctx context.Context, project, _ string, names []string) (string, error) {
 		if entered.Add(1) == 1 {
 			close(started)
 			<-release
@@ -54,7 +54,7 @@ func TestSyncSerializesStoreWriters(t *testing.T) {
 			return "", ctx.Err()
 		}
 		for _, name := range names {
-			write(t, filepath.Join(f.paths.store, name, skillFile), "---\ndescription: installed\n---\n")
+			write(t, filepath.Join(project, ".agents", "skills", name, skillFile), "---\ndescription: installed\n---\n")
 		}
 		return "", nil
 	}

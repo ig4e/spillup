@@ -7,14 +7,13 @@ import { CopyButton, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row, holdN
 import { OsTile } from "../components/brand";
 import { Resources } from "../components/Resources";
 import { HealthTimeline } from "../components/HealthTimeline";
-import { Scan } from "../components/Scan";
 import { api, currentRemote, setRemote } from "../lib/api";
 import { relative } from "../lib/format";
 import { navigate, useAction, useQuery } from "../lib/hooks";
 import type { Machine } from "../lib/types";
 
 export function MachinesPage() {
-  const machines = useQuery(api.machines, 5000);
+  const machines = useQuery(api.managedMachines, 15000);
   const overview = useOverview();
   const { run } = useAction();
   const { ask, dialog } = useConfirm();
@@ -64,7 +63,7 @@ export function MachinesPage() {
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Tailscale didn’t answer</Alert.Title>
+            <Alert.Title>Couldn’t read managed machines</Alert.Title>
             <Alert.Description>{machines.error?.message ?? machines.data?.problem}</Alert.Description>
           </Alert.Content>
         </Alert>
@@ -126,14 +125,13 @@ export function MachinesPage() {
       {machines.loading && !machines.data ? (
         <GroupSkeleton rows={4} />
       ) : machines.data ? (
-        <Group title="Devices" footer={`${all.filter((m) => m.online).length} of ${all.length} online.`}>
+        <Group title="Managed machines" footer="Other Tailnet devices appear in Tailscale.">
           {all.map((m) => (
             <DeviceRow key={m.name} m={m} canManage={canManage} onMakeMain={() => makeMain(m)} onMoveHere={() => moveHere(m)} />
           ))}
         </Group>
       ) : null}
       <HealthTimeline />
-      <Scan />
       {dialog}
     </>
   );
@@ -144,7 +142,7 @@ function DeviceRow({ m, canManage, onMakeMain, onMoveHere }: { m: Machine; canMa
   const actions = [
     canHold && m.hold !== "hub" ? { id: "main", label: "Make Main Machine", icon: Crown } : null,
     canHold && !m.leading && m.online ? { id: "move", label: "Move Accounts Here Now", icon: ArrowRightLeft } : null,
-    !m.is_self && m.online && !currentRemote() && m.hold ? { id: "open", label: "Open Dashboard", icon: AppWindow } : null,
+    !m.is_self && m.online && !m.expired && !currentRemote() ? { id: "open", label: "Open Dashboard", icon: AppWindow } : null,
   ].filter((a): a is NonNullable<typeof a> => !!a);
 
   const status = m.expired ? "Tailscale login expired" : m.online ? "Online" : `Offline · seen ${relative(m.last_seen)}`;

@@ -132,7 +132,7 @@ function MachineResources({ machine }: { machine: Machine }) {
 
 /** Live specs and load for every online machine that runs spillup. */
 export function Resources({ machines }: { machines: Machine[] }) {
-  const shown = machines.filter((m) => m.online && (m.is_self || m.hold || m.state));
+  const shown = machines.filter((m) => m.online && !m.expired);
   if (!shown.length) return null;
   return (
     <section className="mb-7">

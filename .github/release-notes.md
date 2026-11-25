@@ -8,6 +8,11 @@
 - Revisiting a page immediately shows the selected machine's last reading while Spillup checks for changes. Views share requests, and common navigation links can preload their data.
 - Machine rows, quota readings and resource graphs stay visible during temporary refresh failures. Activity keeps process actions tied to the machine that supplied the process list.
 - **T3 Code → Phones & tablets** shows which online host holds each phone's pairing. Spillup reads T3's existing mobile sessions, so already-paired phones appear without scanning another code.
+- Machines, Activity and the dashboard switcher show verified Spillup hosts. Terminal targets also have to enable terminal access. Tailscale still lists the devices on the network.
+
+- Overview graphs CPU, memory and network traffic from the selected machine, alongside its account holder, proxy and managed peers.
+- Skills and MCP servers have per-item sharing. Start locally, keep a private working copy, or publish it. Enable MCPs in Claude Code and Codex per machine. One-time secret transfers require both a named recipient and that recipient’s approval.
+- TanStack Query backs navigation, refreshes and optimistic skill-mode and update settings. Failed writes roll back to the confirmed value.
 
 ### Install
 

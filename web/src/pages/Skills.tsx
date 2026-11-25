@@ -1,51 +1,81 @@
 import { Alert, Checkbox, Description, Input, Label, Modal, Switch, TextField } from "@heroui/react";
 import { Button } from "../components/Button";
+import { MCPServers } from "../components/MCPServers";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { BrandTile } from "../components/brand";
 import { Group, GroupSkeleton, IconTile, LargeTitle, Row, Segmented, Toggle } from "../components/ui";
-import { api } from "../lib/api";
+import { useOptimisticSetting } from "../lib/useOptimisticSetting";
+import { api, localDashboard } from "../lib/api";
 import { capitalize, relative } from "../lib/format";
-import { useAction, useQuery } from "../lib/hooks";
-import type { LocalSkill, RemovedSkill, SharedSkill, Skills } from "../lib/types";
+import { useAction, useQuery, useRemote } from "../lib/hooks";
+import type { LocalSkill, RemovedSkill, SharedSkill, SkillSharingAction, Skills } from "../lib/types";
+
+type SkillScope = { name: string; kind: "private" | "shared" | "unmanaged"; fleet?: boolean; path?: string };
+
+const scopeLabels: Record<SkillSharingAction | "adopt", string> = {
+  private: "Keep local copy", resume: "Use shared copy", publish: "Publish local copy", adopt: "Share with library",
+};
+const scopeDetails: Record<SkillSharingAction | "adopt", string> = {
+  private: "This machine will keep its own editable copy when the library changes.",
+  resume: "Replace this machine’s edits with the current shared skill and follow future changes.",
+  publish: "Publish this machine’s skill files to the library for your other machines to use.",
+  adopt: "Add this skill to the shared library for your other machines.",
+};
 
 const TOKEN_BUDGET = 8000;
+const countLabel = (label: string, count?: number) => <>{label}<span className="max-[360px]:sr-only"> {count ?? "–"}</span></>;
 
 export function SkillsPage() {
   const skills = useQuery(api.skills);
   const { pending, run } = useAction();
-  const [addOpen, setAddOpen] = useState(false);
-  const [tab, setTab] = useState<"shared" | "here" | "removed">("shared");
-  const data = skills.data;
+  const [addScope, setAddScope] = useState<"choose" | "shared" | null>(null);
+  const [tab, setTab] = useState<"shared" | "here" | "removed" | "mcp">("shared");
+  const mode = useOptimisticSetting(api.skills, skills.data,
+    (machine, edit: { name: string; auto: boolean }) => api.setMode(machine, edit.name, edit.auto),
+    (previous, edit): Skills => ({
+      ...previous,
+      shared: previous.shared.map(skill => skill.name === edit.name ? { ...skill, mode: edit.auto ? "auto" : "manual" } : skill),
+    }));
+  const data = mode.data;
+  const remote = useRemote();
+  const local = localDashboard && !remote;
+  const canManageScope = local && !!data?.sharing_available;
+  const [scope, setScope] = useState<SkillScope | null>(null);
+  const shared = data?.shared.filter(s => !s.private) ?? [];
+  const privateSkills = data?.shared.filter(s => s.private) ?? [];
+  const manage = canManageScope ? setScope : undefined;
 
   return (
     <>
       <LargeTitle
-        title="Skills"
+        title="Skills & MCP"
         center={
             <Segmented
               label="Skill lists"
               value={tab}
               onChange={setTab}
               options={[
-                { id: "shared", label: `Shared ${data?.shared.length ?? "–"}` },
-                { id: "here", label: `Only Here ${data?.only_here.length ?? "–"}` },
-                { id: "removed", label: `Removed ${data?.removed.length ?? "–"}` },
+                { id: "shared", label: countLabel("Shared", data ? shared.length : undefined) },
+                { id: "here", label: countLabel("Only Here", data ? data.only_here.length + privateSkills.length : undefined) },
+                { id: "removed", label: countLabel("Removed", data?.removed.length) },
+                { id: "mcp", label: "MCP" },
               ]}
             />
         }
         actions={
-          <>
-            <Button variant="secondary" size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.syncSkills, skills.reload)}>
-              <><RefreshCw className="size-3.5" />Sync</>
+          tab === "mcp" ? undefined : <>
+            <Button aria-label="Sync skills" className="max-[400px]:px-2" variant="secondary" size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.syncSkills, skills.reload)}>
+              <><RefreshCw className="size-3.5" /><span className="max-[400px]:sr-only">Sync</span></>
             </Button>
-            <Button size="sm" onPress={() => setAddOpen(true)}>
-              <Plus className="size-3.5" /> Add Skills
-            </Button>
+            {local ? <Button size="sm" aria-label="Add Skills" className="max-[400px]:px-2" isDisabled={!data || !!skills.refreshError} onPress={() => setAddScope(canManageScope ? "choose" : "shared")}>
+              <Plus className="size-3.5" /><span className="max-[400px]:sr-only">Add Skills</span>
+            </Button> : null}
           </>
         }
       />
 
+      {tab === "mcp" ? <MCPServers /> : <>
       {skills.error ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
@@ -70,15 +100,59 @@ export function SkillsPage() {
       ) : data ? (
         <>
           <Budget data={data} />
-          {tab === "shared" ? <SharedList skills={data.shared} library={data.library} reload={skills.reload} /> : null}
-          {tab === "here" ? <OnlyHereList skills={data.only_here} reload={skills.reload} /> : null}
+          {tab === "shared" ? <SharedList skills={shared} manage={manage} library={data.library} reload={skills.reload} savingMode={mode.pending} setMode={(name, auto) => mode.save({ name, auto })} /> : null}
+          {tab === "here" ? <>
+            {privateSkills.length ? <Group title="Private skills">{privateSkills.map(s =>
+              <Row key={s.name} icon={<IconTile icon={HardDrive} color="indigo" />} title={s.name}
+                subtitle={s.path ?? "Private working copy"}
+                accessory={<div className="flex flex-wrap items-center justify-end gap-2">
+                  <Toggle label={s.name + " runs on its own"} isSelected={s.mode === "auto"} isDisabled={mode.pending || !canManageScope} onChange={auto => mode.save({ name: s.name, auto })} />
+                  {manage ? <ScopeButton skill={{ name: s.name, kind: "private", fleet: s.shared_available, path: s.path }} manage={manage} /> : null}
+                </div>} />
+            )}</Group> : null}
+            <OnlyHereList skills={data.only_here} manage={manage} local={local} reload={skills.reload} />
+          </> : null}
           {tab === "removed" ? <RemovedList skills={data.removed} reload={skills.reload} /> : null}
         </>
       ) : null}
 
-      <AddSkills isOpen={addOpen} onOpenChange={setAddOpen} onAdded={skills.reload} />
+      {addScope && local ? <AddSkills canManageScope={addScope === "choose"} isOpen={!!data && (addScope !== "choose" || canManageScope)} onOpenChange={open => { if (!open) setAddScope(null); }} onAdded={skills.reload} /> : null}
+      {scope && canManageScope ? <ScopeDialog skill={scope} close={() => setScope(null)} reload={skills.reload} /> : null}
+      </>}
     </>
   );
+}
+
+function ScopeButton({ skill, manage }: { skill: SkillScope; manage: (s: SkillScope) => void }) {
+  return <Button size="sm" variant="secondary" aria-label={"Sharing for " + skill.name} onPress={() => manage(skill)}>Sharing</Button>;
+}
+
+function ScopeDialog({ skill, close, reload }: { skill: SkillScope; close: () => void; reload: () => Promise<void> }) {
+  const [action, setAction] = useState<SkillSharingAction | "adopt" | null>(null);
+  const { pending, run } = useAction();
+  const actions: (SkillSharingAction | "adopt")[] = skill.kind === "shared" ? ["private"] : skill.kind === "unmanaged"
+    ? ["private", "adopt"] : skill.fleet ? ["publish", "resume"] : ["publish"];
+  const apply = async () => {
+    if (!action) return;
+    const mutate = action === "adopt" ? () => api.adoptSkills([skill.name]) : () => api.setSkillSharing(skill.name, action);
+    if (await run(action, mutate, reload)) close();
+  };
+  return <Modal.Backdrop isOpen onOpenChange={value => { if (!value && !pending) close(); }} variant="blur">
+    <Modal.Container size="sm"><Modal.Dialog>
+      <Modal.Header><Modal.Heading className="break-words">{skill.name}</Modal.Heading></Modal.Header>
+      <Modal.Body className="min-w-0 space-y-3">
+        {action ? <p>{scopeDetails[action]}</p> : <>
+          <p>{skill.kind === "shared" ? "This machine follows the shared skill." : skill.kind === "private" ? "Edits stay on this machine." : "Installed only on this machine."}</p>
+          {skill.path ? <code className="block text-xs [overflow-wrap:anywhere]">{skill.path}</code> : null}
+          <div className="flex flex-wrap gap-2">{actions.map(a => <Button key={a} size="sm" variant="secondary" onPress={() => setAction(a)}>{scopeLabels[a]}</Button>)}</div>
+        </>}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="tertiary" isDisabled={!!pending} onPress={close}>Cancel</Button>
+        {action ? <Button isPending={!!pending} onPress={() => void apply()}>{scopeLabels[action]}</Button> : null}
+      </Modal.Footer>
+    </Modal.Dialog></Modal.Container>
+  </Modal.Backdrop>;
 }
 
 function Budget({ data }: { data: Skills }) {
@@ -108,7 +182,10 @@ function Budget({ data }: { data: Skills }) {
   );
 }
 
-function SharedList({ skills, library, reload }: { skills: SharedSkill[]; library: string; reload: () => Promise<void> }) {
+function SharedList({ skills, library, reload, savingMode, setMode, manage }: {
+  skills: SharedSkill[]; library: string; reload: () => Promise<void>;
+  manage?: (skill: SkillScope) => void; savingMode: boolean; setMode: (name: string, auto: boolean) => void;
+}) {
   const { pending, run } = useAction();
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -151,7 +228,7 @@ function SharedList({ skills, library, reload }: { skills: SharedSkill[]; librar
           </span>
         ) : (
           <>
-            Stored in <span className="font-mono">{library}</span>. Removed skills are kept, never deleted.
+            Shared from <span className="font-mono">{library}</span>.
           </>
         )
       }
@@ -182,12 +259,14 @@ function SharedList({ skills, library, reload }: { skills: SharedSkill[]; librar
             subtitle={`${s.source === "yours" ? "Your own" : s.source} · ${s.agents.length ? s.agents.map(capitalize).join(" & ") : "no agent yet"}`}
             accessory={
               editing ? undefined : (
-                <Toggle
+                <div className="flex flex-wrap items-center justify-end gap-2"><Toggle
                   label={`${s.name} runs on its own`}
                   isSelected={s.mode === "auto"}
-                  isDisabled={pending === s.name}
-                  onChange={(auto) => run(s.name, () => api.setMode([s.name], !auto), reload)}
+                  isDisabled={savingMode || !!pending}
+                  onChange={auto => setMode(s.name, auto)}
                 />
+                  {manage ? <ScopeButton skill={{ name: s.name, kind: "shared" }} manage={manage} /> : null}
+                </div>
               )
             }
           />
@@ -199,10 +278,10 @@ function SharedList({ skills, library, reload }: { skills: SharedSkill[]; librar
   );
 }
 
-function OnlyHereList({ skills, reload }: { skills: LocalSkill[]; reload: () => Promise<void> }) {
+function OnlyHereList({ skills, reload, manage, local }: { skills: LocalSkill[]; reload: () => Promise<void>; manage?: (s: SkillScope) => void; local: boolean }) {
   const { pending, run } = useAction();
   return (
-    <Group title="Only on This Machine" footer="Your other machines never see these. Keep one to add it to your library, on every machine.">
+    <Group title="Other installed skills">
       {skills.length ? (
         skills.map((s) => (
           <Row
@@ -211,14 +290,13 @@ function OnlyHereList({ skills, reload }: { skills: LocalSkill[]; reload: () => 
             title={s.name}
             subtitle={s.agent_own ? `${s.agents.map(capitalize).join(", ")}’s own${s.path ? ` · ${s.path}` : ""}` : "Installed here"}
             accessory={
-              <Button size="sm" variant="secondary" isPending={pending === s.name} onPress={() => run(s.name, () => api.adoptSkills([s.name]), reload)}>
-                Keep Everywhere
-              </Button>
+              manage ? <ScopeButton skill={{ name: s.name, kind: "unmanaged", path: s.path }} manage={manage} />
+                : local ? <Button size="sm" variant="secondary" isPending={pending === s.name} onPress={() => run(s.name, () => api.adoptSkills([s.name]), reload)}>Keep Everywhere</Button> : undefined
             }
           />
         ))
       ) : (
-        <Row title={<span className="text-muted">Everything here is shared.</span>} />
+        <Row title={<span className="text-muted">No other installed skills.</span>} />
       )}
     </Group>
   );
@@ -249,7 +327,8 @@ function RemovedList({ skills, reload }: { skills: RemovedSkill[]; reload: () =>
   );
 }
 
-function AddSkills({ isOpen, onOpenChange, onAdded }: { isOpen: boolean; onOpenChange: (o: boolean) => void; onAdded: () => Promise<void> }) {
+function AddSkills({ isOpen, onOpenChange, onAdded, canManageScope }: { canManageScope: boolean; isOpen: boolean; onOpenChange: (o: boolean) => void; onAdded: () => Promise<void> }) {
+  const [privateCopy, setPrivateCopy] = useState(true);
   const [repo, setRepo] = useState("");
   const [names, setNames] = useState("");
   const [auto, setAuto] = useState(true);
@@ -258,7 +337,7 @@ function AddSkills({ isOpen, onOpenChange, onAdded }: { isOpen: boolean; onOpenC
   const valid = /^[\w.-]+\/[\w.-]+$/.test(repo.trim()) && list.length > 0;
 
   const submit = async () => {
-    if (await run("add", () => api.addSkills(repo.trim(), list, !auto), onAdded)) {
+    if (await run("add", () => api.addSkills(repo.trim(), list, !auto, canManageScope && privateCopy), onAdded)) {
       setRepo("");
       setNames("");
       onOpenChange(false);
@@ -282,6 +361,10 @@ function AddSkills({ isOpen, onOpenChange, onAdded }: { isOpen: boolean; onOpenC
               <Input placeholder="frontend-design, pdf" variant="secondary" />
               <Description>Folder names in that repository</Description>
             </TextField>
+            {canManageScope ? <Segmented label="Install skills to" value={privateCopy ? "local" : "shared"}
+              onChange={value => setPrivateCopy(value === "local")}
+              options={[{ id: "local", label: "This machine" }, { id: "shared", label: "Shared library" }]} />
+              : <p className="text-sm text-muted">These skills will be added to the shared library.</p>}
             <Switch isSelected={auto} onChange={setAuto} size="sm">
               <Switch.Content>
                 <Switch.Control>

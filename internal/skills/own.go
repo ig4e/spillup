@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/darkyeg/spinup/internal/atomicfile"
 	"github.com/darkyeg/spinup/internal/library"
 )
 
@@ -37,54 +38,94 @@ const placeholderDescription = "What this skill is for, so the agent knows when 
 
 // Create writes a new skill of your own into your library and installs it everywhere.
 func (m Manager) Create(ctx context.Context, name, description string) (Added, error) {
-	if err := checkNames([]string{name}); err != nil {
-		return Added{}, err
-	}
-	dir := m.ownPath(name)
-	if _, err := os.Stat(dir); err == nil {
-		return Added{}, fmt.Errorf("you already have a skill called %s (%s)", name, dir)
-	}
+	return m.CreateScoped(ctx, name, description, false)
+}
+
+func (m Manager) CreateScoped(ctx context.Context, name, description string, private bool) (Added, error) {
 	if description == "" {
 		description = placeholderDescription
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Added{}, err
-	}
 	body := fmt.Sprintf(scaffold, name, description, name)
-	if err := os.WriteFile(filepath.Join(dir, skillFile), []byte(body), 0o644); err != nil {
-		return Added{}, err
-	}
-	synced, err := m.Sync(ctx)
-	return Added{Name: name, Path: dir, Synced: synced}, err
+	return m.addOwn(ctx, name, private, func(stage string) error { return os.WriteFile(filepath.Join(stage, skillFile), []byte(body), 0644) })
 }
 
 // Import copies a skill folder or .zip into your library and installs it everywhere.
 func (m Manager) Import(ctx context.Context, from string) (Added, error) {
+	return m.ImportScoped(ctx, from, false)
+}
+
+func (m Manager) ImportScoped(ctx context.Context, from string, private bool) (Added, error) {
 	sent, err := readSkill(from)
 	if err != nil {
 		return Added{}, err
 	}
 	defer sent.close()
-	name := sent.name
-	if err := checkNames([]string{name}); err != nil {
+	if private {
+		if err := selfContained(sent.files); err != nil {
+			return Added{}, err
+		}
+	}
+	return m.addOwn(ctx, sent.name, private, func(stage string) error { return os.CopyFS(stage, sent.files) })
+}
+
+func (m Manager) addOwn(ctx context.Context, name string, private bool, write func(string) error) (Added, error) {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
 		return Added{}, err
 	}
+	defer lock.Close()
 	dir := m.ownPath(name)
-	if _, err := os.Stat(dir); err == nil {
-		return Added{}, fmt.Errorf("you already have a skill called %s (%s); remove that folder to replace it", name, dir)
-	}
-	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+	if private {
+		if err := m.checkNewPrivate([]string{name}); err != nil {
+			return Added{}, err
+		}
+		dir = filepath.Join(m.paths.store, name)
+	} else if err := m.requireShared([]string{name}); err != nil {
 		return Added{}, err
 	}
-	if err := os.CopyFS(dir, sent.files); err != nil {
+	if _, err := os.Lstat(dir); !errors.Is(err, fs.ErrNotExist) {
+		if err != nil {
+			return Added{}, err
+		}
+		return Added{}, fmt.Errorf("you already have a skill called %s (%s)", name, dir)
+	}
+	parent := filepath.Dir(dir)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return Added{}, err
+	}
+	staging, err := os.MkdirTemp(parent, ".new-skill-*")
+	if err != nil {
+		return Added{}, err
+	}
+	defer os.RemoveAll(staging)
+	// Keep SKILL.md one level below the staging root so own-skill discovery
+	// also ignores a create interrupted immediately before the rename.
+	stage := filepath.Join(staging, "skill")
+	if err := os.Mkdir(stage, 0755); err != nil {
+		return Added{}, err
+	}
+	if err := write(stage); err != nil {
+		return Added{}, err
+	}
+	install := func() error { return atomicfile.Rename(stage, dir) }
+	if private {
+		err = m.installPrivate(name, privateSkill{Source: "this machine"}, install)
+	} else {
+		err = install()
+	}
+	if err != nil {
 		return Added{}, err
 	}
 	added := Added{Name: name, Path: dir}
 	text, _ := os.ReadFile(filepath.Join(dir, skillFile))
-	if declared := parseFrontmatter(string(text)).name; declared != "" && declared != name {
-		added.Renamed = declared
+	if n := parseFrontmatter(string(text)).name; n != "" && n != name {
+		added.Renamed = n
 	}
-	added.Synced, err = m.Sync(ctx)
+	if private {
+		added.Synced, err = m.activate(ctx, []string{name})
+	} else {
+		added.Synced, err = m.syncLocked(ctx)
+	}
 	return added, err
 }
 

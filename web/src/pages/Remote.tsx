@@ -26,11 +26,13 @@ export function RemotePage() {
 
 function RemoteBrowser({ onStart }: { onStart: (stream: Streaming) => void }) {
   const remote = useQuery(api.remote, 5000);
-  const machines = useQuery(api.localMachines, 15000);
+  const machines = useQuery(api.localManagedMachines, 15000);
   const { pending, run } = useAction();
   const { progress, setProgress, connectionError } = useTaskProgress("remote");
   const st = remote.data;
   const all = machines.data?.machines ?? [];
+  const available = all.filter(m => m.online && !m.expired);
+  const pinHosts = available.filter(m => m.is_self ? st?.sunshine_running : st?.hosts.some(h => h.machine === m.name && h.state !== "Offline"));
   const selectedHost = new URLSearchParams(window.location.search).get("hostId");
 
   const setUp = async () => {
@@ -85,10 +87,10 @@ function RemoteBrowser({ onStart }: { onStart: (stream: Streaming) => void }) {
         ) : null}
         {ready && !progress ? (
           <div className="mt-5 flex min-w-0 flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" isPending={pending === "sync"} onPress={() => run("sync", api.remoteSync, remote.reload)}>
+            {available.some(m => !m.is_self) ? <Button size="sm" variant="secondary" isPending={pending === "sync"} onPress={() => run("sync", api.remoteSync, remote.reload)}>
               <Link2 className="size-4" /> Pair machines
-            </Button>
-            <PinPopover machines={all.filter((m) => !m.is_self && m.online).map((m) => m.name)} />
+            </Button> : null}
+            {pinHosts.length ? <PinPopover machines={pinHosts} /> : null}
           </div>
         ) : null}
       </div>
@@ -119,9 +121,9 @@ function HostCard({
           <div className="mt-0.5 text-[13px] text-muted">{!online ? "Offline" : !host.paired ? "Pairing required" : osName(machine?.os)}</div>
         </div>
       </div>
-      {!host.paired ? (
-        <Button className="m-2" size="sm" variant="secondary" isDisabled={!online} isPending={pairing} onPress={onPair}>Pair</Button>
-      ) : online ? <HostApps host={host} onStart={onStart} /> : null}
+      {!host.paired && machine?.online && !machine.expired ? (
+        <Button className="m-2" size="sm" variant="secondary" isPending={pairing} onPress={onPair}>Pair</Button>
+      ) : host.paired && online ? <HostApps host={host} onStart={onStart} /> : null}
     </section>
   );
 }
@@ -146,9 +148,10 @@ function HostApps({ host, onStart }: { host: RemoteHost; onStart: (id: number, t
 }
 
 /** For Moonlight, the app: enter the PIN it shows, and the machine it's pairing with confirms it. */
-function PinPopover({ machines }: { machines: string[] }) {
+function PinPopover({ machines }: { machines: Machine[] }) {
   const [pin, setPin] = useState("");
-  const [machine, setMachine] = useState<string>("");
+  const [machine, setMachine] = useState(machines[0].name);
+  const selected = machines.find(m => m.name === machine);
   const { pending, run } = useAction();
   return (
     <Popover>
@@ -160,15 +163,15 @@ function PinPopover({ machines }: { machines: string[] }) {
           <div className="text-[13px] font-semibold">Pair the Moonlight app</div>
           <p className="text-xs text-muted">Enter the four-digit PIN from Moonlight.</p>
           <select
-            value={machine}
+            value={selected?.name ?? ""}
             onChange={(e) => setMachine(e.target.value)}
             className="rounded-lg bg-surface px-2.5 py-1.5 text-[13px] outline-none"
             aria-label="The machine Moonlight is pairing with"
           >
-            <option value="">This machine</option>
+            {!selected ? <option value="">Choose a host</option> : null}
             {machines.map((m) => (
-              <option key={m} value={m}>
-                {m}
+              <option key={m.name} value={m.name}>
+                {m.is_self ? `${m.name} (this machine)` : m.name}
               </option>
             ))}
           </select>
@@ -181,7 +184,8 @@ function PinPopover({ machines }: { machines: string[] }) {
             aria-label="Moonlight's PIN"
             className="rounded-lg bg-surface px-2.5 py-1.5 text-center font-mono text-[18px] tracking-[0.4em] outline-none focus:ring-2 focus:ring-accent/50"
           />
-          <Button size="sm" isDisabled={pin.length !== 4} isPending={pending === "pin"} onPress={() => run("pin", () => api.sunshinePin(machine || null, pin), () => setPin(""))}>
+          <Button size="sm" isDisabled={pin.length !== 4 || !selected} isPending={pending === "pin"}
+            onPress={selected ? () => run("pin", () => api.sunshinePin(selected.is_self ? null : selected.name, pin), () => setPin("")) : undefined}>
             Pair
           </Button>
         </Popover.Dialog>

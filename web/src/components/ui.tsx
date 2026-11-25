@@ -66,8 +66,10 @@ export function LargeTitle({ title, subtitle, actions, center, bleed }: TitlePro
         {actions ? <div className="page-actions">{actions}</div> : null}
         {remote ? (
           <div className="viewed-machine">
-            <Eye aria-hidden="true" className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate">Viewing <strong>{remote}</strong></span>
+            <span className="viewed-machine-name" title={remote}>
+              <Eye aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="min-w-0 truncate">Viewing <strong>{remote}</strong></span>
+            </span>
             <button type="button" aria-label="Back to this machine" onClick={() => setRemote(null)}>Exit view</button>
           </div>
         ) : null}

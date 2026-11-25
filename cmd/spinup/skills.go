@@ -14,6 +14,7 @@ import (
 )
 
 type skillsCmd struct {
+	Sharing skillsSharingCmd `cmd:"" help:"Choose whether a skill follows the fleet or stays private on this machine."`
 	List    skillsListCmd    `cmd:"" default:"1" help:"Your skills, who loads them, and which exist only here. Opens an interactive list in a terminal."`
 	Sync    skillsSyncCmd    `cmd:"" help:"Install what is missing and park what is not on your list."`
 	New     skillsNewCmd     `cmd:"" help:"Start a skill of your own: writes a SKILL.md in your library and installs it."`
@@ -34,6 +35,10 @@ list, spinup's suggested one is used; your first change copies it there.
   spinup skills                      your skills in an interactive list: remove, restore, keep, rename
   spinup skills sync                 install what is missing, park what is not on the list
   spinup skills new my-skill         start a skill of your own
+  spinup skills new my-skill --private   start a skill on this machine
+  spinup skills sharing my-skill private  pause fleet updates for this skill
+  spinup skills sharing my-skill resume   archive the private copy and follow the fleet
+  spinup skills sharing my-skill publish  publish this machine's working copy
   spinup skills import ./some-skill  take a skill someone sent you (folder or .zip)
   spinup skills adopt                take this machine's own skills into your library
 
@@ -73,6 +78,9 @@ func printSkills(status skills.Status) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for _, s := range status.Skills {
 		missing := ""
+		if s.Private {
+			missing = "  (private on this machine) " + s.Path
+		}
 		if !s.Installed {
 			missing = "  (not installed)"
 		}
@@ -118,23 +126,31 @@ func printClashes(clashes []skills.Clash) {
 }
 
 type skillsNewCmd struct {
+	Private     bool   `help:"Keep the skill on this machine from the start."`
 	Name        string `arg:"" help:"The skill's folder name, e.g. deploy-notes."`
 	Description string `help:"One line telling the agent when to use it; you can fill it in later."`
 }
 
 func (c skillsNewCmd) Run() error {
 	catchUpLibrary()
-	added, err := skillManager(repoData()).Create(context.Background(), c.Name, c.Description)
+	added, err := skillManager(repoData()).CreateScoped(context.Background(), c.Name, c.Description, c.Private)
+	if c.Private {
+		return reportAdded(added, err, "Edit this working copy to keep changes on this machine.")
+	}
 	return reportAdded(added, err, "Edit it, then run `spinup skills sync` to share the change.")
 }
 
 type skillsImportCmd struct {
-	From string `arg:"" placeholder:"PATH" help:"A skill folder with a SKILL.md, or a .zip holding one."`
+	Private bool   `help:"Keep the skill on this machine from the start."`
+	From    string `arg:"" placeholder:"PATH" help:"A skill folder with a SKILL.md, or a .zip holding one."`
 }
 
 func (c skillsImportCmd) Run() error {
 	catchUpLibrary()
-	added, err := skillManager(repoData()).Import(context.Background(), c.From)
+	added, err := skillManager(repoData()).ImportScoped(context.Background(), c.From, c.Private)
+	if c.Private {
+		return reportAdded(added, err, "Edit this working copy to keep changes on this machine.")
+	}
 	return reportAdded(added, err, "It is yours now: it reaches your other machines by itself.")
 }
 
@@ -142,7 +158,7 @@ func reportAdded(added skills.Added, err error, next string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s is in your library: %s\n", added.Name, added.Path)
+	fmt.Printf("%s  %s\n", added.Name, added.Path)
 	if added.Renamed != "" {
 		fmt.Printf("Its SKILL.md calls itself %q, so that is the name you call it by.\n", added.Renamed)
 	}
@@ -151,9 +167,10 @@ func reportAdded(added skills.Added, err error, next string) error {
 }
 
 type skillsAddCmd struct {
-	From   string   `arg:"" placeholder:"OWNER/REPO" help:"The GitHub repo the skills come from, e.g. anthropics/skills."`
-	Names  []string `arg:"" name:"skill" help:"Skill names in that repo."`
-	Manual bool     `help:"Install them as manual: they run only when you call them."`
+	Private bool     `help:"Keep the skill on this machine from the start."`
+	From    string   `arg:"" placeholder:"OWNER/REPO" help:"The GitHub repo the skills come from, e.g. anthropics/skills."`
+	Names   []string `arg:"" name:"skill" help:"Skill names in that repo."`
+	Manual  bool     `help:"Install them as manual: they run only when you call them."`
 }
 
 func (c skillsAddCmd) Run() error {
@@ -162,7 +179,11 @@ func (c skillsAddCmd) Run() error {
 	if c.Manual {
 		mode = skills.Manual
 	}
-	return reportSynced(skillManager(repoData()).Add(context.Background(), c.From, c.Names, mode))
+	m := skillManager(repoData())
+	if c.Private {
+		return reportSynced(m.AddPrivate(context.Background(), c.From, c.Names, mode))
+	}
+	return reportSynced(m.Add(context.Background(), c.From, c.Names, mode))
 }
 
 type skillsRemoveCmd struct {
@@ -370,4 +391,28 @@ func chooseAdoptable(manager skills.Manager) ([]string, error) {
 	fmt.Printf("\nThese %d are installed on this machine only. A sync parks them, and your other\n"+
 		"machines never see them. Adopting one puts it in your library for good.\n", len(status.Unlisted))
 	return pickNames(askLine("Which to adopt? (numbers, e.g. 2 5-7; empty cancels) "), status.Unlisted)
+}
+
+type skillsSharingCmd struct {
+	Name   string `arg:"" help:"Skill folder name."`
+	Action string `arg:"" enum:"private,resume,publish" help:"private, resume, or publish."`
+}
+
+func (c skillsSharingCmd) Run() error {
+	catchUpLibrary()
+	m := skillManager(repoData())
+	s, err := m.Sharing(context.Background(), c.Name, c.Action)
+	if err == nil && c.Action == "private" {
+		items, listErr := m.List()
+		if listErr != nil {
+			return listErr
+		}
+		for _, v := range items {
+			if v.Private && strings.EqualFold(v.Name, c.Name) {
+				fmt.Println("Private working copy:", v.Path)
+				break
+			}
+		}
+	}
+	return reportSynced(s, err)
 }

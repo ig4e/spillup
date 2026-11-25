@@ -16,6 +16,7 @@ import (
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/doctor"
 	"github.com/darkyeg/spinup/internal/logins"
+	"github.com/darkyeg/spinup/internal/mcp"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/remoteweb"
 	"github.com/darkyeg/spinup/internal/skills"
@@ -26,6 +27,7 @@ import (
 
 // Backend is what the dashboard reads and changes; the command line implements it with the units its own commands use.
 type Backend interface {
+	mcpSecretBackend
 	SharedQuotas(context.Context) (api.QuotaSummary, error)
 	Facts() Facts
 	Report(ctx context.Context) (api.Report, error)
@@ -48,7 +50,8 @@ type Backend interface {
 	SetOwn(ctx context.Context, families []string) error
 	OwnManagement() (proxy.Management, error)
 	// Remote is how to reach another machine's dashboard over the tailnet: holders only.
-	Remote(machine string) (Remote, error)
+	ManagedMachines(context.Context) ([]ManagedMachine, error)
+	Remote(context.Context, string) (Remote, error)
 	// T3State, T3Pair and T3Link drive T3 Code here; SyncT3 links every machine's T3 to every other's.
 	T3State(ctx context.Context) T3State
 	T3Phones(ctx context.Context) ([]t3code.Phone, error)
@@ -100,6 +103,7 @@ type Backend interface {
 	Panel(target string) (Panel, error)
 
 	// Skills is a manager over your library; CatchUpLibrary takes in a newer one from your other machines first.
+	MCP() mcp.Manager
 	Skills() skills.Manager
 	CatchUpLibrary()
 }
@@ -170,10 +174,18 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read := func(path string, h http.HandlerFunc) { add(http.MethodGet, path, h) }
 	change := func(path string, h http.HandlerFunc) { add(http.MethodPost, path, h) }
 
+	s.mcpSecretRoutes(from, route)
 	read("overview", s.serveOverview)
 	read("machines", s.serveMachines)
+	read("machines/managed", s.serveManagedMachines)
 	read("doctor", s.serveDoctor)
-	read("skills", s.serveSkills)
+	read("skills", s.serveSkills(from))
+	if from == browser {
+		change("skills/sharing", s.serveSkillSharing)
+	}
+	if from == browser {
+		s.mcpRoutes(read, change)
+	}
 	read("keys", s.serveKeys)
 
 	change("accounts/handoff", s.serveHandoff)
@@ -189,11 +201,11 @@ func (s *Server) apiRoutes(mux *http.ServeMux, from reach) {
 	read("own/signin", s.serveSignInStatus)
 	change("own/signout", s.serveSignOut)
 
-	change("skills/mode", s.serveSkillMode)
+	change("skills/mode", s.serveSkillMode(from))
 	change("skills/remove", s.serveSkillRemove)
 	change("skills/restore", s.serveSkillRestore)
 	change("skills/adopt", s.serveSkillAdopt)
-	change("skills/add", s.serveSkillAdd)
+	change("skills/add", s.serveSkillAdd(from))
 	change("skills/sync", s.serveSkillSync)
 
 	read("t3", s.serveT3)

@@ -104,6 +104,13 @@ func (m *Machine) compareLibrary(ctx context.Context, base string) {
 		return
 	}
 	seen := situation(here, there)
+	if here.HasMCP && there.Protocol < 3 {
+		if !m.library.exchanges.repeats(base, seen) {
+			m.log.Printf("library: update spinup on %s to share MCP definitions", base)
+			m.library.exchanges.record(base, seen, true)
+		}
+		return
+	}
 	if here.HasPackages && there.Protocol < 2 {
 		if !m.library.exchanges.repeats(base, seen) {
 			m.log.Printf("library: update spinup on %s to share packages", base)

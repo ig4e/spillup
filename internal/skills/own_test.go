@@ -179,9 +179,9 @@ func TestAFolderWithoutAFrontmatterNameIsCalledByItsFolder(t *testing.T) {
 
 func TestAddKeepsASkillThatArrivesInADifferentlyNamedFolder(t *testing.T) {
 	f := newFixture(t, `{"sources":{"o/a":["review"]}}`)
-	f.manager.install = func(_ context.Context, from string, _, names []string) (string, error) {
+	f.manager.install = func(_ context.Context, project, from string, names []string) (string, error) {
 		f.calls = append(f.calls, from)
-		write(t, filepath.Join(f.paths.store, "review-team-v2", skillFile), "---\nname: review\n---\n")
+		write(t, filepath.Join(project, ".agents", "skills", "review-team-v2", skillFile), "---\nname: review\n---\n")
 		return "", nil
 	}
 
@@ -203,7 +203,7 @@ func TestAddKeepsASkillThatArrivesInADifferentlyNamedFolder(t *testing.T) {
 
 func TestAddSaysWhichSkillTheRepoDidNotHave(t *testing.T) {
 	f := newFixture(t, `{"sources":{"o/a":["nope"]}}`)
-	f.manager.install = func(_ context.Context, from string, _, names []string) (string, error) {
+	f.manager.install = func(_ context.Context, project, from string, names []string) (string, error) {
 		return "", nil
 	}
 

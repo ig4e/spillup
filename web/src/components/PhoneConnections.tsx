@@ -2,16 +2,14 @@ import { Smartphone, Tablet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useQuery, useRemote } from "../lib/hooks";
-import { hasAgentLink, mobilePeer } from "../lib/t3";
 import { QR } from "./QR";
 import { Dot, Group, IconTile, Mono, Row } from "./ui";
 
-export function PhoneConnections({ address, host, agentHosts, installed }: { address?: string; host?: string; agentHosts: Set<string>; installed: boolean }) {
+export function PhoneConnections({ address, host, installed }: { address?: string; host?: string; installed: boolean }) {
   const current = useRemote();
-  const machines = useQuery(api.localMachines, 15_000);
+  const machines = useQuery(api.localManagedMachines, 15_000);
   const peers = (machines.data?.machines ?? []).filter(m =>
-    (current ? m.name !== current : !m.is_self) && m.online && !m.expired && m.yours &&
-    !mobilePeer(m) && (m.is_self || m.hold || hasAgentLink(m, agentHosts)));
+    current ? m.name !== current : !m.is_self);
   if (!installed && peers.length === 0) return null;
   return (
     <Group title="Phones & tablets">

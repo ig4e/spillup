@@ -1,131 +1,76 @@
 import { Alert } from "@heroui/react";
 import { SetupPreview } from "../components/SetupPreview";
 import { Button } from "../components/Button";
-import { Crown, KeyRound, Network, RefreshCw, Sparkles, Users } from "lucide-react";
+import { Crown, KeyRound, RefreshCw, Users } from "lucide-react";
 import { useState } from "react";
 import { useOverview } from "../App";
-import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Widget, holdName, osName } from "../components/ui";
+import { Choice, Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, holdName, openPage, osName, pageHref } from "../components/ui";
 import { OsTile } from "../components/brand";
+import { OverviewActivity } from "../components/OverviewActivity";
 import { TaskLog } from "../components/TaskProgress";
 import { api } from "../lib/api";
-import { relative, secondsAgo } from "../lib/format";
+import { secondsAgo } from "../lib/format";
 import { useQuery, useTaskProgress } from "../lib/hooks";
+import type { Overview } from "../lib/types";
 
 export function OverviewPage() {
-  const { data, loading } = useOverview();
-  const machines = useQuery(api.machines, 10000);
+  const overview = useOverview();
+  if (overview.data && !overview.data.installed) return <NotSetUp />;
+  return <>
+    <LargeTitle title="Overview" />
+    {overview.data ? <InstalledOverview host={overview.data} stale={!!overview.refreshError} /> : overview.loading ? <GroupSkeleton rows={4} /> : <Group><Row title="Machine status unavailable" subtitle={overview.error?.message} /></Group>}
+  </>;
+}
+
+function InstalledOverview({ host, stale }: { host: Overview; stale: boolean }) {
+  const machines = useQuery(api.localManagedMachines, 15_000);
   const skills = useQuery(api.skills);
-
-  if (loading && !data) {
-    return (
-      <>
-        <LargeTitle title="Overview" />
-        <GroupSkeleton rows={2} />
-        <GroupSkeleton rows={4} />
-      </>
-    );
-  }
-  if (!data) return <LargeTitle title="Overview" />;
-  if (!data.installed) return <NotSetUp />;
-
-  const s = data.service;
-  const leader = s?.leading ? data.name : s?.leader || s?.leader_addr?.split(":")[0] || "";
+  const report = host.service;
+  const holder = report?.leading ? host.name : report?.leader;
+  const status = !report ? "Unavailable" : report.waiting ? "Waiting" : report.starting ? "Starting" :
+    report.leading ? (report.proxy_running ? "Serving here" : "Proxy stopped") : holder ? "Using shared accounts" : "Awaiting holder";
+  const healthy = !!report && !report.waiting && !report.starting && (report.leading ? report.proxy_running : !!holder);
   const all = machines.data?.machines ?? [];
-  const online = all.filter((m) => m.online).length;
-  const main = all.find((m) => m.hold === "hub");
 
-  return (
-    <>
-      <LargeTitle title="Overview" />
-
-      {data.service_problem ? (
-        <Alert status="danger" className="mb-6">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>The accounts service isn't answering</Alert.Title>
-            <Alert.Description>{data.service_problem}. The Doctor page shows why.</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-      {s?.waiting ? (
-        <Alert status="warning" className="mb-6">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Waiting</Alert.Title>
-            <Alert.Description>{s.waiting}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-
-      <div className="mb-7 flex flex-col items-center rounded-2xl bg-surface px-6 py-9 text-center shadow-[0_0_0_0.5px_var(--border),0_1px_2px_rgb(0_0_0/0.04)]">
-        <IconTile icon={KeyRound} color={leader ? "green" : "orange"} size="lg" />
-        <div className="mt-4 text-[15px] text-muted">Your accounts are on</div>
-        <div className="mt-0.5 max-w-full break-words text-[34px] leading-tight font-bold tracking-[-0.025em]">{leader || "no machine yet"}</div>
-        <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted">
-          <Dot tone={leader ? "success" : "warning"} />
-          {leader ? (s?.in_flight ? `Serving ${s.in_flight} request${s.in_flight === 1 ? "" : "s"}` : "Ready") : "Waiting for the main machine"}
-        </div>
-        <div className="mt-4 max-w-full text-[13px] text-muted">
-          {data.router_url ? <>Tailnet proxy at <Mono copy>{data.router_url}</Mono></> : "Tailnet proxy address unavailable"}
-        </div>
+  return <>
+    {host.service_problem || report?.waiting ? (
+      <Alert status={host.service_problem ? "danger" : "warning"} className="mb-4">
+        <Alert.Indicator /><Alert.Content>
+          <Alert.Title>{host.service_problem ? "Accounts service unavailable" : "Accounts service waiting"}</Alert.Title>
+          <Alert.Description>{host.service_problem || report?.waiting}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    ) : null}
+    <OverviewActivity host={host} />
+    <section className="mb-5 min-w-0" aria-label="Accounts service">
+      <div className="overview-service-heading">
+        <h2 className="flex-1 text-[16px] font-semibold">Accounts service</h2>
+        <a className="overview-link" href={pageHref("/accounts")} onClick={event => openPage(event, "/accounts")}>Accounts</a>
       </div>
-
-      <div className="mb-7 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Widget label="Online" icon={<Network className="size-3.5" />} value={machines.data ? `${online} of ${all.length}` : "—"} detail="machines" />
-        <Widget label="Main" icon={<Crown className="size-3.5" />} value={main?.name ?? "—"} detail={main ? (main.online ? "online" : "offline") : machines.data ? "not chosen" : "machine"} />
-        <Widget
-          label="Logins"
-          icon={<Users className="size-3.5" />}
-          value={data.hold === "never" ? "—" : (s?.accounts?.length ?? 0)}
-          detail={data.hold === "never" ? "kept on the main machine" : "shared"}
-        />
-        <Widget
-          label="Skills"
-          icon={<Sparkles className="size-3.5" />}
-          value={skills.data?.shared.length ?? "—"}
-          detail={skills.data ? `≈${skills.data.token_estimate.toLocaleString()} tokens` : "in your library"}
-        />
+      <div className="group-list overflow-hidden rounded-xl bg-surface">
+        <Row icon={<IconTile icon={KeyRound} color={healthy && !stale ? "green" : "gray"} />}
+          title={holder || "No account holder reported"}
+          subtitle={stale ? "Last reported holder" : "Account holder"}
+          accessory={<span className="flex items-center gap-1.5 text-right text-xs text-muted"><Dot tone={stale ? "muted" : healthy ? "success" : "warning"} />{status}</span>} />
+        <Row title="Proxy endpoint" value={host.router_url ? <Mono copy>{host.router_url}</Mono> : "Unavailable"} />
+        {report ? <Row title="Requests on this machine" value={report.in_flight ?? 0} /> : null}
+        {report?.leading ? <Row title="Shared logins" value={report.accounts?.length ?? 0} /> :
+          report?.synced ? <Row title="Last account sync" value={secondsAgo(report.synced.seconds_ago)} /> : null}
       </div>
+    </section>
 
-      {machines.loading && !machines.data ? (
-        <GroupSkeleton rows={3} />
-      ) : (
-        <Group title="Machines">
-          {all.map((m) => {
-            return (
-              <Row
-                key={m.name}
-                to="/machines"
-                icon={<OsTile os={m.os} dim={!m.online} />}
-                title={
-                  <span className="flex items-center gap-2">
-                    {m.name}
-                    {m.is_self ? <span className="text-xs text-muted">This machine</span> : null}
-                  </span>
-                }
-                subtitle={m.online ? `${osName(m.os)} · ${m.ip ?? ""}` : `Offline · seen ${relative(m.last_seen)}`}
-                value={
-                  <span className="flex items-center gap-2">
-                    {m.leading ? <KeyRound className="size-3.5 text-success" aria-label="holds the accounts" /> : null}
-                    {m.hold ? holdName[m.hold] : null}
-                    <Dot tone={m.online ? "success" : "muted"} />
-                  </span>
-                }
-              />
-            );
-          })}
-        </Group>
-      )}
-
-      <Group title="This Machine">
-        <Row title="Name" value={data.name} />
-        <Row title="Role" value={holdName[data.hold]} to="/machines" />
-        <Row title="CLIProxyAPI" value={s?.proxy_running ? "Running here" : data.hold === "never" ? "Not needed" : "Standing by"} />
-        <Row title="Logins synced" value={s?.synced ? secondsAgo(s.synced.seconds_ago) : s?.leading ? "This machine is the source" : "—"} />
-        <Row title="Version" value={`${data.version} · ${osName(data.os)}`} />
-      </Group>
-    </>
-  );
+    <Group title="Managed machines" footer={machines.refreshError ? "Showing the last verified machine list." : undefined}>
+      {all.length ? all.map(m => <Row key={m.name} icon={<OsTile os={m.os} />} title={m.name}
+        subtitle={[osName(m.os), m.ip].filter(Boolean).join(" · ")}
+        value={m.hold ? holdName[m.hold] : "Managed"} />) :
+        <Row title={machines.loading ? "Checking machines…" : machines.error ? "Machine list unavailable" : "No managed machines reported"} />}
+    </Group>
+    <Group title="Library">
+      <Row title="Shared skills" value={skills.data?.shared.filter(s => !s.private).length ?? "—"}
+        subtitle={skills.data ? `Estimated ${skills.data.token_estimate.toLocaleString()} tokens` : skills.error ? "Library unavailable" : undefined}
+        to="/skills" />
+    </Group>
+  </>;
 }
 
 function NotSetUp() {

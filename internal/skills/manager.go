@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/darkyeg/spinup/internal/atomicfile"
@@ -45,6 +47,9 @@ func (m Mode) String() string {
 }
 
 type Skill struct {
+	Private          bool
+	SharedAvailable  bool
+	Path             string
 	Name             string
 	Source           string
 	Mode             Mode
@@ -72,7 +77,7 @@ type Synced struct {
 }
 
 // installer fetches skills from a GitHub repo into the skill store; nil means this machine doesn't fetch.
-type installer func(ctx context.Context, source string, agents, names []string) (output string, err error)
+type installer func(ctx context.Context, project, source string, names []string) (output string, err error)
 
 type Manager struct {
 	src     source.Source
@@ -105,16 +110,35 @@ func (m Manager) Sync(ctx context.Context) (Synced, error) {
 		return Synced{}, err
 	}
 	defer lock.Close()
+	return m.syncLocked(ctx)
+}
+
+func (m Manager) syncLocked(ctx context.Context) (Synced, error) {
+	private, err := m.privateSkills()
+	if err != nil {
+		return Synced{}, err
+	}
 	list, err := m.manifest()
 	if err != nil {
 		return Synced{}, err
 	}
+	if err := m.checkPrivateWrites(private, slices.Collect(maps.Keys(private))); err != nil {
+		return Synced{}, err
+	}
+	list = private.filtered(list)
 	failed := m.installSources(ctx, list)
-	own, err := m.publishOwn(ctx)
+	own, err := m.publishOwn(ctx, private)
 	if err != nil {
 		return Synced{}, err
 	}
-	keep := keepList(list, own)
+	keep := sortedUnion(keepList(list, own), slices.Collect(maps.Keys(private)))
+	for name := range private {
+		if fileExists(filepath.Join(m.paths.store, name, skillFile)) {
+			if err := m.paths.savePrivateAgentFolders(name); err != nil {
+				return Synced{}, err
+			}
+		}
+	}
 	if err := m.paths.linkAll(ctx, keep); err != nil {
 		return Synced{}, err
 	}
@@ -139,7 +163,7 @@ func (m Manager) Sync(ctx context.Context) (Synced, error) {
 // only the ones the library doesn't have yet.
 func (m Manager) installSources(ctx context.Context, list manifest) (failed []string) {
 	for _, entry := range list.sources {
-		if err := m.fetchMissing(ctx, entry, agentNames(m.paths.agentsHere())); err != nil {
+		if err := m.fetchMissing(ctx, entry); err != nil {
 			failed = append(failed, entry.Source)
 			m.logf("%s", err)
 			continue
@@ -152,7 +176,7 @@ func (m Manager) installSources(ctx context.Context, list manifest) (failed []st
 	return failed
 }
 
-func (m Manager) fetchMissing(ctx context.Context, entry sourceEntry, agents []string) error {
+func (m Manager) fetchMissing(ctx context.Context, entry sourceEntry) error {
 	var missing []string
 	for _, name := range entry.Names {
 		if !fileExists(filepath.Join(m.fetchedCopy(name), skillFile)) {
@@ -167,77 +191,82 @@ func (m Manager) fetchMissing(ctx context.Context, entry sourceEntry, agents []s
 			entry.Source, strings.Join(missing, ", "))
 	}
 	m.logf("Fetching from %s: %s", entry.Source, strings.Join(missing, ", "))
-	if output, err := m.install(ctx, entry.Source, agents, missing); err != nil {
+	return m.fetch(ctx, entry.Source, missing, func(name string, files fs.FS) error { return replaceSkill(m.fetchedCopy(name), files) })
+}
+
+// Fetch into an isolated project. A folder alias or missing upstream skill must never
+// pick up a similarly named private skill from the machine's installed store.
+func (m Manager) fetch(ctx context.Context, source string, names []string, save func(string, fs.FS) error) error {
+	if m.install == nil {
+		return errors.New("skill fetching is unavailable in offline mode")
+	}
+	project, err := os.MkdirTemp("", "spinup-skills-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(project)
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	if output, err := m.install(ctx, project, source, names); err != nil {
 		return fmt.Errorf("%s", tail(output+err.Error(), failureTailSize))
 	}
-	for _, name := range missing {
-		if err := m.adopt(name); err != nil {
-			return fmt.Errorf("%s: keeping a copy of %s: %w", entry.Source, name, err)
+	dir := filepath.Join(project, ".agents", "skills")
+	root, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		return err
+	}
+	if !insideProject(root, dir) {
+		return fmt.Errorf("%s did not install skills into its temporary project", source)
+	}
+	folders := skillFolders(dir)
+	selected := make([]string, 0, len(names))
+	for _, name := range names {
+		folder := name
+		if !slices.Contains(folders, name) {
+			i := slices.IndexFunc(folders, func(s string) bool { return calledName(dir, s) == name })
+			if i < 0 {
+				return fmt.Errorf("%s has no skill called %q", source, name)
+			}
+			folder = folders[i]
+		}
+		src := filepath.Join(dir, folder)
+		if !insideProject(root, src) {
+			return fmt.Errorf("downloaded skill %s must have its own project directory", name)
+		}
+		selected = append(selected, src)
+	}
+	for i, name := range names {
+		if err := save(name, os.DirFS(selected[i])); err != nil {
+			return fmt.Errorf("installing %s: %w", name, err)
 		}
 	}
 	return nil
 }
 
-// adopt settles a freshly fetched skill under the name you asked for, then keeps a copy for your other
-// machines. A skill's folder and the name in its SKILL.md can differ, and the list goes by the name.
-func (m Manager) adopt(name string) error {
-	folder, err := m.fetchedFolder(name)
+func insideProject(root, dir string) bool {
+	resolved, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return err
+		return false
 	}
-	if folder != name {
-		under := filepath.Join(m.paths.store, name)
-		if err := removeAny(under); err != nil {
-			return err
-		}
-		if err := atomicfile.Rename(filepath.Join(m.paths.store, folder), under); err != nil {
-			return fmt.Errorf("it arrived as %q: %w", folder, err)
-		}
-		m.logf("%s arrived in a folder called %s; keeping it as %s.", name, folder, name)
-	}
-	return m.keepCopy(name)
+	rel, err := filepath.Rel(root, resolved)
+	return err == nil && filepath.IsLocal(rel) && rel != "."
 }
 
-// fetchedFolder is the folder the fetch left the skill in: the one named after it, or the one whose
-// SKILL.md calls itself name.
-func (m Manager) fetchedFolder(name string) (string, error) {
-	if fileExists(filepath.Join(m.paths.store, name, skillFile)) {
-		return name, nil
-	}
-	installed, err := m.paths.installed()
-	if err != nil {
-		return "", err
-	}
-	for _, folder := range installed {
-		if calledName(m.paths.store, folder) == name {
-			return folder, nil
-		}
-	}
-	return "", fmt.Errorf("it isn't in %s after fetching; check that the repo has a skill called %q", m.paths.store, name)
-}
-
-// keepCopy saves a freshly fetched skill into your library, for your other machines; a copy is whole or absent.
-func (m Manager) keepCopy(name string) error {
-	installed := filepath.Join(m.paths.store, name)
-	if !fileExists(filepath.Join(installed, skillFile)) {
-		return fmt.Errorf("it isn't in %s after fetching", m.paths.store)
-	}
-	dest := m.fetchedCopy(name)
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+func replaceSkill(dest string, files fs.FS) error {
+	parent := filepath.Dir(dest)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return err
 	}
-	staging, err := os.MkdirTemp(filepath.Dir(dest), "."+name+"-*")
+	tmp, err := os.MkdirTemp(parent, ".skill-stage-*")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(staging)
-	if err := os.CopyFS(filepath.Join(staging, name), os.DirFS(installed)); err != nil {
+	defer os.RemoveAll(tmp)
+	staged := filepath.Join(tmp, "skill")
+	if err := os.CopyFS(staged, files); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(dest); err != nil {
-		return err
-	}
-	return atomicfile.Rename(filepath.Join(staging, name), dest)
+	return swapDir(staged, dest, parent)
 }
 
 // installFetched installs the library's copy of each skill this machine doesn't have installed.
@@ -257,11 +286,12 @@ func (m Manager) fetchedCopy(name string) string {
 	return m.lib.Path(library.Fetched + "/" + name)
 }
 
-func (m Manager) publishOwn(ctx context.Context) ([]ownSkill, error) {
+func (m Manager) publishOwn(ctx context.Context, private privateSkills) ([]ownSkill, error) {
 	own, err := findOwn(m.lib.Files())
 	if err != nil {
 		return nil, err
 	}
+	own = slices.DeleteFunc(own, func(s ownSkill) bool { return private.has(s.name) })
 	for _, skill := range own {
 		if err := m.paths.publish(ctx, skill); err != nil {
 			return nil, fmt.Errorf("own skill %s: %w", skill.name, err)
@@ -302,7 +332,11 @@ func (m Manager) Unlisted() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parkable(installed, keepList(list, own), 0), nil
+	private, err := m.privateSkills()
+	if err != nil {
+		return nil, err
+	}
+	return parkable(installed, sortedUnion(keepList(list, own), slices.Collect(maps.Keys(private))), 0), nil
 }
 
 // List returns every listed and own skill, sorted by name.
@@ -324,9 +358,28 @@ func (m Manager) List() ([]Skill, error) {
 	for _, skill := range own {
 		sourceOf[skill.name] = OwnSource
 	}
+	private, err := m.privateSkills()
+	if err != nil {
+		return nil, err
+	}
 	var skills []Skill
+	privateManual := private.filtered(manifest{}).manual
+	for name, v := range private {
+		sk := m.describe(name, v.Source, privateManual)
+		sk.Private = true
+		sk.Path = filepath.Join(m.paths.store, name)
+		for shared := range sourceOf {
+			if strings.EqualFold(shared, name) {
+				sk.SharedAvailable = true
+				delete(sourceOf, shared)
+			}
+		}
+		skills = append(skills, sk)
+	}
 	for name, from := range sourceOf {
-		skills = append(skills, m.describe(name, from, list.manual))
+		sk := m.describe(name, from, list.manual)
+		sk.SharedAvailable = true
+		skills = append(skills, sk)
 	}
 	slices.SortFunc(skills, func(a, b Skill) int { return strings.Compare(a.Name, b.Name) })
 	return skills, nil
@@ -346,22 +399,37 @@ func (m Manager) describe(name, from string, manual []string) Skill {
 
 // Add lists names from source, as manual skills when mode is Manual, then runs Sync.
 func (m Manager) Add(ctx context.Context, from string, names []string, mode Mode) (Synced, error) {
-	if err := checkNames(names); err != nil {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
 		return Synced{}, err
 	}
-	err := m.edit(func(d *document) error {
+	defer lock.Close()
+	if err := m.requireShared(names); err != nil {
+		return Synced{}, err
+	}
+
+	err = m.edit(func(d *document) error {
 		d.add(from, names, mode)
 		return nil
 	})
 	if err != nil {
 		return Synced{}, err
 	}
-	return m.Sync(ctx)
+	return m.syncLocked(ctx)
 }
 
 // Remove unlists names and drops the library folder of any that are your own, then runs Sync, which
 // parks the installed copies. Nothing is lost: the parked copy is the skill as it was.
 func (m Manager) Remove(ctx context.Context, names []string) (Synced, error) {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return Synced{}, err
+	}
+	defer lock.Close()
+	if err := m.requireShared(names); err != nil {
+		return Synced{}, err
+	}
+
 	mine, listed, err := m.splitOwn(names)
 	if err != nil {
 		return Synced{}, err
@@ -371,7 +439,7 @@ func (m Manager) Remove(ctx context.Context, names []string) (Synced, error) {
 			strings.Join(names, ", "))
 	}
 	if len(listed) > 0 {
-		if err := m.edit(func(d *document) error { d.remove(listed); return nil }); err != nil {
+		if err = m.edit(func(d *document) error { d.remove(listed); return nil }); err != nil {
 			return Synced{}, err
 		}
 	}
@@ -380,7 +448,7 @@ func (m Manager) Remove(ctx context.Context, names []string) (Synced, error) {
 			return Synced{}, fmt.Errorf("removing your skill %s: %w", name, err)
 		}
 	}
-	return m.Sync(ctx)
+	return m.syncLocked(ctx)
 }
 
 // splitOwn sorts names into the ones that are your own skills and the ones on your list, dropping any
@@ -406,16 +474,46 @@ func (m Manager) splitOwn(names []string) (mine, listed []string, err error) {
 }
 
 // SetMode switches names between auto and manual and re-applies the modes without installing.
-func (m Manager) SetMode(names []string, mode Mode) error {
+func (m Manager) SetMode(names []string, mode Mode) error { return m.SetModeScoped(names, mode, true) }
+
+func (m Manager) SetModeScoped(names []string, mode Mode, allowPrivate bool) error {
 	if err := checkNames(names); err != nil {
 		return err
 	}
-	err := m.edit(func(d *document) error {
-		d.setMode(names, mode)
-		return nil
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	lock, err := m.paths.lockStore(ctx)
 	if err != nil {
 		return err
+	}
+	defer lock.Close()
+	private, err := m.privateSkills()
+	if err != nil {
+		return err
+	}
+	if err := m.checkPrivateWrites(private, slices.Collect(maps.Keys(private))); err != nil {
+		return err
+	}
+	shared := slices.DeleteFunc(slices.Clone(names), private.has)
+	if len(shared) != len(names) && !allowPrivate {
+		return errors.New("change private skills from the local dashboard")
+	}
+	if len(shared) > 0 {
+		if err := m.edit(func(d *document) error { d.setMode(shared, mode); return nil }); err != nil {
+			return err
+		}
+	}
+	if len(shared) != len(names) {
+		for _, name := range names {
+			if n := private.name(name); n != "" {
+				v := private[n]
+				v.Manual = mode == Manual
+				private[n] = v
+			}
+		}
+		if err := m.savePrivate(private); err != nil {
+			return err
+		}
 	}
 	list, err := m.manifest()
 	if err != nil {
@@ -425,7 +523,9 @@ func (m Manager) SetMode(names []string, mode Mode) error {
 	if err != nil {
 		return err
 	}
-	if err := m.paths.applyModes(keepList(list, own), list.manual); err != nil {
+	list = private.filtered(list)
+	keep := sortedUnion(keepList(list, own), slices.Collect(maps.Keys(private)))
+	if err := m.paths.applyModes(keep, list.manual); err != nil {
 		return err
 	}
 	m.logf("%s: %s. Restart Claude Code / Codex to apply.", strings.Join(names, ", "), mode)
@@ -515,7 +615,7 @@ func tail(text string, size int) string {
 	return text
 }
 
-func npxInstall(ctx context.Context, from string, agents, names []string) (string, error) {
+func npxInstall(ctx context.Context, project, from string, names []string) (string, error) {
 	npx, ok := shell.Find("npx")
 	if !ok {
 		shell.RefreshPath()
@@ -523,12 +623,22 @@ func npxInstall(ctx context.Context, from string, agents, names []string) (strin
 			return "", errors.New("Node.js is needed for skills (npx not found). Install Node.js, then re-run")
 		}
 	}
-	args := []string{"--yes", "skills", "add", from, "-g"}
-	for _, agent := range agents {
-		args = append(args, "-a", agent)
+	if from == "" || strings.HasPrefix(from, "-") {
+		return "", errors.New("the skill source must be a repository")
 	}
+	for _, n := range names {
+		if strings.HasPrefix(n, "-") {
+			return "", errors.New("fetched skill names cannot start with a dash")
+		}
+	}
+	args := []string{"--yes", "skills", "add", from, "-a", "codex"}
 	for _, name := range names {
 		args = append(args, "-s", name)
 	}
-	return shell.Output(ctx, npx, append(args, "-y")...)
+	cmd := shell.CommandContext(ctx, npx, append(args, "-y")...)
+	cmd.Dir = project
+	cmd.Env = append(os.Environ(), "DISABLE_TELEMETRY=1")
+	cmd.WaitDelay = 3 * time.Second
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }

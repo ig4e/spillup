@@ -37,13 +37,13 @@ func newFixture(t *testing.T, manifestText string) *fixture {
 		src:   source.At(root),
 		lib:   f.lib,
 		paths: f.paths,
-		install: func(_ context.Context, from string, _, names []string) (string, error) {
+		install: func(_ context.Context, project, from string, names []string) (string, error) {
 			f.calls = append(f.calls, from)
 			if f.fail[from] {
 				return "boom", errors.New("exit 1")
 			}
 			for _, name := range names {
-				write(t, filepath.Join(f.paths.store, name, "SKILL.md"), "---\ndescription: installed\n---\n")
+				write(t, filepath.Join(project, ".agents", "skills", name, "SKILL.md"), "---\ndescription: installed\n---\n")
 			}
 			return "", nil
 		},
@@ -163,9 +163,9 @@ func TestListReportsModeSourceAndInstalledState(t *testing.T) {
 	}
 
 	want := []Skill{
-		{"auto", "o/a", Auto, true, 12},
-		{"hand", "o/a", Manual, true, 7},
-		{"missing", "o/a", Auto, false, 0},
+		{Name: "auto", Source: "o/a", Mode: Auto, Installed: true, DescriptionChars: 12, SharedAvailable: true},
+		{Name: "hand", Source: "o/a", Mode: Manual, Installed: true, DescriptionChars: 7, SharedAvailable: true},
+		{Name: "missing", Source: "o/a", Mode: Auto, Installed: false, DescriptionChars: 0, SharedAvailable: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)

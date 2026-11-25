@@ -24,18 +24,10 @@ export function Scan() {
     }
   };
 
-  const missing = devices?.filter((d) => d.yours && d.online && !d.spillup) ?? [];
   return (
     <Group
-      title="Find spillup Devices"
-      footer={
-        problem ??
-        (devices
-          ? missing.length
-            ? `${missing.length} of your devices ${missing.length === 1 ? "doesn't" : "don't"} run spillup yet. Install it there: devices on your Tailscale account join by themselves.`
-            : "Every device of yours that's online runs spillup, or is a phone or tablet that uses the main machine directly."
-          : "Looks for spillup on every device on your Tailscale network, at home or away.")
-      }
+      title="Tailnet discovery"
+      footer={problem ?? "Checks which online Tailnet devices run Spillup."}
     >
       <Row
         icon={<IconTile icon={Radar} color="teal" />}
@@ -61,8 +53,8 @@ export function Scan() {
             subtitle={`${osName(d.os)} · ${d.ip}`}
             value={
               <span className="flex items-center gap-1.5 text-[13px]">
-                <Dot tone={!d.online ? "muted" : d.spillup ? "success" : "warning"} />
-                {!d.online ? "Offline" : d.spillup ? `spillup · ${d.hold ? holdName[d.hold] : ""}` : "No spillup"}
+                <Dot tone={d.online && d.spillup ? "success" : "muted"} />
+                {!d.online ? "Offline" : d.spillup ? (d.hold ? holdName[d.hold] : "Spillup") : "Tailnet device"}
               </span>
             }
           />

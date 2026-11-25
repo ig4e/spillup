@@ -62,6 +62,20 @@ func (s *Server) serveMachines(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
+func (s *Server) serveManagedMachines(w http.ResponseWriter, r *http.Request) {
+	machines, err := s.b.ManagedMachines(r.Context())
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "Couldn't verify which machines are running Spillup.")
+		return
+	}
+	if machines == nil {
+		machines = []ManagedMachine{}
+	}
+	writeJSON(w, struct {
+		Machines []ManagedMachine `json:"machines"`
+	}{machines})
+}
+
 // machinesFrom is every tailnet device, this one first, with what the accounts service knows of each.
 func machinesFrom(ts tailnet.Status, rep *api.Report) []Machine {
 	machines := []Machine{}

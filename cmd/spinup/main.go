@@ -36,6 +36,7 @@ type cli struct {
 	Takeover takeoverCmd `cmd:"" group:"accounts" help:"Hold the accounts here because their holder is lost for good."`
 	Keys     keysCmd     `cmd:"" group:"accounts" help:"Print this machine's API key; holders also print the dashboard password."`
 
+	MCP      mcpCmd      `cmd:"" name:"mcp" group:"agents" help:"Manage MCP server definitions, agent approvals and local sharing."`
 	Skills   skillsCmd   `cmd:"" group:"agents" help:"Install your skills for Claude Code and Codex; list, add, remove."`
 	Packages packagesCmd `cmd:"" group:"agents" help:"Manage complete plugin packages, pinned versions and rollback."`
 	Agents   agentsCmd   `cmd:"" group:"agents" help:"Install shared and personal agent instructions."`

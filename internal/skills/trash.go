@@ -74,12 +74,21 @@ func reverse(s string) string {
 
 // Restore takes a parked skill back into your library as one of your own, so it reaches every machine.
 func (m Manager) Restore(ctx context.Context, name string) (Added, error) {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return Added{}, err
+	}
+	defer lock.Close()
+
+	if err := checkNames([]string{name}); err != nil {
+		return Added{}, err
+	}
 	from := filepath.Join(m.paths.parked, name)
 	if !fileExists(filepath.Join(from, skillFile)) {
 		return Added{}, fmt.Errorf("%s is not in %s", name, m.paths.parked)
 	}
 	under := withoutCopyNumber(name)
-	if err := checkNames([]string{under}); err != nil {
+	if err := m.requireShared([]string{under}); err != nil {
 		return Added{}, err
 	}
 	dir := m.ownPath(under)
@@ -95,7 +104,7 @@ func (m Manager) Restore(ctx context.Context, name string) (Added, error) {
 	if err := os.RemoveAll(from); err != nil {
 		return Added{}, err
 	}
-	synced, err := m.Sync(ctx)
+	synced, err := m.syncLocked(ctx)
 	return Added{Name: under, Path: dir, Synced: synced}, err
 }
 
@@ -103,10 +112,16 @@ func (m Manager) Restore(ctx context.Context, name string) (Added, error) {
 // other machines get them too. They may be installed by spinup or belong to an agent alone; an agent's
 // own folder is removed once its copy is safely in the library, since the sync links it back.
 func (m Manager) Adopt(ctx context.Context, names []string) (Synced, error) {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return Synced{}, err
+	}
+	defer lock.Close()
+
+	if err := m.requireShared(names); err != nil {
+		return Synced{}, err
+	}
 	for _, name := range names {
-		if err := checkNames([]string{name}); err != nil {
-			return Synced{}, err
-		}
 		from, agentCopies := m.localCopy(name)
 		if from == "" {
 			return Synced{}, fmt.Errorf("%s is not installed here", name)
@@ -128,7 +143,7 @@ func (m Manager) Adopt(ctx context.Context, names []string) (Synced, error) {
 			}
 		}
 	}
-	return m.Sync(ctx)
+	return m.syncLocked(ctx)
 }
 
 // localCopy finds a skill on this machine: in spinup's store, or else in an agent's own folder. It
@@ -155,7 +170,14 @@ func (m Manager) localCopy(name string) (from string, agentCopies []string) {
 // Discard takes a skill that is not in your library off this machine, into the parked folder. It
 // leaves every other skill alone, which a full sync would not.
 func (m Manager) Discard(name string) error {
-	if err := checkNames([]string{name}); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err := m.requireShared([]string{name}); err != nil {
 		return err
 	}
 	if fileExists(filepath.Join(m.paths.store, name, skillFile)) {

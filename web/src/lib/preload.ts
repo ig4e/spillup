@@ -4,18 +4,18 @@ import { prefetchQuery } from "./hooks";
 // Only read data the destination displays immediately. Diagnostics, credentials,
 // provider quota requests, streams and terminals stay behind their own controls.
 const pageReads: Record<string, DashboardRead<unknown>[]> = {
-  "/": [api.machines, api.skills],
-  "/machines": [api.machines],
-  "/activity": [api.localMachines],
-  "/more": [api.localMachines, api.localOverview],
+  "/": [api.localManagedMachines, api.skills],
+  "/machines": [api.managedMachines],
+  "/activity": [api.localManagedMachines],
+  "/more": [api.localManagedMachines, api.localOverview],
   "/tailscale": [api.machines],
   "/skills": [api.skills],
   "/accounts": [api.apps],
   "/sign-in": [api.own],
   "/proxy": [api.own, api.localOverview],
-  "/t3": [api.machines],
-  "/desktop": [api.localMachines],
-  "/terminal": [api.localMachines, api.localOverview],
+  "/t3": [api.managedMachines],
+  "/desktop": [api.localManagedMachines],
+  "/terminal": [api.localManagedMachines, api.localOverview],
 };
 
 function mayPreload() {
@@ -30,17 +30,20 @@ function mayPreload() {
 export function startNavigationPreload() {
   const machine = currentRemote();
   const allowed = () => currentRemote() === machine && mayPreload();
-  const warmLink = (event: Event) => {
-    if (!allowed() || !(event.target instanceof Element)) return;
-    const link = event.target.closest<HTMLAnchorElement>("a[href]");
+  const warmTarget = (element: EventTarget | null) => {
+    if (!allowed() || !(element instanceof Element)) return;
+    const link = element.closest<HTMLAnchorElement>("a[href]");
     if (!link || link.origin !== location.origin || link.pathname === location.pathname) return;
     const targetMachine = new URL(link.href).searchParams.get("machine");
     if (targetMachine && targetMachine !== machine) return;
     for (const read of pageReads[link.pathname] ?? []) void prefetchQuery(read);
   };
 
+  const warmLink = (event: Event) => warmTarget(event.target);
+  warmTarget(document.activeElement);
+
   const warmTabs = () => {
-    if (allowed()) void prefetchQuery(api.machines);
+    if (allowed()) void prefetchQuery(api.localManagedMachines);
   };
   const useIdle = typeof window.requestIdleCallback === "function";
   const id = useIdle ? window.requestIdleCallback(warmTabs, { timeout: 1500 }) : window.setTimeout(warmTabs, 300);

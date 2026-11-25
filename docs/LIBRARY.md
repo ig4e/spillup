@@ -8,6 +8,7 @@ Your skills list, skills and instructions live in one folder on each machine. Sp
   skills/<name>/    your own skills: a folder with a SKILL.md each
   AGENTS.md         your instructions, added after spinup's
   fetched/<name>/   a copy of each skill on your list, fetched from GitHub once
+  mcp-servers.json  explicitly shared MCP definitions
   packages.json     requested plugin packages and their locked revisions
   artifacts/        verified package archives, transferred separately by digest
   local/            this machine's package catalogs, content and installation receipts
@@ -37,13 +38,23 @@ Change your library on any machine (a `spinup skills` command, or by hand) and w
 
 ## What stays on each machine
 
-Library snapshots send only `AGENTS.md`, `skills.json`, `skills/`, `fetched/` and `packages.json`. Hidden files and symbolic links remain excluded from these snapshots. Verified package archives are transferred separately by digest and preserve hidden plugin manifests inside the archive. An accepted update preserves files outside the shared paths, including local package installation receipts and catalogs.
+Library snapshots send only `AGENTS.md`, `skills.json`, `skills/`, `fetched/`, `packages.json` and `mcp-servers.json`. Hidden files and symbolic links remain excluded from these snapshots. Verified package archives are transferred separately by digest and preserve hidden plugin manifests inside the archive. An accepted update preserves files outside the shared paths, including local package installation receipts and catalogs.
 
-Keep MCP server settings, device URLs, executable paths, plugin installation state and credentials in their tool's local configuration. Spinup does not copy the Claude or Codex configuration folders through library sync. Account sharing is a separate service with its own [rules](SERVICE.md).
+Portable MCP definitions can be shared individually. Agent approvals, private definitions and credential values stay in machine-local state. A named credential can be sent to a verified machine with one-time approval on the recipient. [MCP guide](MCP.md)
+
+Account sharing has its own service. [Account sharing](SERVICE.md)
 
 Shared instructions and skill files are copied as content: spinup does not detect secrets or rewrite machine-specific values inside them. Keep these files portable and refer to local configuration instead of embedding device details.
 
 Package sync uses an explicit portable declaration and locked artifact, then reconciles native installation on each machine. It does not copy tool configuration, credentials or MCP connection state. Unknown configuration is not automatically portable. All participating machines need package-aware Spinup before adding packages; legacy whole-library replacements are refused once `packages.json` exists.
+
+## Per-skill sharing
+
+In **Skills & MCP**, choose **Keep local copy** on a skill to work on a private copy. This machine keeps using it through later library syncs. The last published copy remains available to other machines. Use **Use shared copy** to archive your changes locally and install the current shared copy, or **Publish local copy** to share your working copy.
+
+New or imported skills can start private. For example, `spinup skills new notes --private`, `spinup skills import ./notes --private` and `spinup skills add owner/repo notes --private` keep the new skill on this machine from the outset. For an existing skill use `spinup skills sharing notes private`, then `resume` or `publish` when you want to rejoin the fleet. A private working copy cannot recall content already sent to other machines.
+
+MCP servers have a separate setting for sharing their definitions. Update all participating machines before publishing the first MCP definition. [MCP servers](MCP.md)
 
 ## Coming from the private repo
 

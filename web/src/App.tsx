@@ -1,7 +1,6 @@
-import { Alert, Dropdown, Label, Toast, Tooltip } from "@heroui/react";
+import { Alert, Dropdown, Label, Spinner, Toast, Tooltip } from "@heroui/react";
 import {
   Activity,
-  ChevronRight,
   ChevronsUpDown,
   Ellipsis,
   CloudOff,
@@ -23,11 +22,12 @@ import {
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { BrandTile } from "./components/brand";
+import { Button } from "./components/Button";
 import { BackAction, Dot, Group, LargeTitle, Row, holdName, openPage, pageHref, type Tint } from "./components/ui";
-import { api, setRemote } from "./lib/api";
+import { api, ApiError, currentRemote, setRemote } from "./lib/api";
 import { startNavigationPreload } from "./lib/preload";
 import { canGoBack, navigate, useBusy, usePath, useQuery, useRemote, type Query } from "./lib/hooks";
-import type { Overview } from "./lib/types";
+import type { Machines, Overview } from "./lib/types";
 import { AccountsPage } from "./pages/Accounts";
 import { ActivityPage } from "./pages/Activity";
 import { DoctorPage } from "./pages/Doctor";
@@ -94,7 +94,7 @@ const sections: Section[] = [
       { path: "/tailscale", label: "Tailscale", icon: Waypoints, color: "graphite", brand: "tailscale", page: TailscalePage },
     ],
   },
-  { title: "Agents", pages: [{ path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage }] },
+  { title: "Agents", pages: [{ path: "/skills", label: "Skills & MCP", icon: Sparkles, color: "purple", page: SkillsPage }] },
   {
     title: "System",
     pages: [
@@ -135,9 +135,68 @@ function filterSections(list: Section[], query: string) {
 
 const backFrom = (page: Page) => (page.tab || page === morePage ? null : () => (canGoBack() ? window.history.back() : navigate(MORE)));
 
+const ManagedMachinesContext = createContext<Query<Machines> | null>(null);
+
 export default function App() {
   const remote = useRemote();
-  return <Fleet key={remote ?? ""} remote={remote} />;
+  const inventory = useQuery(api.localManagedMachines, 15_000);
+  const peer = remote ? inventory.data?.machines.find(m => m.name.toLowerCase() === remote.toLowerCase()) : undefined;
+
+  useEffect(() => {
+    if (!peer || currentRemote() !== remote) return;
+    if (peer.is_self) setRemote(null);
+    else if (peer.name !== remote) setRemote(peer.name);
+  }, [peer, remote]);
+
+  if (remote && (!peer || peer.is_self || peer.name !== remote)) {
+    const error = inventory.error || inventory.refreshError;
+    return <RemoteGate machine={remote} source="inventory" error={error} checking={inventory.loading || !!peer} retry={inventory.reload} />;
+  }
+  return <ManagedMachinesContext.Provider value={inventory}>
+    <Fleet key={remote ?? ""} remote={remote} />
+  </ManagedMachinesContext.Provider>;
+}
+
+function RemoteGate({ machine, source, error, checking, retry }: {
+  machine: string; source: "inventory" | "machine"; error?: Error; checking: boolean; retry: () => Promise<void>;
+}) {
+  const local = source === "inventory";
+  const status = error instanceof ApiError ? error.status : undefined;
+  const signedOut = status === 401 && (local || error?.message.includes("sign in"));
+  let title = "Dashboard unavailable";
+  let detail = `${machine} is not on this host’s list of available Spillup dashboards.`;
+  if (checking && !error) {
+    title = local ? "Checking machine" : "Opening dashboard";
+    detail = machine;
+  } else if (signedOut) {
+    title = "Dashboard sign-in required";
+    detail = "Open a signed-in dashboard with spinup ui on the host, then try again.";
+  } else if (status === 401) {
+    title = "Machine authentication failed";
+    detail = `Check that the dashboard host and ${machine} use the same Spillup fleet credentials.`;
+  } else if (status === 403) {
+    title = "Dashboard access denied";
+    detail = local ? "This device does not have access to the host’s machine list." : `This host does not have access to the dashboard on ${machine}.`;
+  } else if (error) {
+    title = local ? "Couldn’t check available machines" : "Machine not responding";
+    detail = local ? "Check the connection to the dashboard host and try again." : `Check that ${machine} is online and its Spillup service is running.`;
+  }
+
+  return (
+    <main className="dashboard-shell grid min-h-dvh place-items-center px-4 py-12">
+      <section className="w-full max-w-sm rounded-2xl border border-separator bg-surface p-5">
+        <div className="flex items-center gap-3">
+          {checking && !error ? <Spinner size="sm" aria-label="Checking" /> : <MonitorSmartphone aria-hidden className="size-5 shrink-0 text-muted" />}
+          <h1 className="text-lg font-semibold">{title}</h1>
+        </div>
+        <p className="mt-2 break-words text-sm text-muted">{detail}</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button size="sm" onPress={() => setRemote(null)}>Use local dashboard</Button>
+          {!checking || error ? <Button size="sm" variant="secondary" onPress={() => void retry()}>Check again</Button> : null}
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function useCollapsed(): [boolean, () => void] {
@@ -159,6 +218,9 @@ function Fleet({ remote }: { remote: string | null }) {
   const found = pages.find((p) => p.path === pagePath) ?? (path === MORE ? morePage : pages[0]);
   const current = pageShows(found, overview.data) ? found : pages[0];
   const Page = current.page;
+  if (remote && !overview.data) {
+    return <RemoteGate machine={remote} source="machine" error={overview.error} checking={overview.loading} retry={overview.reload} />;
+  }
 
   return (
     <OverviewContext.Provider value={overview}>
@@ -201,16 +263,18 @@ function ConnectionNotice({ remote }: { remote: string | null }) {
     );
   }
   if (!error) return null;
-  const signedOut = (error as { status?: number }).status === 401;
+  const status = error instanceof ApiError ? error.status : undefined;
+  const signedOut = status === 401;
+  const denied = status === 403;
   return (
-    <Alert status={signedOut ? "warning" : "danger"} className="connection-alert">
+    <Alert status={signedOut || denied ? "warning" : "danger"} className="connection-alert">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>{signedOut ? "Signed out" : remote ? `${remote} isn't answering` : "spillup isn't answering"}</Alert.Title>
+        <Alert.Title>{signedOut ? "Signed out" : denied ? "Dashboard access denied" : remote ? `${remote} isn't answering` : "spillup isn't answering"}</Alert.Title>
         <Alert.Description>
           {signedOut
             ? "Run spinup ui in a terminal to open a signed-in window."
-            : remote
+            : denied ? error.message : remote
               ? `${error.message}. It needs a recent spillup and to be online on Tailscale.`
               : `Is spillup's service running? (${error.message})`}
         </Alert.Description>
@@ -302,24 +366,28 @@ function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boole
 function useMachineSwitch() {
   const { data } = useOverview();
   const remote = useRemote();
-  const local = useQuery(api.localOverview);
-  const machines = useQuery(api.localMachines, 15000);
-  const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online);
+  const inventory = useContext(ManagedMachinesContext)!;
+  const local = inventory.data?.machines.find(m => m.is_self);
+  const others = (inventory.data?.machines ?? []).filter(m => !m.is_self);
+  const problem = inventory.error || inventory.refreshError;
   return {
     name: data?.name || remote || "This machine",
     status: data ? (data.installed ? `${holdName[data.hold]}${remote ? " · viewing" : ""}` : "Not set up yet") : "…",
-    here: local.data?.name || "This machine",
+    here: local?.name || "This machine",
     others,
-    canSwitch: others.length > 0 || !!remote,
+    menuNote: problem ? "Machine list unavailable" : inventory.loading ? "Checking machines…" : !others.length ? "No other dashboards available" : "",
   };
 }
 
-function MachineMenu({ trigger, triggerClass, here, others }: { trigger: React.ReactNode; triggerClass: string; here: string; others: { name: string }[] }) {
+function MachineMenu({ trigger, triggerClass, here, others, note }: { trigger: React.ReactNode; triggerClass: string; here: string; others: { name: string }[]; note: string }) {
   return (
     <Dropdown>
       <Dropdown.Trigger className={triggerClass}>{trigger}</Dropdown.Trigger>
       <Dropdown.Popover placement="bottom start" className="min-w-56">
-        <Dropdown.Menu aria-label="Show a machine's dashboard" onAction={(key) => setRemote(key === "__self" ? null : String(key))}>
+        <Dropdown.Menu aria-label="Show a machine's dashboard" onAction={(key) => {
+          if (key === "__self") setRemote(null);
+          else if (others.some(peer => peer.name === key)) setRemote(String(key));
+        }}>
           <Dropdown.Item id="__self" textValue="This machine">
             <Label>{here} (this one)</Label>
           </Dropdown.Item>
@@ -328,6 +396,7 @@ function MachineMenu({ trigger, triggerClass, here, others }: { trigger: React.R
               <Label>{m.name}</Label>
             </Dropdown.Item>
           ))}
+          {note ? <Dropdown.Item id="__notice" isDisabled textValue={note}><Label>{note}</Label></Dropdown.Item> : null}
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
@@ -343,7 +412,7 @@ function Avatar({ name, className }: { name: string; className: string }) {
 }
 
 function MachineCard() {
-  const { name, status, here, others, canSwitch } = useMachineSwitch();
+  const { name, status, here, others, menuNote } = useMachineSwitch();
   const card = (
     <span className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-foreground/[0.06]">
       <Avatar name={name} className="size-10 text-[17px]" />
@@ -351,42 +420,29 @@ function MachineCard() {
         <span className="block truncate text-[14px] font-semibold">{name}</span>
         <span className="block truncate text-xs text-muted">{status}</span>
       </span>
-      {canSwitch ? <ChevronsUpDown className="size-4 shrink-0 text-muted" /> : null}
+      <ChevronsUpDown className="size-4 shrink-0 text-muted" />
     </span>
   );
-  if (!canSwitch) {
-    return (
-      <button type="button" onClick={() => navigate("/settings")} className="outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
-        {card}
-      </button>
-    );
-  }
-  return <MachineMenu trigger={card} triggerClass="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60" here={here} others={others} />;
+  return <MachineMenu trigger={card} triggerClass="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60" here={here} others={others} note={menuNote} />;
 }
 
 /** The machine at the top of More, like the Apple Account card at the top of iOS Settings. */
 function MachineSwitcher() {
-  const { name, status, here, others, canSwitch } = useMachineSwitch();
+  const { name, status, here, others, menuNote } = useMachineSwitch();
   const card = (
     <span className="flex min-h-[76px] w-full items-center gap-3.5 px-4 py-3 text-left active:bg-surface-hover">
       <Avatar name={name} className="size-[58px] text-[24px]" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[20px] leading-tight font-semibold">{name}</span>
-        <span className="mt-0.5 block truncate text-[13px] text-muted">{canSwitch ? `${status} · Switch machine` : status}</span>
+        <span className="mt-0.5 block truncate text-[13px] text-muted">{status} · Switch machine</span>
       </span>
-      {canSwitch ? <ChevronsUpDown className="size-[18px] shrink-0 text-muted/70" /> : <ChevronRight className="size-[18px] shrink-0 text-muted/60" />}
+      <ChevronsUpDown className="size-[18px] shrink-0 text-muted/70" />
     </span>
   );
   const cls = "block w-full overflow-hidden rounded-xl bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent/60";
   return (
     <div className="mb-7">
-      {canSwitch ? (
-        <MachineMenu trigger={card} triggerClass={cls} here={here} others={others} />
-      ) : (
-        <button type="button" onClick={() => navigate("/settings")} className={cls}>
-          {card}
-        </button>
-      )}
+      <MachineMenu trigger={card} triggerClass={cls} here={here} others={others} note={menuNote} />
     </div>
   );
 }

@@ -38,6 +38,23 @@ func installedBinary() string {
 	return filepath.Join(config.StateDir(), "bin", name)
 }
 
+// Prefer the durable service copy when this CLI runs the same release. A new
+// standalone CLI may run before setup has upgraded the installed daemon.
+func mcpLauncher(self string) string {
+	installed := installedBinary()
+	if !filepath.IsAbs(installed) {
+		return self
+	}
+	info, err := os.Stat(installed)
+	if err != nil || !info.Mode().IsRegular() || runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		return self
+	}
+	if sameFile(self, installed) || sameContent(self, installed) {
+		return installed
+	}
+	return self
+}
+
 func copyExecutable(from, to string) error {
 	if err := os.MkdirAll(filepath.Dir(to), 0o700); err != nil {
 		return err

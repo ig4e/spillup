@@ -10,6 +10,7 @@ import (
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/library"
+	"github.com/darkyeg/spinup/internal/mcp"
 	"github.com/darkyeg/spinup/internal/packages"
 )
 
@@ -48,7 +49,16 @@ func (s *libraryShare) current(now time.Time) (api.Library, error) {
 		return api.Library{}, err
 	}
 	stamp, err := s.tracker.Observe(library.Fingerprint(files), library.LastModified(files), now)
-	return api.Library{Protocol: 2, Stamp: stamp, Files: files}, err
+	protocol := 2
+	for _, f := range files {
+		if f.Path == library.MCPServers {
+			if err := mcp.ValidateManifest(f.Data); err != nil {
+				return api.Library{}, err
+			}
+			protocol = 3
+		}
+	}
+	return api.Library{Protocol: protocol, Stamp: stamp, Files: files}, err
 }
 
 func (s *libraryShare) state(now time.Time) (api.LibraryState, error) {
@@ -63,7 +73,7 @@ func (s *libraryShare) state(now time.Time) (api.LibraryState, error) {
 		return api.LibraryState{}, err
 	}
 	_, present := os.Stat(s.lib.Path(library.Packages))
-	return api.LibraryState{Protocol: 2, HasPackages: present == nil, Stamp: l.Stamp, Fetched: library.FetchedSkills(l.Files), Artifacts: s.lib.Artifacts(required), Required: required}, nil
+	return api.LibraryState{Protocol: 3, HasMCP: l.Protocol == 3, HasPackages: present == nil, Stamp: l.Stamp, Fetched: library.FetchedSkills(l.Files), Artifacts: s.lib.Artifacts(required), Required: required}, nil
 }
 
 func (s *libraryShare) snapshot(now time.Time) (api.Library, error) {
@@ -74,10 +84,18 @@ func (s *libraryShare) snapshot(now time.Time) (api.Library, error) {
 
 // take stores incoming when it is newer than this machine's library, and errNotNewer otherwise.
 func (s *libraryShare) take(ctx context.Context, incoming api.Library, now time.Time) error {
-	if incoming.Protocol > 2 {
+	if incoming.Protocol > 3 {
 		return errors.New("unsupported library protocol; update spinup")
 	}
 	for _, f := range incoming.Files {
+		if f.Path == library.MCPServers {
+			if incoming.Protocol < 3 {
+				return errors.New("update spinup before syncing MCP definitions")
+			}
+			if err := mcp.ValidateManifest(f.Data); err != nil {
+				return err
+			}
+		}
 		if f.Path == library.Packages {
 			if err := packages.ValidateManifest(f.Data); err != nil {
 				return err

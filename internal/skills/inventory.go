@@ -22,6 +22,7 @@ const (
 
 // Entry is one skill as this machine has it.
 type Entry struct {
+	Private          bool
 	Name             string
 	State            State
 	Mode             Mode
@@ -48,7 +49,7 @@ func (m Manager) Inventory() ([]Entry, error) {
 		return &e
 	}
 	for _, s := range listed {
-		add(Entry{Name: s.Name, State: Shared, Mode: s.Mode, Source: s.Source, DescriptionChars: s.DescriptionChars})
+		add(Entry{Name: s.Name, Private: s.Private, State: Shared, Mode: s.Mode, Source: s.Source, DescriptionChars: s.DescriptionChars})
 	}
 	installed, err := m.paths.installed()
 	if err != nil {

@@ -155,7 +155,7 @@ body {
 .page-header--bleed {
   margin: -20px -20px 12px;
 }
-.page-heading, .page-actions, .viewed-machine {
+.page-heading, .page-actions, .viewed-machine-name {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -197,11 +197,21 @@ body {
 .page-views { grid-area: 1 / 2; min-width: 0 }
 .viewed-machine {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+  margin-top: 4px;
+  padding-top: 3px;
+  border-top: 1px solid var(--group-edge);
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.3;
 }
 .viewed-machine strong { color: var(--foreground); font-weight: 600 }
-.viewed-machine button { margin-left: auto; padding: 6px 8px; color: var(--foreground); font-weight: 600 }
+.viewed-machine button { padding: 6px 10px; border-radius: 999px; color: var(--foreground); font-weight: 600; white-space: nowrap }
+.viewed-machine button:hover { background: var(--surface-secondary) }
 .connection-status, .connection-alert {
   position: fixed;
   right: 20px;
@@ -355,7 +365,6 @@ body {
     display: grid;
     width: 44px;
     height: 44px;
-    margin-left: -7px;
     background: radial-gradient(ellipse at 30% 0%, var(--glass-rim), transparent 65%), var(--surface-secondary);
     box-shadow: inset 0 0 0 1px var(--group-edge), inset 0 1px 0 var(--glass-rim);
   }
@@ -389,11 +398,6 @@ body {
   .page-views .tabs__indicator { border-radius: 16px !important }
   .group-row .segmented { max-width: 100%; overflow-x: auto }
   .group-row .segment { min-height: 44px; min-width: 44px; padding-inline: 7px }
-  .viewed-machine {
-    margin-top: 3px;
-    padding-left: 5px;
-    border-top: 1px solid var(--group-edge);
-  }
   .viewed-machine button { min-height: 44px; color: var(--glass-accent) }
   .mobile-dock {
     padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));

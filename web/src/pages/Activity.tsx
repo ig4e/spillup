@@ -87,22 +87,42 @@ export function ActivityPage() {
   );
 }
 
-function ActivityMonitor({ picked, setPicked, metric, setMetric, onShowHistory }: {
+interface MonitorProps {
   picked: string | null;
   setPicked: (name: string) => void;
   metric: Metric;
   setMetric: (metric: Metric) => void;
   onShowHistory: () => void;
+}
+
+function ActivityMonitor(props: MonitorProps) {
+  const machinesQ = useQuery(api.localManagedMachines, 15000);
+  const machines = (machinesQ.data?.machines ?? []).filter((m) => m.online && !m.expired);
+  const selected = props.picked ? machines.find((m) => m.name === props.picked) : machines.find((m) => m.is_self);
+  if (!selected) return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <LargeTitle bleed title="Activity" />
+      <Group title={machinesQ.loading ? "Checking managed machines…" : "Choose a managed machine"}>
+        {machinesQ.error ? <Row title="Machine list unavailable" subtitle={machinesQ.error.message} /> : null}
+        {machines.map(m => <Row key={m.name} title={m.name} onPress={() => props.setPicked(m.name)} />)}
+        {machinesQ.data && !machines.length ? <Row title="No managed machines online" /> : null}
+      </Group>
+    </div>
+  );
+  return <ProcessList {...props} selected={selected} machines={machines} verified={!machinesQ.refreshError && !machinesQ.data?.problem} />;
+}
+
+function ProcessList({ selected, machines, verified, setPicked, metric, setMetric, onShowHistory }: MonitorProps & {
+  selected: Machine;
+  machines: Machine[];
+  verified: boolean;
 }) {
-  const machinesQ = useQuery(api.localMachines, 10000);
-  const machines = (machinesQ.data?.machines ?? []).filter((m) => m.online && (m.is_self || m.hold || m.state));
   const [chosen, setChosen] = useState<number | null>(null);
   const [ending, setEnding] = useState<{ process: Process; target: string | null } | null>(null);
-  const selected = picked ? machines.find((m) => m.name === picked) : machines.find((m) => m.is_self);
-  const target = selected?.is_self ? null : selected?.name ?? picked;
+  const target = selected.is_self ? null : selected.name;
   const stats = useMachineStats(target);
-  const st = selected ? stats.data : undefined;
-  const live = !!selected && !!st && !stats.refreshError && !machinesQ.refreshError && !machinesQ.data?.problem;
+  const st = stats.data;
+  const live = verified && !!st && !stats.refreshError;
 
   const processes = useMemo(() => {
     const list = [...(st?.processes ?? [])];
@@ -163,7 +183,7 @@ function ActivityMonitor({ picked, setPicked, metric, setMetric, onShowHistory }
         <table className="activity-programs w-full text-[13px]">
           <thead>
             <tr>
-              <Th>Process Name {selected || picked ? <span className="font-normal">· {selected?.name ?? picked}{stats.refreshError && st ? " · Last reading" : ""}</span> : null}</Th>
+              <Th>Process Name <span className="font-normal">· {selected.name}{stats.refreshError && st ? " · Last reading" : ""}</span></Th>
               <Th right active={metric !== "memory"}>% CPU</Th>
               <Th right active={metric === "memory"}>Memory</Th>
               <Th right>PID</Th>
@@ -187,7 +207,7 @@ function ActivityMonitor({ picked, setPicked, metric, setMetric, onShowHistory }
             {!processes.length ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-muted">
-                  {st ? "This machine doesn't list its programs." : (selected && stats.loading) || machinesQ.loading ? "Reading…" : "Machine statistics are unavailable."}
+                  {st ? "This machine doesn't list its programs." : stats.loading ? "Reading…" : "Machine statistics are unavailable."}
                 </td>
               </tr>
             ) : null}
@@ -199,7 +219,7 @@ function ActivityMonitor({ picked, setPicked, metric, setMetric, onShowHistory }
         {st ? (
           <BottomPanel metric={metric} st={st} h={h} />
         ) : (
-          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">{(selected && stats.loading) || machinesQ.loading ? "Reading statistics…" : "Machine statistics are unavailable."}</div>
+          <div className="col-span-3 flex items-center justify-center text-[13px] text-muted">{stats.loading ? "Reading statistics…" : "Machine statistics are unavailable."}</div>
         )}
       </div>
       <EndDialog

@@ -4,18 +4,39 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/darkyeg/spinup/internal/skills"
 )
 
-func (s *Server) serveSkills(w http.ResponseWriter, _ *http.Request) {
-	view, err := skillsView(s.b.Skills())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+func (s *Server) serveSkills(from reach) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		view, err := skillsView(s.b.Skills())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		view.SharingAvailable = from == browser
+		if from != browser {
+			hidden := map[string]bool{}
+			view.Shared = slices.DeleteFunc(view.Shared, func(v SharedSkill) bool {
+				if v.Private {
+					hidden[v.Name] = true
+				}
+				return v.Private
+			})
+			view.Clashes = slices.DeleteFunc(view.Clashes, func(c Clash) bool { return slices.ContainsFunc(c.Folders, func(s string) bool { return hidden[s] }) })
+			chars := 0
+			for _, v := range view.Shared {
+				if v.Mode == "auto" && v.Installed {
+					chars += v.DescriptionChars
+				}
+			}
+			view.TokenEstimate = chars / 4
+		}
+		writeJSON(w, view)
 	}
-	writeJSON(w, view)
 }
 
 func skillsView(m skills.Manager) (Skills, error) {
@@ -48,7 +69,7 @@ func skillsView(m skills.Manager) (Skills, error) {
 	}
 	for _, sk := range status.Skills {
 		view.Shared = append(view.Shared, SharedSkill{
-			Name: sk.Name, Source: sk.Source, Mode: sk.Mode.String(), Installed: sk.Installed,
+			Private: sk.Private, SharedAvailable: sk.SharedAvailable, Path: sk.Path, Name: sk.Name, Source: sk.Source, Mode: sk.Mode.String(), Installed: sk.Installed,
 			DescriptionChars: sk.DescriptionChars, Agents: orEmpty(agents[sk.Name]),
 		})
 	}
@@ -74,17 +95,19 @@ func (s *Server) editSkills(edit func(skills.Manager) error) error {
 	return edit(s.b.Skills())
 }
 
-func (s *Server) serveSkillMode(w http.ResponseWriter, r *http.Request) {
-	var req modeRequest
-	if !decodeBody(w, r, &req) || !named(w, req.Names) {
-		return
+func (s *Server) serveSkillMode(from reach) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req modeRequest
+		if !decodeBody(w, r, &req) || !named(w, req.Names) {
+			return
+		}
+		mode := skills.Auto
+		if req.Manual {
+			mode = skills.Manual
+		}
+		err := s.editSkills(func(m skills.Manager) error { return m.SetModeScoped(req.Names, mode, from == browser) })
+		answer(w, err, fmt.Sprintf("%s %s %s now. Restart Claude Code and Codex to pick it up.", list(req.Names), isAre(req.Names), mode))
 	}
-	mode := skills.Auto
-	if req.Manual {
-		mode = skills.Manual
-	}
-	err := s.editSkills(func(m skills.Manager) error { return m.SetMode(req.Names, mode) })
-	answer(w, err, fmt.Sprintf("%s %s %s now. Restart Claude Code and Codex to pick it up.", list(req.Names), isAre(req.Names), mode))
 }
 
 func (s *Server) serveSkillRemove(w http.ResponseWriter, r *http.Request) {
@@ -124,25 +147,35 @@ func (s *Server) serveSkillAdopt(w http.ResponseWriter, r *http.Request) {
 	answer(w, err, fmt.Sprintf("%s %s in your library now and reach every machine.", list(req.Names), isAre(req.Names)))
 }
 
-func (s *Server) serveSkillAdd(w http.ResponseWriter, r *http.Request) {
-	var req addRequest
-	if !decodeBody(w, r, &req) || !named(w, req.Names) {
-		return
+func (s *Server) serveSkillAdd(from reach) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req addRequest
+		if !decodeBody(w, r, &req) || !named(w, req.Names) {
+			return
+		}
+		if req.Private && from != browser {
+			writeError(w, http.StatusForbidden, "Open this machine’s local dashboard to add a private skill.")
+			return
+		}
+		repo := strings.TrimSpace(req.Repo)
+		if strings.Count(repo, "/") != 1 {
+			writeError(w, http.StatusBadRequest, "name the GitHub repo as owner/repo, e.g. anthropics/skills")
+			return
+		}
+		mode := skills.Auto
+		if req.Manual {
+			mode = skills.Manual
+		}
+		err := s.editSkills(func(m skills.Manager) error {
+			if req.Private {
+				_, err := m.AddPrivate(r.Context(), repo, req.Names, mode)
+				return err
+			}
+			_, err := m.Add(r.Context(), repo, req.Names, mode)
+			return err
+		})
+		answer(w, err, fmt.Sprintf("Added %s from %s. Restart Claude Code and Codex to load %s.", list(req.Names), repo, itThem(req.Names)))
 	}
-	repo := strings.TrimSpace(req.Repo)
-	if strings.Count(repo, "/") != 1 {
-		writeError(w, http.StatusBadRequest, "name the GitHub repo as owner/repo, e.g. anthropics/skills")
-		return
-	}
-	mode := skills.Auto
-	if req.Manual {
-		mode = skills.Manual
-	}
-	err := s.editSkills(func(m skills.Manager) error {
-		_, err := m.Add(r.Context(), repo, req.Names, mode)
-		return err
-	})
-	answer(w, err, fmt.Sprintf("Added %s from %s. Restart Claude Code and Codex to load %s.", list(req.Names), repo, itThem(req.Names)))
 }
 
 func (s *Server) serveSkillSync(w http.ResponseWriter, r *http.Request) {
@@ -191,4 +224,17 @@ func itThem(names []string) string {
 		return "it"
 	}
 	return "them"
+}
+
+func (s *Server) serveSkillSharing(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name   string `json:"name"`
+		Action string `json:"action"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	err := s.editSkills(func(m skills.Manager) error { _, err := m.Sharing(r.Context(), req.Name, req.Action); return err })
+	messages := map[string]string{"private": "Changes to this skill now stay on this machine.", "resume": "Private copy archived. This machine now follows the shared version.", "publish": "This working copy is now shared with the fleet."}
+	answer(w, err, messages[req.Action])
 }

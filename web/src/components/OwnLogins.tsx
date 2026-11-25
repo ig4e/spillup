@@ -1,7 +1,7 @@
 import { toast } from "@heroui/react";
 import { Button } from "./Button";
 import { LogIn } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { describeLogin, relative } from "../lib/format";
 import { useQuery, useRemote } from "../lib/hooks";
@@ -16,6 +16,8 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function OwnLogins() {
   const own = useQuery(api.own, 5000);
   const [busy, setBusy] = useState<string | null>(null);
+  const signInRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => signInRequest.current?.abort(), []);
   const remote = useRemote();
   const data = own.data;
   if (!data) return own.error ? <Group><Row title="Sign-in status unavailable" subtitle={own.error.message} /></Group> : <GroupSkeleton rows={4} />;
@@ -34,29 +36,43 @@ export function OwnLogins() {
   };
 
   const signIn = async (p: ProviderInfo) => {
+    const request = new AbortController();
+    signInRequest.current?.abort();
+    signInRequest.current = request;
     const tab = window.open("about:blank", "_blank");
+    let notice: ReturnType<typeof toast> | undefined;
+    const dismiss = () => { if (notice !== undefined) toast.close(notice); };
+    request.signal.addEventListener("abort", dismiss, { once: true });
     setBusy(`signin-${p.id}`);
     try {
       const link = await api.signIn(p.id);
+      if (request.signal.aborted) { tab?.close(); return; }
       if (tab) tab.location.href = link.url;
       else window.open(link.url, "_blank");
-      const id = toast(`Finish signing in to ${p.name} in the new tab…`, { isLoading: true, timeout: 0 });
+      notice = toast(`Finish signing in to ${p.name} in the new tab…`, { isLoading: true, timeout: 0 });
       for (let i = 0; i < 150; i++) {
         await wait(2000);
+        if (request.signal.aborted) return;
         const st = await api.signInStatus(link.state);
+        if (request.signal.aborted) return;
         if (st.status === "ok" || st.status === "error") {
-          toast.close(id);
           if (st.status === "ok") toast.success(`Signed in to ${p.name} on this machine.`);
           else toast.danger(st.error ?? "The sign-in failed.");
           break;
         }
       }
-      await own.reload();
+      if (!request.signal.aborted) await own.reload();
     } catch (e) {
+      if (request.signal.aborted) return;
       tab?.close();
       toast.danger((e as Error).message);
     } finally {
-      setBusy(null);
+      request.signal.removeEventListener("abort", dismiss);
+      dismiss();
+      if (signInRequest.current === request) {
+        signInRequest.current = null;
+        if (!request.signal.aborted) setBusy(null);
+      }
     }
   };
 

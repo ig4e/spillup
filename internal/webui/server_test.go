@@ -14,6 +14,7 @@ import (
 	"github.com/darkyeg/spinup/internal/doctor"
 	"github.com/darkyeg/spinup/internal/leadership"
 	"github.com/darkyeg/spinup/internal/logins"
+	"github.com/darkyeg/spinup/internal/mcp"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/t3code"
@@ -54,6 +55,7 @@ func (*fakeBackend) HandOff(string) error                            { return er
 func (*fakeBackend) TakeOver() error                                 { return nil }
 func (b *fakeBackend) MakeMain(m string) error                       { b.mainTo = m; return nil }
 func (*fakeBackend) RestartProxy() error                             { return nil }
+func (*fakeBackend) MCP() mcp.Manager                                { return mcp.Manager{} }
 func (*fakeBackend) Skills() skills.Manager                          { return skills.Manager{} }
 func (*fakeBackend) CatchUpLibrary()                                 {}
 func (*fakeBackend) OwnLogins() ([]logins.Summary, error)            { return nil, nil }
@@ -95,14 +97,17 @@ func (*fakeBackend) Apps() []App                            { return nil }
 func (*fakeBackend) RolloutPlan(context.Context) (FleetPreview, error) {
 	return FleetPreview{Output: "fleet preview"}, nil
 }
-func (*fakeBackend) StartRollout(context.Context, string) error { return nil }
-func (*fakeBackend) StartUpdate() error                         { return nil }
-func (*fakeBackend) SetAutoUpdate(bool) error                   { return nil }
-func (*fakeBackend) SSHState(context.Context) SSHState          { return SSHState{} }
-func (*fakeBackend) SetAccess(bool, bool) error                 { return nil }
-func (*fakeBackend) SSHEnable(bool) error                       { return nil }
-func (*fakeBackend) SSHSync(context.Context) (string, error)    { return "", nil }
-func (*fakeBackend) Remote(string) (Remote, error)              { return Remote{}, errors.New("no remote in tests") }
+func (*fakeBackend) StartRollout(context.Context, string) error                { return nil }
+func (*fakeBackend) StartUpdate() error                                        { return nil }
+func (*fakeBackend) SetAutoUpdate(bool) error                                  { return nil }
+func (*fakeBackend) SSHState(context.Context) SSHState                         { return SSHState{} }
+func (*fakeBackend) SetAccess(bool, bool) error                                { return nil }
+func (*fakeBackend) SSHEnable(bool) error                                      { return nil }
+func (*fakeBackend) SSHSync(context.Context) (string, error)                   { return "", nil }
+func (*fakeBackend) ManagedMachines(context.Context) ([]ManagedMachine, error) { return nil, nil }
+func (*fakeBackend) Remote(context.Context, string) (Remote, error) {
+	return Remote{}, errors.New("no remote in tests")
+}
 
 func (b *fakeBackend) Panel(target string) (Panel, error) {
 	if p, ok := b.panels[target]; ok {

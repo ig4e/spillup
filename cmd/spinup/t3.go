@@ -267,7 +267,7 @@ func linkT3(ctx context.Context, from, to t3Machine) error {
 
 // bridgeCall calls another machine's dashboard over the tailnet, with this machine's keys.
 func bridgeCall(ctx context.Context, machine, method, path string, in, out any) error {
-	rm, err := cliBackend{}.Remote(machine)
+	rm, err := cliBackend{}.Remote(ctx, machine)
 	if err != nil {
 		return err
 	}

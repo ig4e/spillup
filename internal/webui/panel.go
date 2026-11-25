@@ -200,7 +200,7 @@ func htmlEscape(s string) string {
 
 // fetchRemotePanelPage is another machine's Management Center, which that machine serves already signed in.
 func (s *Server) fetchRemotePanelPage(r *http.Request, machine, target string) (string, error) {
-	rm, err := s.b.Remote(machine)
+	rm, err := s.b.Remote(r.Context(), machine)
 	if err != nil {
 		return "", err
 	}
@@ -225,7 +225,7 @@ func (s *Server) fetchRemotePanelPage(r *http.Request, machine, target string) (
 // serveRemotePanelAPI passes the Management Center's calls to the machine it was opened for, whose own
 // dashboard adds its key.
 func (s *Server) serveRemotePanelAPI(w http.ResponseWriter, r *http.Request, machine, target string) {
-	rm, err := s.b.Remote(machine)
+	rm, err := s.b.Remote(r.Context(), machine)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

@@ -65,6 +65,7 @@ export interface Overview {
 
 export interface Machine {
   yours?: boolean;
+  terminals?: boolean;
   name: string;
   dns_name?: string;
   ip?: string;
@@ -92,7 +93,12 @@ export interface Doctor {
   failures: number;
 }
 
+export type SkillSharingAction = "private" | "resume" | "publish";
+
 export interface SharedSkill {
+  private?: boolean;
+  shared_available?: boolean;
+  path?: string;
   name: string;
   source: string;
   mode: "auto" | "manual";
@@ -115,6 +121,7 @@ export interface RemovedSkill {
 }
 
 export interface Skills {
+  sharing_available?: boolean;
   library: string;
   token_estimate: number;
   shared: SharedSkill[];

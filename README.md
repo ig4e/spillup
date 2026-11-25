@@ -16,7 +16,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/overview-dark.png">
-  <img src="docs/screenshots/overview-light.png" alt="The spillup dashboard: which machine holds your accounts, your machines, logins and skills" width="900">
+  <img src="docs/screenshots/overview-light.png" alt="Spillup Overview showing machine activity, the accounts service and the managed machines on a sample tailnet" width="900">
 </picture>
 
 </div>
@@ -43,7 +43,7 @@ spinup setup my-desktop --hub
 | 🏠 **Your choice of where logins live** | Copied to standbys so a standby takes over while the main machine is off, or **main machine only**, so no login file ever leaves it. Switch it on the Accounts page. |
 | 🤝 **Joins by itself** | A new machine on your own Tailscale account gets its keys from the main machine automatically — no passwords to copy. Your existing CLIProxyAPI key keeps working, so your tools need no changes. |
 | 🧩 **T3 Code, linked everywhere** | T3 Code starts at boot on every machine, and spillup links each one to all the others, so an agent anywhere can hand work to any machine. |
-| ✨ **The same agents, everywhere** | Skills, agent instructions and plugins live in one library that every machine keeps identical. Change it anywhere; the rest follow within seconds. |
+| ✨ **Per-item sharing** | Share skills, instructions, plugins and MCP definitions through the library. Each skill and MCP server can also have a private working copy. |
 | 🖥️ **One dashboard for the fleet** | Always on at `http://localhost:8320`. From the main machine, open any other machine's dashboard too. |
 | 🩺 **A straight answer when something breaks** | `spinup doctor` (or the Doctor page) checks everything and gives the fix for each problem. |
 | 🖥️ **Remote desktop to every machine** | Sunshine on each machine, Moonlight as the app, and a browser client right in the dashboard: reach and control any machine from any other, paired over Tailscale with no PINs to type. |
@@ -104,10 +104,10 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td width="50%" valign="top">
 
-**Machines** — every device on your tailnet, who holds the accounts, and the **main machine** picker. Pick another machine and it becomes the hub; the old one becomes its standby.
+**Machines** shows the verified Spillup computers on your tailnet and the current account holder. Choose a new main machine to move the accounts there and make the previous holder a standby.
 
 </td>
-<td width="50%"><img src="docs/screenshots/machines.png" alt="Machines: choose the main machine and see every device"></td>
+<td width="50%"><img src="docs/screenshots/machines.png" alt="Machines page with managed computers and the main machine picker"></td>
 </tr>
 <tr>
 <td valign="top">
@@ -136,10 +136,10 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**Skills** — your library, the same on every machine: switch a skill between running on its own and only when called, see what it costs per session, add skills from GitHub, keep a machine's own skills everywhere, and restore removed ones.
+**Skills & MCP** manages private and shared skills and MCP definitions. Choose which skills run automatically, see their token cost, and approve MCP servers for individual agents.
 
 </td>
-<td><img src="docs/screenshots/skills.png" alt="Skills: one library on every machine"></td>
+<td><img src="docs/screenshots/skills.png" alt="Skills library with installed skills and their trigger modes"></td>
 </tr>
 <tr>
 <td valign="top">
@@ -203,6 +203,7 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 | `spinup handoff <machine>` | Move the accounts to another machine, safely |
 | `spinup machines` | Every device on your network and its address |
 | `spinup skills` | Your skills for Claude Code and Codex |
+| `spinup mcp` | Local and shared MCP definitions, per-agent approvals and named secret transfers |
 | `spinup packages` | Complete plugins, pinned revisions, native installation and rollback |
 | `spinup agents` | Shared and personal instructions; keeps your model choices and settings |
 | `spinup repo <path> [--apply]` | Get a project ready for agents: stack skills, AGENTS.md, git remote |
@@ -217,10 +218,11 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 <details>
 <summary><b>Skills, plugins and your own instructions</b></summary>
 
-Your skills live in one folder, your **library** (`~/.spinup/skills`), copied to every machine and linked into Claude Code and Codex. Use the **Skills** page, or `spinup skills` for the same three tabs in a terminal (Shared, Only here, Removed — nothing is ever deleted).
+Shared skills travel through your **library** (`~/.spinup`) and install into Claude Code and Codex. You can keep a skill private from the start, pause updates on this machine, or publish your local edits later. Manage skill and MCP sharing in **Skills & MCP**.
 
 | You have | Do |
 |---|---|
+| A private or shared MCP server | **Skills & MCP → MCP** or `spinup mcp`. See [MCP servers and secret sharing](docs/MCP.md). |
 | A skill only this machine has | Skills → **Only Here** → **Keep Everywhere** (or `spinup skills adopt`) |
 | A folder or `.zip` someone sent you | `spinup skills import <path>` |
 | A new idea | `spinup skills new <name>` |

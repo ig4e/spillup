@@ -11,10 +11,25 @@ import (
 // Rename gives one of your own skills a new name, the one agents call it by, and reinstalls it.
 // The folder keeps its name; only the name in its SKILL.md changes, so nothing moves or is lost.
 func (m Manager) Rename(ctx context.Context, folder, name string) (Synced, error) {
-	if err := checkNames([]string{name}); err != nil {
+	lock, err := m.paths.lockStore(ctx)
+	if err != nil {
+		return Synced{}, err
+	}
+	defer lock.Close()
+	if err := checkNames([]string{folder, name}); err != nil {
 		return Synced{}, err
 	}
 	file := filepath.Join(m.ownPath(folder), skillFile)
+	p, err := m.privateSkills()
+	if err != nil {
+		return Synced{}, err
+	}
+	if err := m.checkPrivateWrites(p, []string{folder}); err != nil {
+		return Synced{}, err
+	}
+	if n := p.name(folder); n != "" {
+		file = filepath.Join(m.paths.store, n, skillFile)
+	}
 	text, err := os.ReadFile(file)
 	if err != nil {
 		return Synced{}, fmt.Errorf("%s is not one of your own skills, so it can't be renamed here", folder)
@@ -22,7 +37,7 @@ func (m Manager) Rename(ctx context.Context, folder, name string) (Synced, error
 	if err := os.WriteFile(file, []byte(withName(string(text), name)), 0o644); err != nil {
 		return Synced{}, err
 	}
-	return m.Sync(ctx)
+	return m.syncLocked(ctx)
 }
 
 // withName sets the name: line of a SKILL.md's frontmatter, adding the line or the frontmatter if absent.

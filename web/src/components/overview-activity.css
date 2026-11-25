@@ -1,0 +1,65 @@
+.overview-host, .overview-service-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.overview-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--accent);
+  padding-inline: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.overview-charts {
+  --overview-cpu: #2774c2;
+  --overview-memory: #9550b6;
+  --overview-rx: #12816d;
+  --overview-tx: #3675cb;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dark .overview-charts { --overview-cpu: #77b6ff; --overview-memory: #d7a2fa; --overview-rx: #66ceb1; --overview-tx: #86b9ff }
+.overview-chart {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.overview-chart figcaption, .overview-network-values, .overview-network-values span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.overview-chart figcaption { font-size: 13px; font-weight: 600 }
+.overview-chart figcaption svg, .overview-network-values svg { width: 15px; height: 15px; flex: none }
+.overview-chart figcaption svg { color: var(--muted) }
+.overview-number, .overview-network-values { font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: -.03em }
+.overview-number { margin-block: 5px; font-size: clamp(19px, 5vw, 26px); line-height: 1.15; white-space: nowrap }
+.overview-network { grid-column: 1/-1 }
+.overview-network-values { flex-wrap: wrap; gap: 5px 15px; margin-block: 5px; font-size: 15px }
+.overview-plot { display: flex; align-items: stretch; gap: 4px; height: 54px }
+.overview-plot svg { flex: 1; min-width: 0; height: 100%; overflow: visible }
+.overview-gridline { stroke: var(--separator); stroke-width: .6px; fill: none; vector-effect: non-scaling-stroke }
+.overview-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.overview-plot-empty { display: flex; height: 54px; align-items: center; color: var(--muted); font-size: 11px }
+.overview-sample-time { min-height: 17px; margin-top: 5px; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted) }
+@media (min-width: 640px) {
+  .overview-charts { grid-template-columns: repeat(2,minmax(0,1fr)) minmax(0,1.5fr); gap: 10px }
+  .overview-network { grid-column: auto }
+  .overview-network-values { min-height: 30px }
+}

@@ -194,10 +194,11 @@ type testTailnet struct {
 	running atomic.Int32
 	most    atomic.Int32
 	all     map[string]*testMachine
+	ports   map[int]bool
 }
 
 func newTestTailnet(t *testing.T) *testTailnet {
-	return &testTailnet{t: t, all: map[string]*testMachine{}, net: &fakeTailnet{
+	return &testTailnet{t: t, all: map[string]*testMachine{}, ports: map[int]bool{}, net: &fakeTailnet{
 		online: map[string]bool{}, lastSeen: map[string]time.Time{}, peerAPI: map[string]string{}, cutOff: map[string]bool{},
 	}}
 }
@@ -205,7 +206,7 @@ func newTestTailnet(t *testing.T) *testTailnet {
 func (tn *testTailnet) add(name string, hold config.Hold) *testMachine {
 	dir := tn.t.TempDir()
 	tm := &testMachine{
-		name: name, hold: hold, dir: dir, front: freeAddr(tn.t), peerAPI: freeAddr(tn.t), logbook: &logbook{},
+		name: name, hold: hold, dir: dir, front: tn.freeAddr(), peerAPI: tn.freeAddr(), logbook: &logbook{},
 		lib: library.At(filepath.Join(dir, "library")),
 	}
 	tn.all[name] = tm
@@ -219,7 +220,7 @@ func (tn *testTailnet) start(tm *testMachine) {
 	cfg := config.Defaults()
 	cfg.Hold, cfg.FailoverAfterSeconds = tm.hold, 1
 	cfg.AutoFailback = !tm.keeps
-	cfg.ProxyPort = freePort(tn.t)
+	cfg.ProxyPort = tn.freePort()
 	cfg.AuthDir = filepath.Join(tm.dir, "auth")
 	tm.proxy = &fakeProxy{
 		machine: tm.name, port: cfg.ProxyPort, running: &tn.running, most: &tn.most,
@@ -248,7 +249,7 @@ func (tn *testTailnet) start(tm *testMachine) {
 		})
 	}
 	if len(tm.own) > 0 {
-		cfg.OwnModels, cfg.OwnProxyPort = tm.own, freePort(tn.t)
+		cfg.OwnModels, cfg.OwnProxyPort = tm.own, tn.freePort()
 		o.Config = cfg
 		tm.ownProxy = &fakeProxy{
 			machine: tm.name + "-own", port: cfg.OwnProxyPort, running: &atomic.Int32{}, most: &atomic.Int32{},
@@ -635,15 +636,23 @@ func post(addr, path, key string) int {
 	return resp.StatusCode
 }
 
-func freeAddr(t *testing.T) string { return fmt.Sprintf("127.0.0.1:%d", freePort(t)) }
+func (tn *testTailnet) freeAddr() string { return fmt.Sprintf("127.0.0.1:%d", tn.freePort()) }
 
-func freePort(t *testing.T) int {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+// A fleet allocates several addresses before its machines bind them. The OS
+// may hand the same ephemeral port back after the temporary listener closes.
+func (tn *testTailnet) freePort() int {
+	for {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			tn.t.Fatal(err)
+		}
+		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
+		if !tn.ports[port] {
+			tn.ports[port] = true
+			return port
+		}
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
 }
 
 type testLog struct {

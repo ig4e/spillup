@@ -19,6 +19,7 @@ import (
 
 // Node is one machine on the tailnet.
 type Node struct {
+	ID      string // Tailscale stable node ID, when available.
 	Name    string // MagicDNS short name, e.g. "office-pc"
 	DNSName string // full MagicDNS name, e.g. "office-pc.tail1234.ts.net"
 	IP      string // Tailscale IPv4
@@ -122,6 +123,7 @@ func Find() string {
 var errNoTailscale = errors.New("tailscale CLI not found")
 
 type rawNode struct {
+	ID           string
 	HostName     string
 	DNSName      string
 	OS           string
@@ -193,6 +195,7 @@ func parse(data []byte) (Status, error) {
 
 func convert(r rawNode) Node {
 	n := Node{
+		ID:      r.ID,
 		Name:    shortName(r.DNSName, r.HostName),
 		DNSName: strings.TrimSuffix(strings.ToLower(r.DNSName), "."),
 		OS:      r.OS,

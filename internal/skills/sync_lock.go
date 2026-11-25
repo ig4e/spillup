@@ -8,6 +8,8 @@ import (
 )
 
 func (p paths) lockStore(ctx context.Context) (*os.File, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	if err := os.MkdirAll(p.store, 0o755); err != nil {
 		return nil, err
 	}

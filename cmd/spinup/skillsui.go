@@ -102,7 +102,12 @@ func sharedTab(entries []skills.Entry, status skills.Status) tui.Tab {
 	}
 	hasNote := false
 	for _, entry := range entries {
-		row := tui.Row{ID: entry.Name, Cells: []string{entry.Name, entry.Mode.String(), loadedBy(entry), entry.Source}}
+		source := entry.Source
+		if entry.Private {
+			tab.Title = fmt.Sprintf("Managed %d", len(entries))
+			source = "Private on this machine"
+		}
+		row := tui.Row{ID: entry.Name, Cells: []string{entry.Name, entry.Mode.String(), loadedBy(entry), source}}
 		if clashesWith, clash := renamable[entry.Name]; clash {
 			row.Cells = append(row.Cells, "same name as "+clashesWith)
 			row.Tone, hasNote = tui.Warn, true

@@ -29,13 +29,17 @@ type Status = { kind: "connecting" } | { kind: "open" } | { kind: "ended"; why: 
 export function TerminalPage() {
   const { data, loading } = useOverview();
   const remote = useRemote();
-  const machines = useQuery(api.localMachines, 15000);
+  const machines = useQuery(api.localManagedMachines, 15000);
   const local = useQuery(api.localOverview);
   const [session, setSession] = useState(0);
-  const others = (machines.data?.machines ?? []).filter((m) => !m.is_self && m.online).map((m) => m.name);
+  const managed = machines.data?.machines ?? [];
+  const selected = managed.find(m => remote ? m.name === remote : m.is_self);
+  const choices = managed.filter(m => m.online && !m.expired && (m.is_self ? local.data && local.data.settings.terminals !== false : m.terminals === true))
+    .map(m => ({ id: m.is_self ? "__self" : m.name, label: m.name }));
   const self = local.data?.name || "This Machine";
-  const choices = [{ id: "__self", label: self }, ...others.map((name) => ({ id: name, label: name }))];
-  const off = data?.settings.terminals === false;
+  const off = data?.settings.terminals === false || selected?.terminals === false;
+  const allowed = !!data && !off && !!selected && selected.online && !selected.expired && (!remote || selected.terminals === true);
+  const checking = loading || machines.loading;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -43,35 +47,36 @@ export function TerminalPage() {
         bleed
         title="Terminal"
         center={
-          choices.length > 1 ? (
+          choices.length > 1 || (choices.length > 0 && !allowed) ? (
             <Segmented label="Machine" value={remote ?? "__self"} onChange={(id) => setRemote(id === "__self" ? null : id)} options={choices} />
           ) : undefined
         }
         actions={
-          <Button size="sm" variant="secondary" isDisabled={!data || off} onPress={() => setSession((n) => n + 1)}>
+          <Button size="sm" variant="secondary" isDisabled={!allowed || !!machines.refreshError} onPress={() => setSession((n) => n + 1)}>
             <Plus className="size-4" /> New Session
           </Button>
         }
       />
-      {!data ? <div className="flex flex-1 items-center justify-center text-sm text-muted">{loading ? "Checking terminal access…" : "Terminal access unavailable"}</div> : off ? (
+      {checking || !data || (!off && !allowed) ? <div className="flex flex-1 items-center justify-center text-sm text-muted">{checking ? "Checking terminal access…" : "No terminal available on this machine."}</div> : off ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
           <SquareTerminal className="size-10" />
           <div className="text-[15px] font-semibold text-foreground">Terminals are off on {data?.name}</div>
           <div className="max-w-sm text-[13px]">Turn them on in {data?.name}’s Settings → Your Devices.</div>
         </div>
       ) : (
-        <TerminalView key={`${remote ?? ""}#${session}`} machine={data?.name ?? self} onNew={() => setSession((n) => n + 1)} />
+        <TerminalView key={`${remote ?? ""}#${session}`} target={remote} machine={data?.name ?? self} onNew={() => setSession((n) => n + 1)} />
       )}
     </div>
   );
 }
 
-function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }) {
+function TerminalView({ target, machine, onNew }: { target: string | null; machine: string; onNew: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const term = useRef<XTerm | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
 
   useEffect(() => {
+    const session = api.terminalOn(target);
     const el = box.current;
     if (!el) return;
     const xt = new XTerm({
@@ -95,10 +100,10 @@ function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }
     const send = (data: string) => {
       if (!id) return;
       const target = id;
-      sending = sending.then(() => api.termInput(target, data).catch(() => undefined));
+      sending = sending.then(() => session.input(target, data).catch(() => undefined));
     };
     const typing = xt.onData(send);
-    const resizing = xt.onResize(({ cols, rows }) => id && void api.termResize(id, cols, rows).catch(() => undefined));
+    const resizing = xt.onResize(({ cols, rows }) => id && void session.resize(id, cols, rows).catch(() => undefined));
     const observer = new ResizeObserver(() => fit.fit());
     observer.observe(el);
     const scheme = matchMedia("(prefers-color-scheme: dark)");
@@ -107,7 +112,7 @@ function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }
 
     const attach = async (tries: number): Promise<void> => {
       try {
-        const stream = await api.termOutput(id, stop.signal);
+        const stream = await session.output(id, stop.signal);
         setStatus({ kind: "open" });
         xt.focus();
         const reader = stream.getReader();
@@ -136,9 +141,9 @@ function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }
 
     void (async () => {
       try {
-        ({ id } = await api.termStart(xt.cols, xt.rows));
+        ({ id } = await session.start(xt.cols, xt.rows));
         if (stop.signal.aborted) {
-          void api.termClose(id).catch(() => undefined);
+          void session.close(id).catch(() => undefined);
           return;
         }
         await attach(5);
@@ -149,7 +154,7 @@ function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }
 
     return () => {
       stop.abort();
-      if (id) void api.termClose(id).catch(() => undefined);
+      if (id) void session.close(id).catch(() => undefined);
       typing.dispose();
       resizing.dispose();
       observer.disconnect();
@@ -157,7 +162,7 @@ function TerminalView({ machine, onNew }: { machine: string; onNew: () => void }
       xt.dispose();
       term.current = null;
     };
-  }, []);
+  }, [target]);
 
   const press = (data: string) => {
     term.current?.focus();

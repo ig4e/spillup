@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
-	"net/url"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/doctor"
+	"github.com/darkyeg/spinup/internal/library"
 	"github.com/darkyeg/spinup/internal/logins"
+	"github.com/darkyeg/spinup/internal/mcp"
 	"github.com/darkyeg/spinup/internal/proxy"
 	"github.com/darkyeg/spinup/internal/skills"
 	"github.com/darkyeg/spinup/internal/tailnet"
@@ -136,33 +134,6 @@ func (cliBackend) OwnManagement() (proxy.Management, error) {
 	return proxy.Management{Port: cfg.OwnProxyPort, Key: s.APIKey}, nil
 }
 
-func (cliBackend) Remote(machine string) (webui.Remote, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return webui.Remote{}, errNotInstalled
-	}
-	s, err := config.LoadSecrets(cfg)
-	if err != nil {
-		return webui.Remote{}, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	st, err := tailnet.CLI{Bin: cfg.Tailscale}.Status(ctx)
-	if err != nil {
-		return webui.Remote{}, fmt.Errorf("Tailscale: %w", err)
-	}
-	node, ok := st.Peer(machine)
-	if !st.Running || !ok || node.IP == "" || node.Expired || !st.SameOwner(node) {
-		return webui.Remote{}, fmt.Errorf("%s is unavailable on your Tailscale account", machine)
-	}
-	h := http.Header{}
-	if s.ManagementPassword != "" {
-		h.Set(api.KeyHeader, s.ManagementPassword)
-	}
-	h.Set(api.APIKeyHeader, s.APIKey)
-	return webui.Remote{Base: &url.URL{Scheme: "http", Host: net.JoinHostPort(node.IP, strconv.Itoa(cfg.Port))}, Header: h}, nil
-}
-
 // Panel is a CLIProxyAPI that spillup itself runs, never just whatever answers on a port: a different
 // proxy there, such as an old standalone CLIProxyAPI, would be sent a key it doesn't know until it bans
 // this machine.
@@ -200,6 +171,9 @@ func (cliBackend) Panel(target string) (webui.Panel, error) {
 	return webui.Panel{}, fmt.Errorf("no CLIProxyAPI called %q", target)
 }
 
+func (cliBackend) MCP() mcp.Manager {
+	return mcp.Manager{Library: library.Here(), State: config.StateDir(), Launcher: mcpLauncher}
+}
 func (cliBackend) Skills() skills.Manager { return skillManager(repoData()) }
 
 func (cliBackend) CatchUpLibrary() { catchUpLibrary() }

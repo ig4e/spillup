@@ -73,9 +73,13 @@ func verifiedFleetPeer(ctx context.Context, st tailnet.Status, name string, port
 	if !st.Running || !ok || !node.Online || node.Expired || !st.SameOwner(node) || node.IP == "" {
 		return "", errors.New("peer is unavailable on your Tailscale account")
 	}
+	return proveFleetNode(ctx, node, port, key)
+}
+
+func proveFleetNode(ctx context.Context, node tailnet.Node, port int, key string) (string, error) {
 	base := "http://" + net.JoinHostPort(node.IP, strconv.Itoa(port))
 	client := api.Client{HTTP: directMachineClient, MaxResponseBytes: 1 << 20}
-	_, proof, err := client.AskLeader(ctx, base, name, config.Secrets{APIKey: key})
+	_, proof, err := client.AskLeader(ctx, base, node.Name, config.Secrets{APIKey: key})
 	if err != nil || proof != api.KnowsAPIKey {
 		return "", errors.New("no verified Spillup service (older workers need a local update)")
 	}

@@ -1,59 +1,44 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useQuery as useTanStackQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api, currentRemote, queryPath, subscribeRemote, type DashboardRead } from "./api";
-import { dashboardQueries, type QuerySnapshot } from "./query-cache";
+import { dashboardClient, dashboardKey, defaultFreshness } from "./query-cache";
 import type { Done, SetupProgress } from "./types";
 
-export interface Query<T> extends QuerySnapshot<T> {
+export interface Query<T> {
+  data?: T;
+  error?: Error;
+  refreshError?: Error;
+  loading: boolean;
   reload: () => Promise<void>;
 }
 
-const defaultFreshness = 15_000;
-const onReturn = new Set<() => void>();
-function refreshVisible() {
-  if (document.visibilityState === "visible") onReturn.forEach(refresh => refresh());
-}
-window.addEventListener("focus", refreshVisible);
-window.addEventListener("online", refreshVisible);
-document.addEventListener("visibilitychange", refreshVisible);
-
-export function prefetchQuery<T>(read: DashboardRead<T>, staleTimeMs = defaultFreshness): Promise<void> {
-  const entry = dashboardQueries.entry<T>(read.queryPath(currentRemote()));
-  return entry.fetch(read, staleTimeMs);
+export function prefetchQuery<T>(read: DashboardRead<T>, staleTime = defaultFreshness) {
+  const path = read.queryPath(currentRemote());
+  return dashboardClient.prefetchQuery({ queryKey: dashboardKey(path), queryFn: () => read.fetchPath(path), staleTime });
 }
 
-/** Share the last result and its in-flight refresh across views of the same resource. */
 export function useQuery<T>(load: DashboardRead<T>, every?: number): Query<T>;
 export function useQuery<T>(load: () => Promise<T>, every: number, key: string): Query<T>;
-export function useQuery<T>(load: () => Promise<T>, every = 0, customKey?: string): Query<T> {
+export function useQuery<T>(load: DashboardRead<T> | (() => Promise<T>), every = 0, customKey?: string): Query<T> {
   const machine = useRemote();
-  const key = customKey === undefined ? (load as DashboardRead<T>).queryPath(machine) : queryPath("@" + customKey, machine);
-  const entry = useMemo(() => dashboardQueries.entry<T>(key), [key]);
-  const state = useSyncExternalStore(entry.subscribe, entry.snapshot);
-  const loadRef = useMemo(() => ({ current: load }), [entry]);
-  loadRef.current = load;
-  const fetch = useCallback((freshFor: number) => {
-    if (currentRemote() !== machine) return Promise.resolve();
-    return entry.fetch(loadRef.current, freshFor);
-  }, [entry, loadRef, machine]);
-  const reload = useCallback(() => fetch(0), [fetch]);
-
-  useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === "visible") void fetch(every || defaultFreshness);
-    };
-    refresh();
-    onReturn.add(refresh);
-    const stop = entry.observe(refresh);
-    const timer = every ? window.setInterval(refresh, every) : undefined;
-    return () => {
-      window.clearInterval(timer);
-      onReturn.delete(refresh);
-      stop();
-    };
-  }, [entry, fetch, every]);
-
-  return { ...state, reload };
+  const tagged = "queryPath" in load;
+  const path = tagged ? load.queryPath(machine) : queryPath("@" + customKey, machine);
+  const query = useTanStackQuery({
+    queryKey: dashboardKey(path),
+    queryFn: tagged ? () => load.fetchPath(path) : load,
+    staleTime: every || defaultFreshness,
+    refetchInterval: every || false,
+  });
+  const { refetch } = query;
+  const reload = useCallback(async () => { await refetch({ cancelRefetch: false }); }, [refetch]);
+  return {
+    data: query.data,
+    error: query.data === undefined ? query.error ?? undefined : undefined,
+    refreshError: query.data !== undefined ? query.error ?? undefined : undefined,
+    loading: query.isPending,
+    reload,
+  };
 }
 
 /** Resumes a running local task on page load and polls without stacking requests. */

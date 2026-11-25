@@ -4,15 +4,16 @@ import { useState } from "react";
 import { TaskLog } from "../components/TaskProgress";
 import { Group, GroupSkeleton, IconTile, Row, Toggle } from "../components/ui";
 import type { FleetPreview } from "../lib/types";
+import { useOptimisticSetting } from "../lib/useOptimisticSetting";
 import { api, localDashboard } from "../lib/api";
 import { useAction, useQuery, useRemote, useTaskProgress } from "../lib/hooks";
 
 export function UpdatesSection() {
   const update = useQuery(api.update);
   const { pending, run } = useAction();
-  const [auto, setAuto] = useState<boolean | null>(null);
+  const auto = useOptimisticSetting(api.update, update.data, api.setAutoUpdate, (previous, enabled) => ({ ...previous, auto: enabled }));
   const remote = useRemote();
-  const data = update.data;
+  const data = auto.data;
   const newer = data?.latest && data.latest.replace(/^v/, "") !== data.current.replace(/^v/, "");
 
   return (
@@ -42,13 +43,9 @@ export function UpdatesSection() {
               accessory={
                 <Toggle
                   label="Update automatically"
-                  isSelected={auto ?? data.auto}
-                  isDisabled={pending === "auto"}
-                  onChange={async (on) => {
-                    setAuto(on);
-                    await run("auto", () => api.setAutoUpdate(on), update.reload);
-                    setAuto(null);
-                  }}
+                  isSelected={data.auto}
+                  isDisabled={auto.pending}
+                  onChange={auto.save}
                 />
               }
             />

@@ -16,6 +16,7 @@ const own = { providers: ["claude"] as string[], logins: [{ name: "claude-laptop
 const skills: Skills = {
   library: "~/.spinup",
   token_estimate: 1840,
+  sharing_available: true,
   shared: [
     { name: "frontend-design", source: "anthropics/skills", mode: "auto", installed: true, description_chars: 1420, agents: ["claude", "codex"] },
     { name: "webapp-testing", source: "anthropics/skills", mode: "manual", installed: true, description_chars: 980, agents: ["claude", "codex"] },
@@ -146,11 +147,22 @@ export async function mock(method: string, fullPath: string, body: any): Promise
         return overview();
       case "machines":
         return machines();
+      case "machines/managed":
+        return { machines: machines().machines.filter(m => m.online && m.hold).map(m => ({
+          ...m, terminals: true, is_self: m.name === (viewing ?? fleet.self),
+        })) };
       case "doctor":
         await wait(900);
         return doctor;
-      case "skills":
-        return structuredClone(skills);
+      case "skills": {
+        const view = structuredClone(skills);
+        view.sharing_available = !viewing;
+        if (viewing) {
+          view.shared = view.shared.filter(skill => !skill.private);
+          view.token_estimate = Math.floor(view.shared.reduce((sum, skill) => sum + (skill.mode === "auto" && skill.installed ? skill.description_chars : 0), 0) / 4);
+        }
+        return view;
+      }
       case "own":
         return {
           providers: own.providers,
@@ -296,6 +308,23 @@ export async function mock(method: string, fullPath: string, body: any): Promise
     case "skills/mode":
       for (const s of skills.shared) if (body.names.includes(s.name)) s.mode = body.manual ? "manual" : "auto";
       return { message: `${body.names.join(", ")} ${body.manual ? "manual" : "auto"} now.` };
+    case "skills/sharing": {
+      if (viewing) throw new Error("Open the local dashboard.");
+      let entry = skills.shared.find(s => s.name === body.name);
+      if (!entry) {
+        const installed = skills.only_here.find(s => s.name === body.name);
+        if (!installed || body.action !== "private") throw new Error("Skill unavailable.");
+        skills.only_here = skills.only_here.filter(s => s !== installed);
+        entry = { name: installed.name, source: "yours", mode: "auto", installed: true,
+          description_chars: 0, agents: installed.agents, private: true, shared_available: false };
+        skills.shared.push(entry);
+      } else if (body.action === "resume" && !entry.shared_available) throw new Error("Shared copy unavailable.");
+      else if (!entry.private) entry.shared_available = true;
+      entry.private = body.action === "private";
+      if (!entry.private) entry.shared_available = true;
+      entry.path = entry.private ? "~/.spinup/private/skills/" + entry.name : undefined;
+      return { message: entry.private ? "Local copy saved." : "Shared copy selected." };
+    }
     case "skills/remove":
       skills.shared = skills.shared.filter((s) => {
         if (!body.names.includes(s.name)) return true;
@@ -314,7 +343,7 @@ export async function mock(method: string, fullPath: string, body: any): Promise
       return { message: `${body.names.join(", ")} in your library now.` };
     case "skills/add":
       await wait(1500);
-      for (const n of body.names) skills.shared.push({ name: n, source: body.repo, mode: body.manual ? "manual" : "auto", installed: true, description_chars: 900, agents: ["claude", "codex"] });
+      for (const n of body.names) skills.shared.push({ name: n, source: body.repo, mode: body.manual ? "manual" : "auto", installed: true, description_chars: 900, agents: ["claude", "codex"], private: !!body.private, shared_available: !body.private });
       return { message: `Added ${body.names.join(", ")} from ${body.repo}.` };
     case "skills/sync":
       await wait(1500);

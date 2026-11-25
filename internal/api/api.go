@@ -74,6 +74,7 @@ type Library struct {
 // LibraryState says when a machine's library last changed and which fetched copies it holds.
 type LibraryState struct {
 	Protocol    int           `json:"protocol,omitempty"`
+	HasMCP      bool          `json:"has_mcp,omitempty"`
 	HasPackages bool          `json:"has_packages,omitempty"`
 	Artifacts   []string      `json:"artifacts,omitempty"`
 	Required    []string      `json:"required,omitempty"`

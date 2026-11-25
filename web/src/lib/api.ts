@@ -1,6 +1,6 @@
-import { dashboardQueries } from "./query-cache";
+import { clearDeniedData, dashboardClient, dashboardKey, invalidateDashboard } from "./query-cache";
 import type { FleetPreview, HealthObservation, JobRecord, QuotaSummary, T3Phones } from "./types";
-import type { SetupPreview, ActivityEntry, App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, Skills, T3State, UpdateState } from "./types";
+import type { SetupPreview, ActivityEntry, App, Device, SSHState, RemoteState, Stats, Doctor, SetupProgress, Done, Keys, LoginStatus, Machines, Overview, OwnState, SignIn, SignInStatus, SkillSharingAction, Skills, T3State, UpdateState } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -50,16 +50,16 @@ export const currentRemote = () => remote;
 export const queryPath = (path: string, machine: string | null) => machine ? `remote/${encodeURIComponent(machine)}/${path}` : path;
 const routed = (path: string, local?: boolean) => queryPath(path, local ? null : remote);
 
-export type DashboardRead<T> = (() => Promise<T>) & { queryPath: (machine: string | null) => string };
+export type DashboardRead<T> = (() => Promise<T>) & { queryPath: (machine: string | null) => string; fetchPath: (path: string) => Promise<T> };
 
-function read<T>(path: string, local = false, validate?: (data: T, previous?: T) => void): DashboardRead<T> {
+export function read<T>(path: string, local = false, validate?: (data: T, previous?: T) => void): DashboardRead<T> {
   const key = (machine: string | null) => queryPath(path, local ? null : machine);
-  return Object.assign(async () => {
-    const target = key(currentRemote());
+  const fetchPath = async (target: string) => {
     const data = await call<T>("GET", target, undefined, true);
-    if (validate) validate(data, dashboardQueries.entry<T>(target).snapshot().data);
+    if (validate) validate(data, dashboardClient.getQueryData<T>(dashboardKey(target)));
     return data;
-  }, { queryPath: key });
+  };
+  return Object.assign(() => fetchPath(key(currentRemote())), { queryPath: key, fetchPath });
 }
 
 function checkMachines(data: Machines) {
@@ -85,11 +85,11 @@ async function responseError(path: string, res: Response): Promise<ApiError> {
     if (reason) message = reason.slice(0, 512);
   }
   const error = new ApiError(message, res.status);
-  dashboardQueries.accessRefused(path, error);
+  clearDeniedData(dashboardClient, path, error);
   return error;
 }
 
-async function call<T>(method: "GET" | "POST", target: string, body?: unknown, local?: boolean): Promise<T> {
+export async function call<T>(method: "GET" | "POST", target: string, body?: unknown, local?: boolean): Promise<T> {
   const path = routed(target, local);
   if (mocked) {
     const { mock } = await import("./mock");
@@ -120,7 +120,7 @@ async function call<T>(method: "GET" | "POST", target: string, body?: unknown, l
 
 async function post(path: string, body?: unknown, local?: boolean) {
   const result = await call<Done>("POST", path, body, local);
-  dashboardQueries.invalidate();
+  void invalidateDashboard();
   return result;
 }
 
@@ -128,6 +128,8 @@ export const api = {
   overview: read<Overview>("overview", false, checkOverview),
   machines: read<Machines>("machines", false, checkMachines),
   localMachines: read<Machines>("machines", true, checkMachines),
+  managedMachines: read<Machines>("machines/managed", false, checkMachines),
+  localManagedMachines: read<Machines>("machines/managed", true, checkMachines),
   localOverview: read<Overview>("overview", true, checkOverview),
   doctor: read<Doctor>("doctor"),
   skills: read<Skills>("skills"),
@@ -139,17 +141,20 @@ export const api = {
   restartProxy: () => post("accounts/restart"),
   makeMain: (machine: string) => post("machines/main", { machine }),
 
-  setMode: (names: string[], manual: boolean) => post("skills/mode", { names, manual }),
+  setMode: (machine: string | null, name: string, auto: boolean) =>
+    call<Done>("POST", queryPath("skills/mode", machine), { names: [name], manual: !auto }, true),
   removeSkills: (names: string[]) => post("skills/remove", { names }),
   restoreSkill: (name: string) => post("skills/restore", { name }),
   adoptSkills: (names: string[]) => post("skills/adopt", { names }),
-  addSkills: (repo: string, names: string[], manual: boolean) => post("skills/add", { repo, names, manual }),
+  addSkills: (repo: string, names: string[], manual: boolean, privateCopy = false) =>
+    post("skills/add", privateCopy ? { repo, names, manual, private: true } : { repo, names, manual }, privateCopy),
+  setSkillSharing: (name: string, action: SkillSharingAction) => post("skills/sharing", { name, action }, true),
   syncSkills: () => post("skills/sync"),
 
   own: read<OwnState>("own"),
   setOwn: (providers: string[]) => post("own", { providers }),
   signIn: (provider: string) => call<SignIn>("POST", "own/signin", { provider }),
-  signInStatus: (state: string) => call<SignInStatus>("GET", `own/signin?state=${encodeURIComponent(state)}`),
+  signInStatus: (state: string) => call<SignInStatus>("GET", `own/signin?state=${encodeURIComponent(state)}`, undefined, true),
   signOut: (name: string) => post("own/signout", { name }),
 
   apps: read<App[]>("apps"),
@@ -193,7 +198,7 @@ export const api = {
   update: read<UpdateState>("update"),
   rolloutPlan: () => call<FleetPreview>("GET", "update/fleet", undefined, true),
   startUpdate: () => post("update"),
-  setAutoUpdate: (auto: boolean) => post("update/auto", { auto }),
+  setAutoUpdate: (machine: string | null, auto: boolean) => call<Done>("POST", queryPath("update/auto", machine), { auto }, true),
   restart: () => post("restart"),
   updateSystem: () => post("update/system"),
   setAccess: (device_access: boolean, terminals: boolean) => post("settings/access", { device_access, terminals }),
@@ -203,15 +208,19 @@ export const api = {
   sshEnable: (on: boolean) => post("ssh/enable", { on }),
   sshSync: () => post("ssh/sync"),
 
-  termStart: (cols: number, rows: number) => call<{ id: string }>("POST", "term", { cols, rows }),
-  /** The terminal's output as it comes: a stream of bytes, starting with what it showed recently. */
-  termOutput: async (id: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> => {
-    const path = routed(`term/${id}/out`);
-    const res = await fetch(`/api/${path}`, { credentials: "same-origin", signal });
-    if (!res.ok || !res.body) throw await responseError(path, res);
-    return res.body;
+  terminalOn: (machine: string | null) => {
+    const path = (endpoint: string) => queryPath(endpoint, machine);
+    return {
+      start: (cols: number, rows: number) => call<{ id: string }>("POST", path("term"), { cols, rows }, true),
+      output: async (id: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> => {
+        const endpoint = path(`term/${encodeURIComponent(id)}/out`);
+        const res = await fetch(`/api/${endpoint}`, { credentials: "same-origin", signal });
+        if (!res.ok || !res.body) throw await responseError(endpoint, res);
+        return res.body;
+      },
+      input: (id: string, data: string) => call<void>("POST", path(`term/${encodeURIComponent(id)}/in`), { data }, true),
+      resize: (id: string, cols: number, rows: number) => call<void>("POST", path(`term/${encodeURIComponent(id)}/size`), { cols, rows }, true),
+      close: (id: string) => call<void>("POST", path(`term/${encodeURIComponent(id)}/close`), {}, true),
+    };
   },
-  termInput: (id: string, data: string) => call<void>("POST", `term/${id}/in`, { data }),
-  termResize: (id: string, cols: number, rows: number) => call<void>("POST", `term/${id}/size`, { cols, rows }),
-  termClose: (id: string) => call<void>("POST", `term/${id}/close`, {}),
 };

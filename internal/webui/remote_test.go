@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ type remoteBackend struct {
 	remote Remote
 }
 
-func (b *remoteBackend) Remote(string) (Remote, error) { return b.remote, nil }
+func (b *remoteBackend) Remote(context.Context, string) (Remote, error) { return b.remote, nil }
 
 func TestARemoteCallReachesTheOtherMachineWithKeysAndWithoutCookies(t *testing.T) {
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

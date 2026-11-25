@@ -4,6 +4,7 @@ import { useOverview } from "../App";
 import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Mono, Row, Toggle, osName } from "../components/ui";
 import { BrandTile, OsTile } from "../components/brand";
 import { TaskLog } from "../components/TaskProgress";
+import { Scan } from "../components/Scan";
 import { api } from "../lib/api";
 import { relative } from "../lib/format";
 import { useAction, useQuery, useRemote, useTaskProgress } from "../lib/hooks";
@@ -58,6 +59,7 @@ export function TailscalePage() {
               );
             })}
           </Group>
+          <Scan />
         </>
       ) : null}
     </>

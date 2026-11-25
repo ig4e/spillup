@@ -6,18 +6,22 @@ import { Dot, Group, GroupSkeleton, IconTile, LargeTitle, Row } from "../compone
 import { BrandTile, OsTile } from "../components/brand";
 import { api, currentRemote } from "../lib/api";
 import { useAction, useQuery } from "../lib/hooks";
-import { agentHosts, hasAgentLink, mobilePeer } from "../lib/t3";
+import { agentHosts, hasAgentLink } from "../lib/t3";
 
 export function T3Page() {
   const { data } = useOverview();
   const t3 = useQuery(api.t3, 15000);
-  const machines = useQuery(api.machines, 15000);
+  const machines = useQuery(api.managedMachines, 15000);
+  const tailnet = useQuery(api.machines, 15000);
   const { pending, run } = useAction();
   const hosts = agentHosts(t3.data?.linked);
-  const others = (machines.data?.machines ?? []).filter(m => !m.is_self && (!mobilePeer(m) || hasAgentLink(m, hosts)));
+  const managed = (machines.data?.machines ?? []).filter(m => !m.is_self);
+  const managedNames = new Set(managed.map(m => m.name));
+  const linkedOthers = (tailnet.data?.machines ?? []).filter(m => !m.is_self && !managedNames.has(m.name) && hasAgentLink(m, hosts));
+  const others = [...managed, ...linkedOthers];
 
   const localDesktop = !currentRemote() && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
-  const desktopPeers = others.filter(m => m.online && !m.expired && m.yours && (m.hold || hasAgentLink(m, hosts)));
+  const desktopPeers = managed.filter(m => m.online && !m.expired);
   const connectDesktop = async (name: string) => {
     const { link } = await api.t3Desktop(name);
     if (!link.startsWith("t3code://pair?")) throw new Error("The machine returned an invalid T3 app link.");
@@ -44,7 +48,7 @@ export function T3Page() {
           ))}
         </Group>
       ) : null}
-      {t3.data ? <PhoneConnections address={t3.data.address} installed={t3.data.installed} host={data?.name} agentHosts={hosts} /> : null}
+      {t3.data ? <PhoneConnections address={t3.data.address} installed={t3.data.installed} host={data?.name} /> : null}
       {!t3.data && t3.error ? (
         <Group><Row title="T3 Code status unavailable" subtitle={t3.error.message} /></Group>
       ) : !t3.data ? (
@@ -110,7 +114,7 @@ export function T3Page() {
                 );
               })
             ) : (
-              <Row title={<span className="text-muted">{machines.loading ? "Reading machines…" : machines.error ? "Machine list unavailable" : "No other agent machines"}</span>} />
+              <Row title={<span className="text-muted">{machines.loading || tailnet.loading ? "Reading machines…" : machines.error ? "Managed machine list unavailable" : "No other managed or linked machines"}</span>} />
             )}
           </Group>
           <Group footer="Starts T3's background service at boot again, on your LAN and tailnet, with linking on.">

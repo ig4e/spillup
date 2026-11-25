@@ -55,6 +55,11 @@ type Machine struct {
 	Leading bool        `json:"leading,omitempty"`
 }
 
+type ManagedMachine struct {
+	Machine
+	Terminals bool `json:"terminals"`
+}
+
 type Machines struct {
 	Machines []Machine `json:"machines"`
 	Problem  string    `json:"problem,omitempty"`
@@ -78,15 +83,19 @@ type Doctor struct {
 
 // Skills is the three tabs of `spinup skills`: shared, only on this machine, and removed.
 type Skills struct {
-	Library       string        `json:"library"`
-	TokenEstimate int           `json:"token_estimate"`
-	Shared        []SharedSkill `json:"shared"`
-	OnlyHere      []LocalSkill  `json:"only_here"`
-	Removed       []Removed     `json:"removed"`
-	Clashes       []Clash       `json:"clashes,omitempty"`
+	SharingAvailable bool          `json:"sharing_available,omitempty"`
+	Library          string        `json:"library"`
+	TokenEstimate    int           `json:"token_estimate"`
+	Shared           []SharedSkill `json:"shared"`
+	OnlyHere         []LocalSkill  `json:"only_here"`
+	Removed          []Removed     `json:"removed"`
+	Clashes          []Clash       `json:"clashes,omitempty"`
 }
 
 type SharedSkill struct {
+	Private          bool     `json:"private,omitempty"`
+	SharedAvailable  bool     `json:"shared_available,omitempty"`
+	Path             string   `json:"path,omitempty"`
 	Name             string   `json:"name"`
 	Source           string   `json:"source"`
 	Mode             string   `json:"mode"`
@@ -142,9 +151,10 @@ type modeRequest struct {
 }
 
 type addRequest struct {
-	Repo   string   `json:"repo"`
-	Names  []string `json:"names"`
-	Manual bool     `json:"manual"`
+	Private bool     `json:"private,omitempty"`
+	Repo    string   `json:"repo"`
+	Names   []string `json:"names"`
+	Manual  bool     `json:"manual"`
 }
 
 type nameRequest struct {

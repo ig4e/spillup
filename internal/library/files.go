@@ -173,10 +173,13 @@ func (l Library) TakeIf(ctx context.Context, files []File, changedAt time.Time, 
 	if err != nil {
 		return err
 	}
-	if !incoming[Packages] {
+	for _, manifest := range []string{Packages, MCPServers} {
+		if incoming[manifest] {
+			continue
+		}
 		for _, f := range current {
-			if f.Path == Packages {
-				return errors.New("incoming library omits packages.json; update the sending machine and retain an empty package list when removing all packages")
+			if f.Path == manifest {
+				return fmt.Errorf("incoming library omits %s; update the sending machine and retain the empty manifest when removing the last entry", manifest)
 			}
 		}
 	}
@@ -221,6 +224,9 @@ func yours(p string) bool {
 // as a cache, because deleting it would only have a partner send it back, forever.
 func shared(p string) bool {
 	top, _ := split(p)
+	if top == MCPServers {
+		return p == MCPServers
+	}
 	return yours(p) || top == Fetched
 }
 
