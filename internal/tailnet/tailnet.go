@@ -149,12 +149,28 @@ func (c CLI) bin() (string, error) {
 // statusWithin bounds one `tailscale status` run; a leader's fence budget counts on it.
 const statusWithin = 10 * time.Second
 
-// Status implements Source. A quick failure is retried once: a busy CLI or local API is not a lost tailnet.
+// Status implements Source. Callers that ask at the same time share one CLI run, so the service's leadership tick,
+// the dashboard and background jobs don't pile up processes on a loaded machine until the tick times out.
 func (c CLI) Status(ctx context.Context) (Status, error) {
 	bin, err := c.bin()
 	if err != nil {
 		return Status{}, err
 	}
+	f, first := statusRuns.join(bin)
+	if first {
+		f.st, f.err = c.read(context.WithoutCancel(ctx), bin)
+		statusRuns.finish(bin, f)
+	}
+	select {
+	case <-f.done:
+		return f.st, f.err
+	case <-ctx.Done():
+		return Status{}, ctx.Err()
+	}
+}
+
+// read retries a quick failure once: a busy CLI or local API is not a lost tailnet. A timeout is not retried.
+func (c CLI) read(ctx context.Context, bin string) (Status, error) {
 	st, err := c.statusOnce(ctx, bin)
 	var slow errStatusTimedOut
 	if err == nil || errors.As(err, &slow) || ctx.Err() != nil {

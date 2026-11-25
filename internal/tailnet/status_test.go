@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const fakeModeEnv, fakeCountEnv = "SPINUP_FAKE_TAILSCALE", "SPINUP_FAKE_TAILSCALE_COUNT"
@@ -24,6 +26,9 @@ func init() {
 	calls, _ := strconv.Atoi(string(data))
 	calls++
 	_ = os.WriteFile(countFile, []byte(strconv.Itoa(calls)), 0o600)
+	if mode == "slow" {
+		time.Sleep(500 * time.Millisecond)
+	}
 	if mode == "fail-always" || (mode == "fail-once" && calls == 1) {
 		fmt.Fprintln(os.Stderr, fakeComplaint)
 		os.Exit(1)
@@ -56,6 +61,43 @@ func TestStatusRetriesAQuickFailureOnce(t *testing.T) {
 	}
 	if !st.Running || !st.Self.Online || calls() != 2 {
 		t.Errorf("status = %+v after %d calls, want online after 2", st, calls())
+	}
+}
+
+func TestCallersAskingAtTheSameTimeShareOneRun(t *testing.T) {
+	cli, calls := fakeTailscale(t, "slow")
+	var wg sync.WaitGroup
+	errs := make(chan error, 6)
+	for range 6 {
+		wg.Go(func() {
+			if st, err := cli.Status(context.Background()); err != nil || !st.Self.Online {
+				errs <- fmt.Errorf("status = %+v, err = %v", st, err)
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if calls() != 1 {
+		t.Errorf("ran the CLI %d times for 6 simultaneous callers, want 1", calls())
+	}
+}
+
+func TestACancelledCallerDoesNotFailTheSharedRun(t *testing.T) {
+	cli, _ := fakeTailscale(t, "slow")
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	go func() {
+		close(started)
+		_, _ = cli.Status(ctx)
+	}()
+	<-started
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if st, err := cli.Status(context.Background()); err != nil || !st.Self.Online {
+		t.Errorf("status = %+v, err = %v; another caller's cancel must not fail it", st, err)
 	}
 }
 
