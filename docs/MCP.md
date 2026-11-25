@@ -1,6 +1,6 @@
 # MCP servers
 
-Open **Skills & MCP → MCP** on the machine where you want to configure Claude Code or Codex. Add a stdio command or an HTTPS server, then enable it for each agent that should use it. Both clients register the server under `spillup-<name>`. Enabling a command lets the agent run it under your user account. Review the command and arguments first.
+Open **MCP Servers** on the machine where you want to configure Claude Code or Codex. Add a stdio command or an HTTPS server, then enable it for each agent that should use it. Both clients register the server under `spillup-<name>`. Enabling a command lets the agent run it under your user account. Review the command and arguments first.
 
 ## Choose what travels
 

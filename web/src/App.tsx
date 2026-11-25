@@ -12,6 +12,7 @@ import {
   SquareTerminal,
   Network,
   PanelLeft,
+  Plug,
   Server,
   Settings,
   Share2,
@@ -39,6 +40,7 @@ import { TerminalPage } from "./pages/Terminal";
 import { SettingsPage } from "./pages/Settings";
 import { SignInPage } from "./pages/SignIn";
 import { SkillsPage } from "./pages/Skills";
+import { MCPPage } from "./pages/MCP";
 import { T3Page } from "./pages/T3";
 import { TailscalePage } from "./pages/Tailscale";
 
@@ -94,7 +96,13 @@ const sections: Section[] = [
       { path: "/tailscale", label: "Tailscale", icon: Waypoints, color: "graphite", brand: "tailscale", page: TailscalePage },
     ],
   },
-  { title: "Agents", pages: [{ path: "/skills", label: "Skills & MCP", icon: Sparkles, color: "purple", page: SkillsPage }] },
+  {
+    title: "Agents",
+    pages: [
+      { path: "/skills", label: "Skills", icon: Sparkles, color: "purple", page: SkillsPage },
+      { path: "/mcp", label: "MCP Servers", icon: Plug, color: "blue", page: MCPPage },
+    ],
+  },
   {
     title: "System",
     pages: [
@@ -225,11 +233,11 @@ function Fleet({ remote }: { remote: string | null }) {
   return (
     <OverviewContext.Provider value={overview}>
       <BackAction.Provider value={backFrom(current)}>
-        <div className="dashboard-shell flex min-h-screen">
+        <div className="dashboard-shell flex min-h-dvh">
           <Sidebar path={current.path} collapsed={collapsed} onToggle={toggle} />
           <main className="@container/main min-w-0 flex-1">
             {current.bleed ? (
-              <div className="page-frame page-frame--bleed flex h-dvh flex-col lg:h-screen lg:p-5">
+              <div className="page-frame page-frame--bleed flex h-dvh flex-col lg:p-5">
                 <Page />
               </div>
             ) : (
@@ -313,7 +321,7 @@ function Sidebar({ path, collapsed, onToggle }: { path: string; collapsed: boole
   const shown = filterSections(useShownSections(sections), q);
   return (
     <aside
-      className={`glass-sidebar sticky top-2 z-20 m-2 hidden h-[calc(100vh-16px)] shrink-0 flex-col rounded-[18px] pt-3 pb-3 transition-[width] duration-200 lg:flex ${
+      className={`glass-sidebar sticky top-2 z-20 m-2 hidden h-[calc(100dvh-16px)] shrink-0 flex-col rounded-[18px] pt-3 pb-3 transition-[width] duration-200 lg:flex ${
         collapsed ? "w-[60px] px-2" : "w-[232px] px-2.5"
       }`}
     >

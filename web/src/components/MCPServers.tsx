@@ -28,7 +28,7 @@ type Dialog =
 export function MCPServers() {
   const remote = useRemote();
   if (!localDashboard || remote) return (
-    <Group title="MCP servers">
+    <Group>
       <Row title="Manage MCP on this machine" subtitle="Open the machine’s local dashboard with spinup ui to configure its AI clients and credentials." />
       {localDashboard && remote ? <Row title="Return to this machine" tone="accent" onPress={() => setRemote(null)} /> : null}
     </Group>
@@ -59,7 +59,7 @@ function LocalServers() {
   };
   if (!q.data) {
     if (q.loading) return <GroupSkeleton rows={3} />;
-    return <Group title="MCP servers">
+    return <Group>
       <Row title="MCP management unavailable" subtitle={q.error ? q.error.message + " Open the local dashboard with spinup ui." : "Open an updated local dashboard with spinup ui."} />
       <Row title="Check again" tone="accent" onPress={() => void q.reload()} />
     </Group>;
@@ -70,7 +70,7 @@ function LocalServers() {
     : dialog?.kind === "sharing" ? sharingLabels[dialog.action]
     : dialog?.kind === "key" ? dialog.key : dialog?.kind === "remove" ? "Remove server?" : "Approve configuration";
   return <>
-    <Group title="MCP servers" footer={q.refreshError ? "Refresh unavailable. Showing the last configuration." : "Each machine approves its own clients."}>
+    <Group footer={q.refreshError ? "Refresh unavailable. Showing the last configuration." : "Each machine approves its own clients."}>
       <Row icon={<IconTile icon={Plus} color="blue" />} title="Add server" tone="accent" onPress={() => open({ kind: "edit" })} />
       {!servers.length ? <Row title="No MCP servers yet" /> : null}
     </Group>

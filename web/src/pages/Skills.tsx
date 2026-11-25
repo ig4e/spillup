@@ -1,7 +1,6 @@
 import { Alert, Checkbox, Description, Input, Label, Modal, Switch, TextField } from "@heroui/react";
 import { Button } from "../components/Button";
 import { DocumentHistory } from "../components/DocumentHistory";
-import { MCPServers } from "../components/MCPServers";
 import { ArchiveRestore, FolderGit2, HardDrive, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { BrandTile } from "../components/brand";
@@ -31,7 +30,7 @@ export function SkillsPage() {
   const skills = useQuery(api.skills);
   const { pending, run } = useAction();
   const [addScope, setAddScope] = useState<"choose" | "shared" | null>(null);
-  const [tab, setTab] = useState<"shared" | "here" | "removed" | "mcp">("shared");
+  const [tab, setTab] = useState<"shared" | "here" | "removed">("shared");
   const mode = useOptimisticSetting(api.skills, skills.data,
     (machine, edit: { name: string; auto: boolean }) => api.setMode(machine, edit.name, edit.auto),
     (previous, edit): Skills => ({
@@ -50,7 +49,7 @@ export function SkillsPage() {
   return (
     <>
       <LargeTitle
-        title="Skills & MCP"
+        title="Skills"
         center={
             <Segmented
               label="Skill lists"
@@ -60,12 +59,11 @@ export function SkillsPage() {
                 { id: "shared", label: countLabel("Shared", data ? shared.length : undefined) },
                 { id: "here", label: countLabel("Only Here", data ? data.only_here.length + privateSkills.length : undefined) },
                 { id: "removed", label: countLabel("Removed", data?.removed.length) },
-                { id: "mcp", label: "MCP" },
               ]}
             />
         }
         actions={
-          tab === "mcp" ? undefined : <>
+          <>
             <Button aria-label="Sync skills" className="max-[400px]:px-2" variant="secondary" size="sm" isPending={pending === "sync"} onPress={() => run("sync", api.syncSkills, skills.reload)}>
               <><RefreshCw className="size-3.5" /><span className="max-[400px]:sr-only">Sync</span></>
             </Button>
@@ -76,7 +74,7 @@ export function SkillsPage() {
         }
       />
 
-      {tab === "mcp" ? <MCPServers /> : <>
+      <>
       {skills.error ? (
         <Alert status="danger" className="mb-6">
           <Alert.Indicator />
@@ -120,7 +118,7 @@ export function SkillsPage() {
 
       {addScope && local ? <AddSkills canManageScope={addScope === "choose"} isOpen={!!data && (addScope !== "choose" || canManageScope)} onOpenChange={open => { if (!open) setAddScope(null); }} onAdded={skills.reload} /> : null}
       {scope && canManageScope ? <ScopeDialog skill={scope} close={() => setScope(null)} reload={skills.reload} /> : null}
-      </>}
+      </>
     </>
   );
 }

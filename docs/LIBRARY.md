@@ -50,7 +50,7 @@ Package sync uses an explicit portable declaration and locked artifact, then rec
 
 ## Per-skill sharing
 
-In **Skills & MCP**, choose **Keep local copy** on a skill to work on a private copy. This machine keeps using it through later library syncs. The last published copy remains available to other machines. Use **Use shared copy** to archive your changes locally and install the current shared copy, or **Publish local copy** to share your working copy.
+In **Skills**, choose **Keep local copy** on a skill to work on a private copy. This machine keeps using it through later library syncs. The last published copy remains available to other machines. Use **Use shared copy** to archive your changes locally and install the current shared copy, or **Publish local copy** to share your working copy.
 
 New or imported skills can start private. For example, `spinup skills new notes --private`, `spinup skills import ./notes --private` and `spinup skills add owner/repo notes --private` keep the new skill on this machine from the outset. For an existing skill use `spinup skills sharing notes private`, then `resume` or `publish` when you want to rejoin the fleet. A private working copy cannot recall content already sent to other machines.
 
@@ -58,7 +58,7 @@ MCP servers have a separate setting for sharing their definitions. Update all pa
 
 ## Restore a shared instruction
 
-On the local dashboard, open **Skills & MCP → Revision history**, choose a document and recorded version, then review its changes. **Restore this version** publishes that file as a new library edit. If another edit arrives after your preview, refresh the diff before restoring.
+On the local dashboard, open **Skills → Revision history**, choose a document and recorded version, then review its changes. **Restore this version** publishes that file as a new library edit. If another edit arrives after your preview, refresh the diff before restoring.
 
 From the CLI, `spinup library history` lists the available paths and revision IDs. `spinup library diff <path> <revision>` previews a change and prints the current content ID. Supply that ID to `spinup library restore <path> <revision> --expect <current-id>`.
 

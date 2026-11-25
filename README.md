@@ -136,7 +136,7 @@ Always on at **`http://localhost:8320`**, hosted by the background service on ev
 <tr>
 <td valign="top">
 
-**Skills & MCP** manages private and shared skills and MCP definitions. Choose which skills run automatically, see their token cost, and approve MCP servers for individual agents.
+**Skills** manages private and shared skills: choose which run automatically and see their token cost. **MCP Servers** manages private and shared MCP definitions and approves them for individual agents.
 
 </td>
 <td><img src="docs/screenshots/skills.png" alt="Skills library with installed skills and their trigger modes"></td>
@@ -220,11 +220,11 @@ Port `8317` is spillup's router, `8320` the dashboard; CLIProxyAPI uses `8327` (
 <details>
 <summary><b>Skills, plugins and your own instructions</b></summary>
 
-Shared skills travel through your **library** (`~/.spinup`) and install into Claude Code and Codex. You can keep a skill private from the start, pause updates on this machine, or publish your local edits later. Manage skill and MCP sharing in **Skills & MCP**.
+Shared skills travel through your **library** (`~/.spinup`) and install into Claude Code and Codex. You can keep a skill private from the start, pause updates on this machine, or publish your local edits later. Manage sharing in **Skills** and **MCP Servers**.
 
 | You have | Do |
 |---|---|
-| A private or shared MCP server | **Skills & MCP → MCP** or `spinup mcp`. See [MCP servers and secret sharing](docs/MCP.md). |
+| A private or shared MCP server | **MCP Servers** or `spinup mcp`. See [MCP servers and secret sharing](docs/MCP.md). |
 | A skill only this machine has | Skills → **Only Here** → **Keep Everywhere** (or `spinup skills adopt`) |
 | A folder or `.zip` someone sent you | `spinup skills import <path>` |
 | A new idea | `spinup skills new <name>` |
