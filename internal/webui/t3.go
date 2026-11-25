@@ -5,9 +5,10 @@ import "net/http"
 // T3State is T3 Code on a machine, as the main machine needs it to link every machine to every other.
 type T3State struct {
 	// Installed: the `t3` command is here. App: T3 Code has run here, maybe only as the desktop app.
-	Installed bool `json:"installed"`
-	App       bool `json:"app"`
-	Port      int  `json:"port,omitempty"`
+	Installed     bool   `json:"installed"`
+	App           bool   `json:"app"`
+	Port          int    `json:"port,omitempty"`
+	EnvironmentID string `json:"environment_id,omitempty"`
 	// Address is where your devices open this T3 Code on the tailnet.
 	Address   string `json:"address,omitempty"`
 	LinkingOn bool   `json:"linking_on,omitempty"`
@@ -58,7 +59,7 @@ func (s *Server) serveT3Link(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveT3Setup(w http.ResponseWriter, r *http.Request) {
-	answer(w, s.b.T3Setup(r.Context()), "T3 Code starts at boot now, with linking on. The main machine links it to your other machines within a few minutes.")
+	answer(w, s.b.T3Setup(r.Context()), "T3 Code starts at boot now, with linking on. Spillup links your online Tailnet machines and retries when others come online.")
 }
 
 func (s *Server) serveT3Linking(w http.ResponseWriter, _ *http.Request) {

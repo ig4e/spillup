@@ -6,8 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
+	"net/netip"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +22,7 @@ type Node struct {
 	Name    string // MagicDNS short name, e.g. "office-pc"
 	DNSName string // full MagicDNS name, e.g. "office-pc.tail1234.ts.net"
 	IP      string // Tailscale IPv4
+	IPv6    string // Tailscale IPv6
 	OS      string
 	// Online is the control server's view. Unlike "I can't reach it", this stays true when only
 	// the path between two machines is broken, so it is the referee for failover. For this machine
@@ -34,6 +38,18 @@ type Node struct {
 	// UserID is the Tailscale account the device is signed in with; a tagged device belongs to no one.
 	UserID int64
 	Tagged bool
+}
+
+// HTTPURL gives the node's MagicDNS URL, falling back to its Tailscale address.
+func (s Status) HTTPURL(n Node, port int) string {
+	if n.IP == "" || port == 0 {
+		return ""
+	}
+	host := n.IP
+	if s.MagicDNS && n.DNSName != "" {
+		host = strings.TrimSuffix(n.DNSName, ".")
+	}
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 // SameOwner reports whether a peer is signed in with this machine's own Tailscale account, untagged: one
@@ -186,10 +202,16 @@ func convert(r rawNode) Node {
 	if r.KeyExpiry.Year() > 1 {
 		n.KeyExpiry = r.KeyExpiry
 	}
-	for _, ip := range r.TailscaleIPs {
-		if strings.Count(ip, ".") == 3 {
-			n.IP = ip
-			break
+	for _, raw := range r.TailscaleIPs {
+		ip, err := netip.ParseAddr(raw)
+		if err != nil {
+			continue
+		}
+		if ip.Is4() && n.IP == "" {
+			n.IP = ip.String()
+		}
+		if ip.Is6() && n.IPv6 == "" {
+			n.IPv6 = ip.String()
 		}
 	}
 	return n

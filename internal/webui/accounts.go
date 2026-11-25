@@ -20,7 +20,6 @@ func (s *Server) serveOverview(w http.ResponseWriter, r *http.Request) {
 			AutoFailback: f.Config.AutoFailback, Library: f.Config.Library,
 			DeviceAccess: f.Config.DeviceAccess, Terminals: f.Config.Terminals,
 		},
-		RouterURL: fmt.Sprintf("http://localhost:%d", f.Config.Port),
 	}
 	if f.Installed {
 		if rep, err := s.b.Report(r.Context()); err == nil {
@@ -29,11 +28,20 @@ func (s *Server) serveOverview(w http.ResponseWriter, r *http.Request) {
 			o.ServiceProblem = err.Error()
 		}
 	}
-	if st, ok := s.tailnet.get(r.Context(), s.b.Tailnet); ok && f.Config.DeviceAccess && f.Config.UIPort != 0 {
-		o.Settings.DeviceURL = fmt.Sprintf("http://%s:%d", strings.TrimSuffix(st.Self.DNSName, "."), f.Config.UIPort)
-	}
-	if o.Hold.CanHold() {
-		o.DashboardURL = o.RouterURL + "/management.html"
+	if st, ok := s.tailnet.get(r.Context(), s.b.Tailnet); ok {
+		if f.Config.DeviceAccess {
+			o.Settings.DeviceURL = st.HTTPURL(st.Self, f.Config.UIPort)
+		}
+		if o.Hold.CanHold() {
+			o.RouterURL = st.HTTPURL(st.Self, f.Config.Port)
+			if o.RouterURL != "" {
+				o.DashboardURL = o.RouterURL + "/management.html"
+			}
+		} else if o.Service != nil {
+			if leader, ok := st.Peer(o.Service.Leader); ok {
+				o.RouterURL = st.HTTPURL(leader, f.Config.Port)
+			}
+		}
 	}
 	writeJSON(w, o)
 }

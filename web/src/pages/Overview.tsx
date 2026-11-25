@@ -66,7 +66,7 @@ export function OverviewPage() {
           {leader ? (s?.in_flight ? `Serving ${s.in_flight} request${s.in_flight === 1 ? "" : "s"}` : "Ready") : "Waiting for the main machine"}
         </div>
         <div className="mt-4 text-[13px] text-muted">
-          Every machine uses them at <Mono copy>{data.router_url}</Mono>
+          {data.router_url ? <>Tailnet proxy at <Mono copy>{data.router_url}</Mono></> : "Tailnet proxy address unavailable"}
         </div>
       </div>
 

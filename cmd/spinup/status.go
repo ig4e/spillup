@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/darkyeg/spinup/internal/api"
 	"github.com/darkyeg/spinup/internal/config"
 	"github.com/darkyeg/spinup/internal/leadership"
+	"github.com/darkyeg/spinup/internal/tailnet"
 )
 
 type statusCmd struct {
@@ -31,18 +33,30 @@ func (c statusCmd) Run() error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(r)
 	}
-	printReport(os.Stdout, r, cfg.Port)
+	var proxyURL string
+	if st, err := (tailnet.CLI{Bin: cfg.Tailscale}).Status(context.Background()); err == nil && st.Running {
+		node := st.Self
+		if !r.Hold.CanHold() {
+			node, _ = st.Peer(r.Leader)
+		}
+		proxyURL = st.HTTPURL(node, cfg.Port)
+	}
+	printReport(os.Stdout, r, proxyURL)
 	return nil
 }
 
-func printReport(out io.Writer, r api.Report, port int) {
+func printReport(out io.Writer, r api.Report, proxyURL string) {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(w, "This machine\t%s, %s (spinup %s)\n", r.Name, holdPhrase(r.Hold), r.Version)
 	fmt.Fprintf(w, "Accounts\t%s\n", accountsLine(r))
 	if r.Waiting != "" {
 		fmt.Fprintf(w, "Waiting\t%s\n", r.Waiting)
 	}
-	fmt.Fprintf(w, "Address\thttp://localhost:%d (dashboard: /management.html)\n", port)
+	if proxyURL == "" {
+		fmt.Fprintln(w, "Tailnet proxy address\tUnavailable")
+	} else {
+		fmt.Fprintf(w, "Tailnet proxy address\t%s\n", proxyURL)
+	}
 	w.Flush()
 
 	if len(r.Accounts) > 0 {

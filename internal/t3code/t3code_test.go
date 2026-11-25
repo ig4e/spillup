@@ -10,14 +10,29 @@ import (
 
 func TestLinksToMatchesTheHostInAURL(t *testing.T) {
 	linked := `[{"url":"http://100.88.30.17:3773","label":"desktop"}]`
-	if !LinksTo(linked, "100.88.30.17") {
+	if !LinksTo(linked, "", "100.88.30.17") {
 		t.Error("the linked desktop wasn't found")
 	}
-	if !LinksTo(`[{"url":"http://my-desktop.tail1234.ts.net:3773"}]`, "100.1.2.3", "my-desktop") {
+	if !LinksTo(`[{"urls":["http://my-desktop.tail1234.ts.net:3773"]}]`, "", "100.1.2.3", "my-desktop", "my-desktop.tail1234.ts.net") {
 		t.Error("a link under the MagicDNS name wasn't found")
 	}
-	if LinksTo(linked, "100.88.30.1") || LinksTo(linked, "") || LinksTo("[]", "100.88.30.17") {
+	if LinksTo(linked, "", "100.88.30.1") || LinksTo(linked, "", "") || LinksTo("[]", "", "100.88.30.17") {
 		t.Error("matched a host that isn't linked")
+	}
+	if LinksTo(`[{"urls":["http://my-desktop.evil.example:3773"]}]`, "", "my-desktop", "my-desktop.tail1234.ts.net") {
+		t.Error("matched an unrelated host with the same prefix")
+	}
+	if LinksTo(`[{"urls":["http://my-desktop:3773"],"access":"full-access","status":"expired"}]`, "", "my-desktop") {
+		t.Error("expired full-access link should be paired again")
+	}
+	if !LinksTo(`[{"urls":["http://my-desktop:3773"],"access":"read-only","status":"expired"}]`, "", "my-desktop") {
+		t.Error("automatic pairing must not replace a narrower link with full access")
+	}
+	if !LinksTo(`[{"environmentId":"desktop","urls":["https://example.ts.net"]}]`, "desktop", "100.64.0.2") {
+		t.Error("the environment ID should match a link under a different address")
+	}
+	if LinksTo(`[{"environmentId":"old","urls":["http://100.64.0.2"]}]`, "new", "100.64.0.2") {
+		t.Error("an address alone should not match a different environment")
 	}
 }
 

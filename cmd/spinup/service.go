@@ -78,7 +78,7 @@ func installService(ctx context.Context, req serviceRequest) error {
 	if err := waitForService(cfg); err != nil {
 		return err
 	}
-	reportAccess(cfg)
+	reportAccess(cfg, ts)
 	return nil
 }
 
@@ -167,10 +167,10 @@ func waitForService(cfg config.Config) error {
 	return nil
 }
 
-func reportAccess(cfg config.Config) {
+func reportAccess(cfg config.Config, ts tailnet.Status) {
 	local := localService(cfg, "")
 	if cfg.Hold.CanHold() {
-		reportDashboard(cfg, local)
+		reportDashboard(cfg, local, ts.HTTPURL(ts.Self, cfg.Port))
 		return
 	}
 	reached := pollUntil(leaderReachWithin, func() bool {
@@ -185,8 +185,10 @@ func reportAccess(cfg config.Config) {
 
 func reachesLeader(r api.Report) bool { return r.Leader != "" && r.LeaderAddr != "" }
 
-func reportDashboard(cfg config.Config, local local) {
-	step("Dashboard: %s", dashboardURL(cfg.Port))
+func reportDashboard(cfg config.Config, local local, routerURL string) {
+	if routerURL != "" {
+		step("Dashboard: %s/management.html", routerURL)
+	}
 	if cfg.Hold != config.HoldHub {
 		return
 	}
@@ -200,8 +202,6 @@ func reportDashboard(cfg config.Config, local local) {
 		step("No accounts yet: open the dashboard > OAuth Login to add them")
 	}
 }
-
-func dashboardURL(port int) string { return fmt.Sprintf("http://localhost:%d/management.html", port) }
 
 func pollUntil(within time.Duration, done func() bool) bool {
 	for deadline := time.Now().Add(within); ; time.Sleep(pollEvery) {

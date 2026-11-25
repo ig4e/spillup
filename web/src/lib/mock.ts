@@ -70,8 +70,8 @@ function overview(): Overview {
         })),
     },
     settings: { port: 8317, proxy_port: 8327, failover_after_seconds: 180, auto_failback: true, library: "~/.spinup", device_access: true, terminals: true, device_url: "http://desktop.tail1234.ts.net:8320" },
-    router_url: "http://localhost:8317",
-    dashboard_url: "http://localhost:8317/management.html",
+    router_url: "http://desktop.tail1234.ts.net:8317",
+    dashboard_url: "http://desktop.tail1234.ts.net:8317/management.html",
   };
 }
 

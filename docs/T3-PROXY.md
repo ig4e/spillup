@@ -12,6 +12,14 @@ allowed. Do not point any other client (OpenCode, Cursor, scripts) at the proxy'
 
 ---
 
+For Tailnet setup, copy the **Tailnet proxy address** from Spillup's Accounts page.
+Use the proxy **API key** in the Claude and Codex provider settings. In T3 Code's
+**Settings > Providers > Usage providers**, enter the hub URL and the **dashboard
+password** (the CLIProxyAPI management key). An HTTP 401 from the hub means the
+management request was refused. On a Spillup hub or standby, `spinup t3 setup`
+can repair the saved key for recognized endpoints. Refresh Usage > Limits after
+the repair, or quit and reopen T3 Code if it still shows the old result.
+
 ## 0. What T3 already gives you
 
 - T3 runs one or more **provider instances** for each driver (`claudeAgent`, `codex`, ...).

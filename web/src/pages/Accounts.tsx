@@ -66,7 +66,7 @@ export function AccountsPage() {
             </span>
           }
         />
-        <Row icon={<IconTile icon={Server} color="blue" />} title="Address on every machine" accessory={<Mono copy>{data?.router_url ?? "http://localhost:8317"}</Mono>} />
+        <Row icon={<IconTile icon={Server} color="blue" />} title="Tailnet proxy address" accessory={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
       </Group>
 
       <Group

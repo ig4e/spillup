@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/darkyeg/spinup/internal/atomicfile"
+	"github.com/darkyeg/spinup/internal/filelock"
 	"github.com/darkyeg/spinup/internal/sysproc"
 )
 
@@ -109,7 +111,12 @@ func (t T3) run(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, t.Bin, args...)
-	cmd.Stdin = nil
+	cmd.Env = append(os.Environ(), "T3CODE_HOME="+t.Home)
+	switch args[0] {
+	case "auth", "environment", "status", "up":
+		// T3 otherwise tries to reserve a new port even for commands that only open its local database.
+		cmd.Env = append(cmd.Env, "T3CODE_PORT="+strconv.Itoa(t.Port()))
+	}
 	sysproc.Hide(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -171,7 +178,7 @@ func (t T3) Pair(ctx context.Context, label string) (Pairing, error) {
 	}
 	var p Pairing
 	if err := json.Unmarshal(out, &p); err != nil || p.Credential == "" {
-		return Pairing{}, fmt.Errorf("t3 gave no pairing code: %s", strings.TrimSpace(string(out)))
+		return Pairing{}, errors.New("t3 gave no pairing code")
 	}
 	return p, nil
 }
@@ -179,34 +186,80 @@ func (t T3) Pair(ctx context.Context, label string) (Pairing, error) {
 // Linked is `t3 environment list --json` as T3 prints it, for matching addresses in.
 func (t T3) Linked(ctx context.Context) (string, error) {
 	out, err := t.run(ctx, "environment", "list", "--json")
-	return string(out), err
+	if err != nil {
+		return "", err
+	}
+	var links []environmentLink
+	if err := json.Unmarshal(out, &links); err != nil {
+		return "", fmt.Errorf("t3 environment list returned invalid JSON: %w", err)
+	}
+	return string(out), nil
 }
 
-// LinksTo reports whether a linked environment answers at any of hosts: its tailnet address, its name or
-// its full MagicDNS name, since T3 may have linked it under any of them.
-func LinksTo(linked string, hosts ...string) bool {
-	lower := strings.ToLower(linked)
-	for _, h := range hosts {
-		if h == "" {
+type environmentLink struct {
+	EnvironmentID string   `json:"environmentId"`
+	URL           string   `json:"url"`
+	URLs          []string `json:"urls"`
+	Access        string   `json:"access"`
+	Status        string   `json:"status"`
+}
+
+// LinksTo matches T3's environment ID or recorded addresses. An expired full-access link can be paired again.
+func LinksTo(linked, environmentID string, hosts ...string) bool {
+	var links []environmentLink
+	if json.Unmarshal([]byte(linked), &links) != nil {
+		return false
+	}
+	for _, link := range links {
+		if link.Status == "expired" && link.Access == LinkAccess {
 			continue
 		}
-		h = strings.ToLower(h)
-		if strings.Contains(lower, "//"+h+":") || strings.Contains(lower, "//"+h+"/") || strings.Contains(lower, "//"+h+".") {
-			return true
+		if environmentID != "" && link.EnvironmentID != "" {
+			if link.EnvironmentID == environmentID {
+				return true
+			}
+			continue
+		}
+		for _, raw := range append(link.URLs, link.URL) {
+			endpoint, err := url.Parse(raw)
+			if err != nil || endpoint.Hostname() == "" {
+				continue
+			}
+			for _, host := range hosts {
+				if strings.EqualFold(strings.TrimSuffix(endpoint.Hostname(), "."), strings.TrimSuffix(host, ".")) {
+					return true
+				}
+			}
 		}
 	}
 	return false
 }
 
-// ErrAlreadyLinked means the other T3 already has this link, perhaps under another address.
-var ErrAlreadyLinked = errors.New("already linked")
-
-func (t T3) Link(ctx context.Context, url, code string) error {
-	_, err := t.run(ctx, "environment", "link", url, "--pairing-code", code, "--access", LinkAccess)
-	if err != nil && (strings.Contains(err.Error(), "Conflict") || strings.Contains(strings.ToLower(err.Error()), "already")) {
-		return ErrAlreadyLinked
+func (t T3) Link(ctx context.Context, address, code string) error {
+	endpoint, err := url.Parse(address)
+	if err != nil || endpoint.Hostname() == "" || code == "" {
+		return errors.New("T3 linking needs an address and pairing code")
+	}
+	lock, err := filelock.Acquire(ctx, filepath.Join(t.Home, ".spillup-link.lock"))
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	listed, err := t.Linked(ctx)
+	if err != nil || LinksTo(listed, "", endpoint.Hostname()) {
+		return err
+	}
+	_, err = t.run(ctx, "environment", "link", address, "--pairing-code", code, "--access", LinkAccess)
+	if err != nil && code != "" && strings.Contains(err.Error(), code) {
+		return errors.New(strings.ReplaceAll(err.Error(), code, "[redacted]"))
 	}
 	return err
+}
+
+// EnvironmentID identifies this T3 environment independently of its network addresses.
+func (t T3) EnvironmentID() string {
+	data, _ := os.ReadFile(filepath.Join(t.Home, "userdata", "environment-id"))
+	return strings.TrimSpace(string(data))
 }
 
 // Port is where this machine's T3 server listens, from the runtime file it writes.

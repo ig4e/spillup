@@ -2,6 +2,7 @@ package webui
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -52,5 +53,30 @@ func TestYourDevicesGetTheDashboardOverTheTailnet(t *testing.T) {
 	}
 	if w := do(t, h, http.MethodPost, "/api/machines/main", cross); w.Code != http.StatusForbidden {
 		t.Errorf("a change from another site: %d, want 403", w.Code)
+	}
+}
+
+func TestOverviewAdvertisesTailnetProxy(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		self     tailnet.Node
+		magicDNS bool
+		want     string
+	}{
+		{"MagicDNS", tailnet.Node{DNSName: "desk.tail1.ts.net.", IP: "100.64.0.1"}, true, "http://desk.tail1.ts.net:8317"},
+		{"Tailnet IP", tailnet.Node{DNSName: "desk.tail1.ts.net.", IP: "100.64.0.1"}, false, "http://100.64.0.1:8317"},
+		{"No Tailnet address", tailnet.Node{}, false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := tailnetBackend{&fakeBackend{}, tailnet.Status{Self: tc.self, MagicDNS: tc.magicDNS}}
+			w := do(t, New(b, testToken).Handler(), http.MethodGet, "/api/overview", signedIn)
+			var overview Overview
+			if err := json.Unmarshal(w.Body.Bytes(), &overview); w.Code != http.StatusOK || err != nil {
+				t.Fatalf("overview: HTTP %d: %v", w.Code, err)
+			}
+			if overview.RouterURL != tc.want {
+				t.Errorf("proxy URL = %q, want %q", overview.RouterURL, tc.want)
+			}
+		})
 	}
 }

@@ -49,15 +49,7 @@ func (c setupCmd) Run() error {
 		{"Packages", false, syncPackages},
 		{"Agent config", false, func(context.Context) error { return installAgentConfig(repo) }},
 		{"Remote desktop", false, setUpRemote},
-		{"T3 Code", false, func(ctx context.Context) error {
-			if err := setUpT3(ctx); err != nil {
-				return err
-			}
-			if summary, err := syncT3Links(ctx); err == nil {
-				step("%s", summary)
-			}
-			return nil
-		}},
+		{"T3 Code", false, setUpT3},
 	}
 	var failed []string
 	for i, s := range steps {

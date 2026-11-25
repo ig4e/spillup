@@ -47,7 +47,7 @@ export function SettingsPage() {
         }
       >
         <Row icon={<IconTile icon={Server} color="green" />} title="Role" value={data ? holdName[data.hold] : "—"} to="/machines" />
-        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" accessory={<Mono copy>{data?.router_url ?? "—"}</Mono>} />
+        <Row icon={<IconTile icon={Network} color="teal" />} title="Address" accessory={data?.router_url ? <Mono copy>{data.router_url}</Mono> : "Unavailable"} />
         <Row icon={<IconTile icon={Clock} color="orange" />} title="Fail over after" value={data ? `${Math.round(data.settings.failover_after_seconds / 60)} minutes offline` : "—"} />
         <Row icon={<IconTile icon={Undo2} color="indigo" />} title="Hand back to the main machine" value={data?.settings.auto_failback ? "Automatically" : "Manually"} />
       </Group>

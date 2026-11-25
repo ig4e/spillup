@@ -168,6 +168,7 @@ export interface T3State {
   awaits_restart?: boolean;
   address?: string;
   port?: number;
+  environment_id?: string;
   linked?: string;
   problem?: string;
 }

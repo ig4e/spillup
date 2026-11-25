@@ -62,7 +62,7 @@ func (c daemonCmd) Run() error {
 	defer stop()
 	go hostDashboard(ctx, cfg.UIPort, logger)
 	go hostDeviceDashboard(ctx, cfg.UIPort, logger)
-	go keepT3Linked(ctx, cfg, logger)
+	go keepT3Linked(ctx, logger)
 	go keepUpdated(ctx, logger)
 	go keepRemoteWeb(ctx, logger)
 	go keepSSH(ctx, logger)

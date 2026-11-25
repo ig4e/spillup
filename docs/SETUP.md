@@ -59,14 +59,15 @@ Done when: `spinup repo <clone>` prints "Nothing to do" for each clone (AGENTS.m
 
 Turn them on **once per tailnet**, by its owner: https://login.tailscale.com/admin/dns → **HTTPS Certificates** → Enable. It is a tailnet-wide setting, so a second machine never needs it again; a second *tailnet* (a friend's) does.
 
-Certificates are issued for the full MagicDNS name only (`<name>.<tailnet>.ts.net`), never for the short name. Everything spinup does between machines stays plain HTTP on port 8317 (`http://<name>:8317`) and is unaffected. What needs the certificate is `tailscale serve`, and so T3 Code's pairing link: without it, pairing hangs.
+Certificates are issued for the full MagicDNS name only (`<name>.<tailnet>.ts.net`), never for the short name. Everything spinup does between machines stays plain HTTP on port 8317 (`http://<name>:8317`) and is unaffected. Tailscale Serve uses these certificates for optional HTTPS access. Spillup can link T3 agents directly over MagicDNS.
 
 Done when: `spinup doctor` no longer warns about HTTPS certificates, and `tailscale status --json` lists the machine under `CertDomains`.
 
 ## 7. T3 Code
 
-Install T3 Code. On the hub: Settings → Connections → enable **Tailscale HTTPS** and create a pairing link. On another machine: Add environment → paste that link. Then follow [T3-PROXY.md](T3-PROXY.md) to add the proxy-backed provider instances.
-Done when: the client's T3 lists the hub as Connected over a `*.ts.net` URL (not a `192.168.*` address).
+Spillup setup enables T3 Code's Linked environments and pairs the online machines on your Tailscale account in both directions. If the desktop app was open when Network access changed, reopen it once. Each machine retries its outgoing links every five minutes, including while the accounts hub is offline. Use `spinup t3 link` to check immediately.
+
+Done when: T3 Code lists the other machines in **Settings → Environments → Linked environments**. For Claude and Codex provider setup, see [T3-PROXY.md](T3-PROXY.md).
 
 ## 8. Record it
 

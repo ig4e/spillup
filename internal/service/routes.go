@@ -98,7 +98,7 @@ func (m *Machine) tailnetHandler() http.Handler {
 // machine's dashboard and nobody else's device can; the others answer to the API key.
 func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if m.bridgeAdmits(r) && (!opensShell(r.URL.Path) || m.bridgeAdmitsOwner(r)) {
+		if m.bridgeAdmits(r) && (!ownerDashboardAction(r.URL.Path) || m.bridgeAdmitsOwner(r)) {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -106,9 +106,10 @@ func (m *Machine) bridged(h http.Handler) http.HandlerFunc {
 	}
 }
 
-// opensShell reports whether a dashboard call reaches a terminal or ends a program, which only you may do.
-func opensShell(path string) bool {
-	return strings.HasPrefix(path, dashboardPrefix+"api/term") || strings.HasPrefix(path, dashboardPrefix+"api/processes")
+func ownerDashboardAction(path string) bool {
+	return strings.HasPrefix(path, dashboardPrefix+"api/term") ||
+		strings.HasPrefix(path, dashboardPrefix+"api/processes") ||
+		strings.HasPrefix(path, dashboardPrefix+"api/t3/")
 }
 
 // bridgeAdmitsOwner admits the dashboard password, or the API key from one of your own devices, even where
