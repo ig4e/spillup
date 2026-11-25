@@ -43,6 +43,8 @@ func fakeTailscale(t *testing.T, mode string) (CLI, func() int) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	statusRuns.forget()
+	t.Cleanup(statusRuns.forget)
 	countFile := filepath.Join(t.TempDir(), "calls")
 	t.Setenv(fakeModeEnv, mode)
 	t.Setenv(fakeCountEnv, countFile)
@@ -109,5 +111,23 @@ func TestStatusNamesTheCLIComplaintWhenItKeepsFailing(t *testing.T) {
 	}
 	if calls() != 2 {
 		t.Errorf("ran the CLI %d times, want 2 (one retry)", calls())
+	}
+}
+
+func TestAGoodReadingIsReusedButAFailureIsNot(t *testing.T) {
+	cli, calls := fakeTailscale(t, "ok")
+	for range 3 {
+		if _, err := cli.Status(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls() != 1 {
+		t.Errorf("ran the CLI %d times for 3 callers within %s, want 1", calls(), reuseWithin)
+	}
+	failing, failed := fakeTailscale(t, "fail-always")
+	_, _ = failing.Status(context.Background())
+	_, _ = failing.Status(context.Background())
+	if failed() != 4 {
+		t.Errorf("ran the failing CLI %d times, want 4: a failure must be asked again", failed())
 	}
 }

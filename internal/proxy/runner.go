@@ -117,7 +117,8 @@ func (r *Runner) restartOnExit(wait func() error, exited chan struct{}) {
 func (r *Runner) base() string { return fmt.Sprintf("http://127.0.0.1:%d", r.Port) }
 
 // startWithin is how long a starting CLIProxyAPI may take to answer; a loaded machine can need more than 30s.
-const startWithin = 90 * time.Second
+// It stays under the service's own start limit (45s), which would otherwise cut the wait short without this message.
+const startWithin = 40 * time.Second
 
 func (r *Runner) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(startWithin)

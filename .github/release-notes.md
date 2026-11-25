@@ -2,10 +2,10 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.6
+### In v0.4.7
 
-- `ssh <machine>` survives updates. If a machine is off or restarting when the periodic SSH sync runs, it keeps its entry in `~/.ssh/config` instead of losing it.
-- `spinup ssh sync` says why it couldn't ask a machine.
+- **The accounts stay up on a busy machine.** When the hub was under heavy load, `tailscale status` sometimes failed and the hub stopped and restarted its proxy every few minutes. That cut running requests and briefly showed "CLIProxyAPI runs on <this machine>, not here". Spillup now runs one shared Tailscale status check per moment instead of one per caller, retries a quick failure once, and logs the CLI's own error.
+- A starting CLIProxyAPI gets 40 seconds to answer instead of 30.
 
 ### Install
 
