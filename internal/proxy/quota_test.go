@@ -33,11 +33,11 @@ func TestWorkerQuotasReadOnlyAnonymousProviderSignals(t *testing.T) {
 	}
 	c := s.Accounts[0]
 	if c.Provider != "codex" || c.State != "ready" || c.ObservedAt == nil || len(c.Windows) != 2 ||
-		c.Windows[0].Label != "5h" || c.Windows[0].UsedPercent != 0 || c.Windows[0].ResetsAt.Unix()-c.ObservedAt.Unix() != 900 || c.Windows[1].UsedPercent != 44.1 {
+		c.Windows[0].Label != "5-hour" || c.Windows[0].UsedPercent != 0 || c.Windows[0].ResetsAt.Unix()-c.ObservedAt.Unix() != 900 || c.Windows[1].UsedPercent != 44.1 {
 		t.Errorf("Codex: %+v", c)
 	}
 	a := s.Accounts[1]
-	if a.State != "limited" || len(a.Windows) != 1 || a.Windows[0].Label != "7d" || a.Windows[0].UsedPercent != 53 || a.Windows[0].ResetsAt.Unix() != 1769999999 {
+	if a.State != "limited" || len(a.Windows) != 1 || a.Windows[0].Label != "7-day" || a.Windows[0].UsedPercent != 53 || a.Windows[0].ResetsAt.Unix() != 1769999999 {
 		t.Errorf("Claude: %+v", a)
 	}
 	if s.Accounts[2].Provider != "gemini" || len(s.Accounts[2].Windows) != 0 || s.Accounts[3].State != "sign-in" || s.Accounts[4].State != "disabled" || len(s.Accounts[4].Windows) != 0 {
@@ -113,7 +113,7 @@ func TestIdleAccountsUseOnlyFixedReadOnlyUpstreams(t *testing.T) {
 				}
 				return
 			}
-			if len(a.Windows) != 1 || a.Windows[0].Label != "5h" || a.Windows[0].UsedPercent != tc.used || a.Windows[0].ResetsAt == nil || a.ObservedAt == nil {
+			if len(a.Windows) != 1 || a.Windows[0].Label != "5-hour" || a.Windows[0].UsedPercent != tc.used || a.Windows[0].ResetsAt == nil || a.ObservedAt == nil {
 				t.Fatalf("usage: %+v", a)
 			}
 			wire, _ := json.Marshal(s)

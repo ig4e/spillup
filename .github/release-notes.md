@@ -2,10 +2,14 @@
 
 ![The spillup dashboard](https://raw.githubusercontent.com/ig4e/spillup/master/docs/screenshots/overview-light.png)
 
-### In v0.4.7
+### In v0.4.8
 
-- **The accounts stay up on a busy machine.** When the hub was under heavy load, `tailscale status` sometimes failed and the hub stopped and restarted its proxy every few minutes. That cut running requests and briefly showed "CLIProxyAPI runs on <this machine>, not here". Spillup now runs one shared Tailscale status check per moment instead of one per caller, retries a quick failure once, and logs the CLI's own error.
-- A starting CLIProxyAPI gets 40 seconds to answer instead of 30.
+- **Every quota, reset and credit on the Accounts page**, like CLIProxyAPI's Management Center:
+  - **Claude:** every limit (5-hour, 7-day, and per-model weekly limits), extra-usage spend against its monthly cap, and which products used the week.
+  - **Codex:** the plan, all rate-limit windows including code review, the credit balance with message estimates, and available limit resets.
+  - **Antigravity:** the plan and each model family's remaining quota.
+  - **Gemini CLI:** each model's remaining quota.
+  - Each limit shows a bar, what's left, and when it resets.
 
 ### Install
 

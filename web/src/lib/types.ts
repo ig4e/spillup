@@ -329,15 +329,38 @@ export interface SetupPreview {
   deferred: string;
 }
 
+export interface QuotaWindow {
+  label: string;
+  used_percent: number;
+  resets_at?: string;
+  limited?: boolean;
+}
+
+/** Money or credits beyond the plan's windows; unit is an ISO currency, "credits" or "resets". */
+export interface QuotaCredit {
+  label: string;
+  unit: string;
+  used?: number;
+  limit?: number;
+  balance?: number;
+  note?: string;
+}
+
+export interface QuotaAccount {
+  provider: string;
+  state: "ready" | "sign-in" | "limited" | "disabled" | "unavailable" | "unknown";
+  observed_at?: string;
+  usage_status?: "refused" | "rate-limited" | "unavailable";
+  plan?: string;
+  windows?: QuotaWindow[];
+  models?: QuotaWindow[];
+  credits?: QuotaCredit[];
+  shares?: { label: string; percent: number }[];
+}
+
 export interface QuotaSummary {
   checked_at: string;
-  accounts: {
-    provider: string;
-    state: "ready" | "sign-in" | "limited" | "disabled" | "unavailable" | "unknown";
-    observed_at?: string;
-    usage_status?: "refused" | "rate-limited" | "unavailable";
-    windows?: { label: string; used_percent: number; resets_at?: string }[];
-  }[];
+  accounts: QuotaAccount[];
 }
 
 export interface FleetPreview {

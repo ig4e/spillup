@@ -12,28 +12,52 @@ import (
 	"github.com/darkyeg/spinup/internal/api"
 )
 
-// Older proxies and idle accounts have no passive quota windows. Ask the same fixed usage endpoints
-// as CLIProxyAPI's Management Center. Only the holder chooses a credential and destination.
+// usage is one account's reading from its provider's usage endpoint.
+type usage struct {
+	plan    string
+	windows []api.QuotaWindow
+	models  []api.QuotaWindow
+	credits []api.QuotaCredit
+	shares  []api.QuotaShare
+}
+
+func (u usage) empty() bool {
+	return len(u.windows) == 0 && len(u.models) == 0 && len(u.credits) == 0
+}
+
+// usageReaders ask the same fixed usage endpoints as CLIProxyAPI's Management Center.
+var usageReaders = map[string]func(context.Context, caller, quotaFile) (usage, string){
+	"claude":      claudeUsage,
+	"codex":       codexUsage,
+	"antigravity": antigravityUsage,
+	"gemini":      geminiUsage,
+}
+
+// fillUsage replaces passive observations with a full reading where the provider has a usage endpoint.
+// Only the holder chooses a credential and destination.
 func fillUsage(ctx context.Context, port int, password string, files []quotaFile, s api.QuotaSummary) {
-	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 14*time.Second)
 	defer cancel()
+	call := caller{port: port, password: password}
 	tasks := make(chan int)
 	var workers sync.WaitGroup
 	for range min(3, len(files)) {
 		workers.Go(func() {
 			for i := range tasks {
 				a := &s.Accounts[i]
-				if a.ObservedAt != nil && s.CheckedAt.Sub(*a.ObservedAt) < 5*time.Minute {
+				read, ok := usageReaders[a.Provider]
+				if !ok || a.State == "disabled" || a.State == "sign-in" || files[i].AuthIndex == "" {
 					continue
 				}
-				if a.State == "disabled" || a.State == "sign-in" || files[i].AuthIndex == "" || (a.Provider != "claude" && a.Provider != "codex") {
-					continue
-				}
-				windows, status := usageWindows(ctx, port, password, a.Provider, files[i])
+				u, status := read(ctx, call, files[i])
 				a.UsageStatus = status
-				if len(windows) > 0 {
-					now := time.Now().UTC()
-					a.ObservedAt, a.Windows = &now, windows
+				if u.empty() {
+					continue
+				}
+				now := time.Now().UTC()
+				a.ObservedAt, a.Plan, a.Credits, a.Shares, a.Models = &now, u.plan, u.credits, u.shares, u.models
+				if len(u.windows) > 0 {
+					a.Windows = u.windows
 				}
 			}
 		})
@@ -50,120 +74,78 @@ feed:
 	workers.Wait()
 }
 
-func usageWindows(ctx context.Context, port int, password, provider string, f quotaFile) ([]api.QuotaWindow, string) {
+// caller sends one request with an account's token through CLIProxyAPI's api-call.
+type caller struct {
+	port     int
+	password string
+}
+
+type usageRequest struct {
+	method  string
+	url     string
+	headers map[string]string
+	body    string
+}
+
+// get returns the provider's body for a 200, or a usage status naming why there is none.
+func (c caller) get(ctx context.Context, f quotaFile, r usageRequest) (string, string) {
 	headers := map[string]string{"Authorization": "Bearer $TOKEN$", "Content-Type": "application/json"}
-	var url string
-	switch provider {
-	case "claude":
-		url = "https://api.anthropic.com/api/oauth/usage"
-		headers["anthropic-beta"] = "oauth-2025-04-20"
-	case "codex":
-		url = "https://chatgpt.com/backend-api/wham/usage"
-		var claims struct {
-			AccountID string `json:"chatgpt_account_id"`
-		}
-		if json.Unmarshal(f.IDToken, &claims) == nil && claims.AccountID != "" {
-			headers["Chatgpt-Account-Id"] = claims.AccountID
-		}
-	default:
-		return nil, "unavailable"
+	for k, v := range r.headers {
+		headers[k] = v
 	}
 	payload, err := json.Marshal(struct {
 		AuthIndex string            `json:"auth_index"`
 		Method    string            `json:"method"`
 		URL       string            `json:"url"`
 		Header    map[string]string `json:"header"`
-	}{f.AuthIndex, http.MethodGet, url, headers})
+		Data      string            `json:"data,omitempty"`
+	}{f.AuthIndex, r.method, r.url, headers, r.body})
 	if err != nil {
-		return nil, "unavailable"
+		return "", "unavailable"
 	}
-	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 	var reply struct {
 		StatusCode int    `json:"status_code"`
 		Body       string `json:"body"`
 	}
-	if err := readManagement(ctx, port, password, http.MethodPost, "api-call", bytes.NewReader(payload), 1<<20, &reply); err != nil {
-		return nil, "unavailable"
+	if err := readManagement(ctx, c.port, c.password, http.MethodPost, "api-call", bytes.NewReader(payload), 4<<20, &reply); err != nil {
+		return "", "unavailable"
 	}
 	switch reply.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, "refused"
-	case http.StatusTooManyRequests:
-		return nil, "rate-limited"
 	case http.StatusOK:
-		var windows []api.QuotaWindow
-		if provider == "codex" {
-			windows = codexUsage(reply.Body)
-		} else {
-			windows = claudeUsage(reply.Body)
-		}
-		if len(windows) > 0 {
-			return windows, ""
-		}
+		return reply.Body, ""
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return "", "refused"
+	case http.StatusTooManyRequests:
+		return "", "rate-limited"
 	}
-	return nil, "unavailable"
-}
-
-func claudeUsage(body string) []api.QuotaWindow {
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(body), &data); err != nil {
-		return nil
-	}
-	var windows []api.QuotaWindow
-	for _, w := range []struct{ key, label string }{{"five_hour", "5h"}, {"seven_day", "7d"}} {
-		var item struct {
-			Utilization *float64 `json:"utilization"`
-			ResetsAt    string   `json:"resets_at"`
-		}
-		if json.Unmarshal(data[w.key], &item) != nil || !validPercent(item.Utilization) {
-			continue
-		}
-		win := api.QuotaWindow{Label: w.label, UsedPercent: math.Round(*item.Utilization*10) / 10}
-		if t, err := time.Parse(time.RFC3339, item.ResetsAt); err == nil {
-			win.ResetsAt = &t
-		}
-		windows = append(windows, win)
-	}
-	return windows
-}
-
-func codexUsage(body string) []api.QuotaWindow {
-	type window struct {
-		UsedPercent *float64 `json:"used_percent"`
-		Seconds     int      `json:"limit_window_seconds"`
-		Reset       int64    `json:"reset_at"`
-		After       int      `json:"reset_after_seconds"`
-	}
-	var data struct {
-		RateLimit struct {
-			Primary   window `json:"primary_window"`
-			Secondary window `json:"secondary_window"`
-		} `json:"rate_limit"`
-	}
-	if err := json.Unmarshal([]byte(body), &data); err != nil {
-		return nil
-	}
-	var windows []api.QuotaWindow
-	for i, w := range []window{data.RateLimit.Primary, data.RateLimit.Secondary} {
-		if !validPercent(w.UsedPercent) {
-			continue
-		}
-		label := []string{"primary", "secondary"}[i]
-		if w.Seconds >= 60 && w.Seconds <= 366*24*60*60 {
-			label = durationLabel(w.Seconds / 60)
-		}
-		win := api.QuotaWindow{Label: label, UsedPercent: math.Round(*w.UsedPercent*10) / 10}
-		if w.Reset == 0 && w.After > 0 && w.After < 366*24*60*60 {
-			w.Reset = time.Now().Unix() + int64(w.After)
-		}
-		if w.Reset > 0 && w.Reset <= 253402300799 {
-			t := time.Unix(w.Reset, 0).UTC()
-			win.ResetsAt = &t
-		}
-		windows = append(windows, win)
-	}
-	return windows
+	return "", "unavailable"
 }
 
 func validPercent(v *float64) bool { return v != nil && *v >= 0 && *v <= 100 }
+
+func roundPercent(v float64) float64 { return math.Round(v*10) / 10 }
+
+func unixTime(sec int64) *time.Time {
+	if sec <= 0 || sec > 253402300799 {
+		return nil
+	}
+	t := time.Unix(sec, 0).UTC()
+	return &t
+}
+
+func isoTime(s string) *time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	t = t.UTC()
+	return &t
+}
+
+func number(v float64) *float64 { return &v }
+
+func quotaWindow(label string, used float64, resets *time.Time, limited bool) api.QuotaWindow {
+	return api.QuotaWindow{Label: label, UsedPercent: roundPercent(used), ResetsAt: resets, Limited: limited || used >= 100}
+}

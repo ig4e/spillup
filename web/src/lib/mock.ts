@@ -192,9 +192,28 @@ export async function mock(method: string, fullPath: string, body: any): Promise
         return {
           checked_at: new Date().toISOString(),
           accounts: [
-            { provider: "claude", state: "ready", observed_at: new Date().toISOString(), windows: [{ label: "5h", used_percent: 21 }] },
-            { provider: "codex", state: "ready", observed_at: new Date().toISOString(), windows: [{ label: "7d", used_percent: 64 }] },
-            { provider: "antigravity", state: "limited" },
+            {
+              provider: "claude", state: "ready", observed_at: new Date().toISOString(),
+              windows: [
+                { label: "5-hour", used_percent: 21, resets_at: new Date(Date.now() + 3 * 3600_000).toISOString() },
+                { label: "7-day", used_percent: 74, resets_at: new Date(Date.now() + 58 * 3600_000).toISOString() },
+                { label: "7-day · Opus", used_percent: 100, limited: true, resets_at: new Date(Date.now() + 58 * 3600_000).toISOString() },
+              ],
+              credits: [{ label: "Extra usage this month", unit: "USD", used: 12.4, limit: 50, note: "Turned on" }],
+              shares: [{ label: "Claude Code", percent: 92 }, { label: "Chats", percent: 8 }],
+            },
+            {
+              provider: "codex", state: "ready", plan: "Pro", observed_at: new Date().toISOString(),
+              windows: [{ label: "7-day", used_percent: 42, resets_at: new Date(Date.now() + 6 * 86400_000).toISOString() }],
+              credits: [
+                { label: "Credits", unit: "credits", balance: 49836, note: "about 12,459–64,787 local messages" },
+                { label: "Limit resets", unit: "resets", balance: 4, note: "0 usable now" },
+              ],
+            },
+            {
+              provider: "antigravity", state: "limited", plan: "Google AI Pro", observed_at: new Date().toISOString(),
+              models: ["Claude Opus 5.5", "Claude Sonnet 5.5", "Gemini 3 Flash", "GPT-OSS 120B"].map((label, i) => ({ label, used_percent: [100, 35, 0, 80][i], limited: i === 0, resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() })),
+            },
           ],
         };
       case "proxy/logins":

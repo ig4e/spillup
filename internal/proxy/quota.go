@@ -19,6 +19,7 @@ type quotaFile struct {
 	Provider  string          `json:"provider"`
 	Type      string          `json:"type"`
 	AuthIndex string          `json:"auth_index"`
+	ProjectID string          `json:"project_id"`
 	IDToken   json.RawMessage `json:"id_token"`
 	Quota     struct {
 		ObservedAt time.Time         `json:"observed_at"`
@@ -65,7 +66,7 @@ func (f quotaFile) summary() api.QuotaAccount {
 	case "codex":
 		for _, window := range []string{"primary", "secondary"} {
 			prefix := "X-Codex-" + window
-			label := window
+			label := planName(window)
 			if mins, err := strconv.Atoi(h.Get(prefix + "-window-minutes")); err == nil && mins > 0 && mins <= 60*24*366 {
 				label = durationLabel(mins)
 			}
@@ -78,9 +79,9 @@ func (f quotaFile) summary() api.QuotaAccount {
 			a.Windows = addWindow(a.Windows, label, h.Get(prefix+"-used-percent"), reset, 1)
 		}
 	case "claude":
-		for _, window := range []string{"5h", "7d"} {
-			prefix := "Anthropic-Ratelimit-Unified-" + window
-			a.Windows = addWindow(a.Windows, window, h.Get(prefix+"-utilization"), h.Get(prefix+"-reset"), 100)
+		for _, window := range []struct{ header, label string }{{"5h", "5-hour"}, {"7d", "7-day"}} {
+			prefix := "Anthropic-Ratelimit-Unified-" + window.header
+			a.Windows = addWindow(a.Windows, window.label, h.Get(prefix+"-utilization"), h.Get(prefix+"-reset"), 100)
 		}
 	}
 	if len(a.Windows) > 0 {
@@ -109,12 +110,12 @@ func accountState(s LoginState) string {
 
 func durationLabel(mins int) string {
 	if mins%(60*24) == 0 {
-		return strconv.Itoa(mins/(60*24)) + "d"
+		return strconv.Itoa(mins/(60*24)) + "-day"
 	}
 	if mins%60 == 0 {
-		return strconv.Itoa(mins/60) + "h"
+		return strconv.Itoa(mins/60) + "-hour"
 	}
-	return strconv.Itoa(mins) + "m"
+	return strconv.Itoa(mins) + "-minute"
 }
 
 func addWindow(windows []api.QuotaWindow, label, used, reset string, scale float64) []api.QuotaWindow {
@@ -123,10 +124,6 @@ func addWindow(windows []api.QuotaWindow, label, used, reset string, scale float
 	if err != nil || math.IsNaN(pct) || pct < 0 || pct > 100 {
 		return windows
 	}
-	w := api.QuotaWindow{Label: label, UsedPercent: math.Round(pct*10) / 10}
-	if sec, err := strconv.ParseInt(reset, 10, 64); err == nil && sec > 0 && sec <= 253402300799 {
-		at := time.Unix(sec, 0).UTC()
-		w.ResetsAt = &at
-	}
-	return append(windows, w)
+	sec, _ := strconv.ParseInt(reset, 10, 64)
+	return append(windows, quotaWindow(label, pct, unixTime(sec), false))
 }
