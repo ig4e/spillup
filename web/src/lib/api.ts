@@ -136,6 +136,8 @@ export const api = {
   keys: () => call<Keys>("GET", "keys"),
 
   sharedQuotas: read<QuotaSummary>("accounts/quotas"),
+  /** Asks the holder to read every provider again now; it allows this once every 30 seconds. */
+  freshQuotas: () => call<QuotaSummary>("GET", "accounts/quotas?fresh=1", undefined, true),
   handoff: (to: string) => post("accounts/handoff", { to }),
   takeover: () => post("accounts/takeover"),
   restartProxy: () => post("accounts/restart"),

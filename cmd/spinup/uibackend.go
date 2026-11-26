@@ -41,7 +41,7 @@ func (cliBackend) Report(context.Context) (api.Report, error) {
 	return localService(cfg, "").report()
 }
 
-func (cliBackend) SharedQuotas(ctx context.Context) (api.QuotaSummary, error) {
+func (cliBackend) SharedQuotas(ctx context.Context, fresh bool) (api.QuotaSummary, error) {
 	var summary api.QuotaSummary
 	cfg, err := config.Load()
 	if err != nil {
@@ -55,7 +55,7 @@ func (cliBackend) SharedQuotas(ctx context.Context) (api.QuotaSummary, error) {
 	l.client.APIKey = secrets.APIKey
 	ctx, cancel := context.WithTimeout(ctx, 21*time.Second)
 	defer cancel()
-	err = l.client.Get(ctx, l.base+api.PathQuotas, &summary)
+	err = l.client.Get(ctx, l.base+api.QuotasPath(fresh), &summary)
 	if api.WasRefused(err) {
 		return summary, err
 	}

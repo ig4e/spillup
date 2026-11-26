@@ -29,7 +29,8 @@ import (
 type Backend interface {
 	documentBackend
 	mcpSecretBackend
-	SharedQuotas(context.Context) (api.QuotaSummary, error)
+	// SharedQuotas reads the holder's quota summary; fresh asks it to read the providers again now.
+	SharedQuotas(ctx context.Context, fresh bool) (api.QuotaSummary, error)
 	Facts() Facts
 	Report(ctx context.Context) (api.Report, error)
 	Tailnet(ctx context.Context) (tailnet.Status, error)

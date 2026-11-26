@@ -91,7 +91,45 @@ func claudeUsage(ctx context.Context, c caller, f quotaFile) (usage, string) {
 	if u.empty() {
 		return u, "unavailable"
 	}
+	if profile, s := c.get(ctx, f, usageRequest{
+		method:  http.MethodGet,
+		url:     "https://api.anthropic.com/api/oauth/profile",
+		headers: map[string]string{"anthropic-beta": "oauth-2025-04-20"},
+	}); s == "" {
+		u.plan = claudePlan(profile)
+	}
 	return u, ""
+}
+
+var claudeTiers = map[string]string{"claude_max": "Max", "claude_pro": "Pro", "claude_team": "Team", "claude_enterprise": "Enterprise"}
+
+// claudePlan names the subscription as Claude does, e.g. "Max 20x"; it reads no identity.
+func claudePlan(body string) string {
+	var reply struct {
+		Organization struct {
+			Type        string `json:"organization_type"`
+			Tier        string `json:"rate_limit_tier"`
+			DisplayName string `json:"plan_display_name"`
+			Status      string `json:"subscription_status"`
+		} `json:"organization"`
+	}
+	if json.Unmarshal([]byte(body), &reply) != nil {
+		return ""
+	}
+	o := reply.Organization
+	plan := o.DisplayName
+	if plan == "" {
+		plan = claudeTiers[o.Type]
+		for _, x := range []string{"20x", "5x"} {
+			if plan != "" && strings.HasSuffix(o.Tier, "_"+x) {
+				plan += " " + x
+			}
+		}
+	}
+	if plan != "" && o.Status != "" && o.Status != "active" {
+		plan += " (" + strings.ReplaceAll(o.Status, "_", " ") + ")"
+	}
+	return plan
 }
 
 func parseClaudeUsage(body string) usage {

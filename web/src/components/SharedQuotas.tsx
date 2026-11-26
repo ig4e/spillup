@@ -1,9 +1,12 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Button } from "@heroui/react";
+import { RefreshCw } from "lucide-react";
 import { BrandTile } from "./brand";
 import { Dot, Group, Row } from "./ui";
 import { api } from "../lib/api";
 import { relative } from "../lib/format";
-import { useQuery } from "../lib/hooks";
+import { useQuery, useRemote } from "../lib/hooks";
+import { dashboardClient, dashboardKey } from "../lib/query-cache";
 import { providerLook } from "../lib/providers";
 import type { QuotaAccount, QuotaCredit, QuotaWindow } from "../lib/types";
 
@@ -165,14 +168,36 @@ function QuotaCard({ account, title }: { account: QuotaAccount; title: string })
 
 export function SharedQuotas() {
   const { data, error, refreshError, loading } = useQuery(api.sharedQuotas, 30_000);
+  const machine = useRemote();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refetchError, setRefetchError] = useState("");
+  async function refetch() {
+    setRefreshing(true);
+    setRefetchError("");
+    try {
+      dashboardClient.setQueryData(dashboardKey(api.sharedQuotas.queryPath(machine)), await api.freshQuotas());
+    } catch (e) {
+      setRefetchError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
+    }
+  }
   const accounts = data?.accounts ?? [];
   const seen = new Map<string, number>();
   const counts = new Map<string, number>();
   for (const a of accounts) counts.set(a.provider, (counts.get(a.provider) ?? 0) + 1);
   return (
     <Group
-      title="Quotas & Credits"
-      footer={data ? `The account holder checked ${relative(data.checked_at)}, at most once every five minutes. ${refreshError ? "Refresh unavailable; showing the last reading." : ""}` : undefined}
+      title={
+        <span className="flex items-center gap-2">
+          Quotas & Credits
+          <Button size="sm" variant="ghost" className="ml-auto h-7 gap-1.5 px-2 text-[13px] font-medium text-accent" isDisabled={refreshing} onPress={refetch} aria-label="Refetch quotas from the providers">
+            <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refetching…" : "Refetch"}
+          </Button>
+        </span>
+      }
+      footer={data ? `The account holder checked ${relative(data.checked_at)}; it reads the providers every five minutes, or when you refetch (at most every 30 seconds).${refetchError ? ` Refetch failed: ${refetchError}` : refreshError ? " Refresh unavailable; showing the last reading." : ""}` : undefined}
     >
       {error ? <Row title="Quotas unavailable" subtitle={<span className="whitespace-normal">{error.message}</span>} />
         : accounts.length ? accounts.map((account) => {

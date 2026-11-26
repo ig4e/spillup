@@ -15,8 +15,12 @@ type quotaCache struct {
 	summary api.QuotaSummary
 	err     error
 	until   time.Time
+	read    time.Time
 	epoch   int64
 }
+
+// freshEvery limits reads the user asks for, so repeated refreshes can't get a key banned.
+const freshEvery = 30 * time.Second
 
 func (m *Machine) serveQuotaView(w http.ResponseWriter, r *http.Request) {
 	if m.ledger.view(time.Now()).Leading {
@@ -33,7 +37,7 @@ func (m *Machine) serveQuotaView(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	client := api.Client{HTTP: m.httpClient, APIKey: m.o.Secrets.APIKey}
 	var summary api.QuotaSummary
-	if err := client.Get(ctx, m.peerURL(leader, node.IP, api.PathQuotas), &summary); err != nil {
+	if err := client.Get(ctx, m.peerURL(leader, node.IP, api.QuotasPath(wantsFresh(r))), &summary); err != nil {
 		writeError(w, http.StatusBadGateway, "the account holder could not provide a quota summary; check its service and Spillup version")
 		return
 	}
@@ -50,7 +54,8 @@ func (m *Machine) serveHolderQuotas(w http.ResponseWriter, r *http.Request) {
 	// One bounded read serves all dashboards. Back off after a refusal to avoid a proxy key ban.
 	cache := &m.quotas
 	cache.mu.Lock()
-	if cache.epoch != st.Epoch || time.Now().After(cache.until) {
+	fresh := wantsFresh(r) && time.Since(cache.read) >= freshEvery
+	if fresh || cache.epoch != st.Epoch || time.Now().After(cache.until) {
 		end, open := m.activity.begin()
 		if !open {
 			cache.mu.Unlock()
@@ -59,7 +64,7 @@ func (m *Machine) serveHolderQuotas(w http.ResponseWriter, r *http.Request) {
 		}
 		cache.summary, cache.err = proxy.ReadQuotas(r.Context(), m.cfg.ProxyPort, m.o.Secrets.ManagementPassword)
 		end()
-		cache.epoch = st.Epoch
+		cache.epoch, cache.read = st.Epoch, time.Now()
 		cache.until = time.Now().Add(5 * time.Minute)
 		if cache.err != nil {
 			cache.until = time.Now().Add(2 * time.Minute)
@@ -77,3 +82,5 @@ func (m *Machine) serveHolderQuotas(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, summary)
 }
+
+func wantsFresh(r *http.Request) bool { return r.URL.Query().Get("fresh") == "1" }

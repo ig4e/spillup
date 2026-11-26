@@ -54,7 +54,7 @@ func (s *Server) serveProxyLogins(w http.ResponseWriter, r *http.Request) {
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 func (s *Server) serveSharedQuotas(w http.ResponseWriter, r *http.Request) {
-	q, err := s.b.SharedQuotas(r.Context())
+	q, err := s.b.SharedQuotas(r.Context(), r.URL.Query().Get("fresh") == "1")
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return

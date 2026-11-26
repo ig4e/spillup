@@ -68,10 +68,11 @@ func TestIdleAccountsUseOnlyFixedReadOnlyUpstreams(t *testing.T) {
 		provider, url, body string
 		status              int
 		used                float64
+		calls               int
 	}{
-		{"codex", "https://chatgpt.com/backend-api/wham/usage", `{"rate_limit":{"primary_window":{"used_percent":11.4,"limit_window_seconds":18000,"reset_at":1789999999}}}`, 200, 11.4},
-		{"claude", "https://api.anthropic.com/api/oauth/usage", `{"five_hour":{"utilization":0,"resets_at":"2026-11-15T00:00:00Z"}}`, 200, 0},
-		{"codex", "https://chatgpt.com/backend-api/wham/usage", "private upstream error", 401, 0},
+		{"codex", "https://chatgpt.com/backend-api/wham/usage", `{"rate_limit":{"primary_window":{"used_percent":11.4,"limit_window_seconds":18000,"reset_at":1789999999}}}`, 200, 11.4, 1},
+		{"claude", "https://api.anthropic.com/api/oauth/usage", `{"five_hour":{"utilization":0,"resets_at":"2026-11-15T00:00:00Z"}}`, 200, 0, 2},
+		{"codex", "https://chatgpt.com/backend-api/wham/usage", "private upstream error", 401, 0, 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.provider+strconv.Itoa(tc.status), func(t *testing.T) {
@@ -91,7 +92,7 @@ func TestIdleAccountsUseOnlyFixedReadOnlyUpstreams(t *testing.T) {
 					Header    map[string]string
 					AuthIndex string `json:"auth_index"`
 				}
-				if r.Method != "POST" || r.URL.Path != "/v0/management/api-call" || json.NewDecoder(r.Body).Decode(&req) != nil || req.Method != "GET" || req.URL != tc.url || req.AuthIndex != "opaque" || req.Header["Authorization"] != "Bearer $TOKEN$" {
+				if r.Method != "POST" || r.URL.Path != "/v0/management/api-call" || json.NewDecoder(r.Body).Decode(&req) != nil || req.Method != "GET" || (req.URL != tc.url && !(calls == 2 && req.URL == "https://api.anthropic.com/api/oauth/profile")) || req.AuthIndex != "opaque" || req.Header["Authorization"] != "Bearer $TOKEN$" {
 					t.Error("unexpected upstream request")
 				}
 				if tc.provider == "codex" && req.Header["Chatgpt-Account-Id"] != "account-id" {
@@ -103,7 +104,7 @@ func TestIdleAccountsUseOnlyFixedReadOnlyUpstreams(t *testing.T) {
 			_, port, _ := net.SplitHostPort(holder.Listener.Addr().String())
 			n, _ := strconv.Atoi(port)
 			s, err := ReadQuotas(context.Background(), n, "management-only")
-			if err != nil || calls != 1 || len(s.Accounts) != 1 {
+			if err != nil || calls != tc.calls || len(s.Accounts) != 1 {
 				t.Fatalf("calls %d: %+v %v", calls, s, err)
 			}
 			a := s.Accounts[0]

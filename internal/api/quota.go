@@ -4,6 +4,14 @@ import "time"
 
 const PathQuotas = "/spinup/quotas"
 
+// QuotasPath asks for the quota summary; fresh asks the holder to read the providers again now.
+func QuotasPath(fresh bool) string {
+	if fresh {
+		return PathQuotas + "?fresh=1"
+	}
+	return PathQuotas
+}
+
 // QuotaSummary contains only the account holder's read-only, anonymous observations.
 type QuotaSummary struct {
 	CheckedAt time.Time      `json:"checked_at"`

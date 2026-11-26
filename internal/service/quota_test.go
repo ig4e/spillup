@@ -82,6 +82,27 @@ func TestQuotaViewRunsThroughOwnerAndKeyChecksAndNeverRelaysTheManagementPasswor
 	if reads.Load() != 1 {
 		t.Fatalf("dashboard reads reached management %d times", reads.Load())
 	}
+	refresh := func() {
+		r := httptest.NewRequest("GET", api.QuotasPath(true), nil)
+		r.RemoteAddr = "127.0.0.1:1234"
+		r.Header.Set(api.APIKeyHeader, "fleet")
+		w := httptest.NewRecorder()
+		worker.routes(onLocalhost).ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("refresh: %d %s", w.Code, w.Body.String())
+		}
+	}
+	refresh()
+	if reads.Load() != 1 {
+		t.Fatal("a refresh within freshEvery of the last read reached management again")
+	}
+	hub.quotas.mu.Lock()
+	hub.quotas.read = hub.quotas.read.Add(-freshEvery)
+	hub.quotas.mu.Unlock()
+	refresh()
+	if reads.Load() != 2 {
+		t.Fatalf("a refresh after freshEvery read management %d times, want 2", reads.Load())
+	}
 	worker.tail.set(tailnet.Status{Self: tailnet.Node{Name: "worker", UserID: 7}, Peers: []tailnet.Node{{Name: "hub", IP: "100.64.0.1", UserID: 8}}})
 	if got := call(worker.routes(onLocalhost), "GET", "127.0.0.1", "fleet").Code; got != 503 {
 		t.Errorf("worker still trusts previous holder: %d", got)

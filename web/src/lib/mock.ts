@@ -189,11 +189,12 @@ export async function mock(method: string, fullPath: string, body: any): Promise
           { id: "ccp", name: "ccp", installed: true },
         ];
       case "accounts/quotas":
+      case "accounts/quotas?fresh=1":
         return {
           checked_at: new Date().toISOString(),
           accounts: [
             {
-              provider: "claude", state: "ready", observed_at: new Date().toISOString(),
+              provider: "claude", state: "ready", plan: "Max 20x", observed_at: new Date().toISOString(),
               windows: [
                 { label: "5-hour", used_percent: 21, resets_at: new Date(Date.now() + 3 * 3600_000).toISOString() },
                 { label: "7-day", used_percent: 74, resets_at: new Date(Date.now() + 58 * 3600_000).toISOString() },

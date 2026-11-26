@@ -40,7 +40,7 @@ type fakeBackend struct {
 	panels map[string]Panel
 }
 
-func (*fakeBackend) SharedQuotas(context.Context) (api.QuotaSummary, error) {
+func (*fakeBackend) SharedQuotas(context.Context, bool) (api.QuotaSummary, error) {
 	return api.QuotaSummary{Accounts: []api.QuotaAccount{}}, nil
 }
 func (*fakeBackend) Facts() webuiFacts {

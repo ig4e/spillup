@@ -57,3 +57,17 @@ func TestAntigravityModelsShareOneQuotaPerFamily(t *testing.T) {
 		t.Error("tier name")
 	}
 }
+
+func TestClaudePlanNamesTheSubscriptionWithoutIdentity(t *testing.T) {
+	cases := map[string]string{
+		`{"account":{"email":"private"},"organization":{"organization_type":"claude_max","rate_limit_tier":"default_claude_max_20x","plan_display_name":"Ultra","subscription_status":"active"}}`: "Ultra",
+		`{"organization":{"organization_type":"claude_max","rate_limit_tier":"default_claude_max_5x"}}`:                                                                                           "Max 5x",
+		`{"organization":{"organization_type":"claude_pro","subscription_status":"past_due"}}`:                                                                                                    "Pro (past due)",
+		`not json`: "",
+	}
+	for body, want := range cases {
+		if got := claudePlan(body); got != want {
+			t.Errorf("claudePlan(%s) = %q, want %q", body, got, want)
+		}
+	}
+}
